@@ -233,6 +233,7 @@ class Component extends DCLogic {
     const D = st.done;
     const doneTo = D ? JSON.parse(D.shipment.to_json) : null;
     return {
+      signOut: async () => { try { await api('/api/auth/logout', { method: 'POST' }); } catch { /* already out */ } location.href = '/'; },
       nav: ['Dashboard', 'Shipments', 'Wallet', 'Invoices', 'Address book', 'Integrations', 'Settings', 'Help'],
       modes, intl, flow: !D, done: !!D,
       s1: step(1), s2: step(2), s3: step(3), s4: step(4), s5: step(5),

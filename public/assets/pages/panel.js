@@ -317,6 +317,7 @@ class Component extends DCLogic {
 
     const low = st.bal < 20;
     return {
+      signOut: async () => { try { await api('/api/auth/logout', { method: 'POST' }); } catch { /* already out */ } location.href = '/'; },
       nav, isDash: st.nav === 'dash', isWallet: st.nav === 'wallet',
       isShip: st.nav === 'ship', isInv: st.nav === 'inv', isAddr: st.nav === 'addr', isRet: false, isInt: st.nav === 'int', isSet: st.nav === 'set',
       shipRows, shipTabs, hasSel: selCount > 0, selCount, clearSel: () => this.setState({ shipSel: {} }), shipShown: shipRows.length ? `1–${shipRows.length}` : '0', pages: [],
