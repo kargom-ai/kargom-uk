@@ -57,6 +57,11 @@ export class AuthService {
     // Same work whether or not the email exists, so timing does not leak accounts.
     const ok = c ? await verifyPassword(password, c.password_hash) : (await verifyPassword(password, 'scrypt$AAAAAAAAAAAAAAAAAAAAAA==$' + 'A'.repeat(43) + '='), false);
     if (!c || !ok) throw new AppError('unauthorized', 'Email or password is wrong');
+    const admins = (process.env.ADMIN_EMAILS ?? '').toLowerCase().split(',').map((x) => x.trim()).filter(Boolean);
+    if (c.role !== 'admin' && admins.includes(email.trim().toLowerCase())) {
+      await this.db.run("UPDATE customers SET role = 'admin' WHERE id = $1", [c.id]);
+      c.role = 'admin';
+    }
     const token = randomBytes(32).toString('base64url');
     const expires = new Date(this.clock.now().getTime() + this.sessionDays * 86_400_000).toISOString();
     await this.db.run('INSERT INTO sessions (token_hash, customer_id, expires_at) VALUES ($1,$2,$3)', [sha256(token), c.id, expires]);

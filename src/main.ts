@@ -3,6 +3,7 @@ import { createApp } from './app.ts';
 import { startServer } from './http/server.ts';
 import { FakeGateway, StripeGateway } from './payments/stripe.ts';
 import { MockProvider } from './providers/mock.ts';
+import { ShipEngineProvider } from './providers/shipengine.ts';
 
 const env = (k: string, fallback?: string) => {
   const v = process.env[k] ?? fallback;
@@ -25,6 +26,22 @@ const app = await createApp(db, {
   quoteTimeoutMs: Number(process.env.QUOTE_TIMEOUT_MS ?? 2500),
   quoteTtlMs: Number(process.env.QUOTE_TTL_MS ?? 15 * 60_000),
 }, payments);
+
+// ShipStation (API v2) straight from environment variables, so it works before the admin screens exist.
+if (process.env.SHIPSTATION_API_KEY) {
+  const shipstation = new ShipEngineProvider({
+    id: 'shipstation',
+    baseUrl: process.env.SHIPSTATION_BASE_URL ?? 'https://api.shipstation.com/v2',
+    apiKey: process.env.SHIPSTATION_API_KEY,
+    carrierIds: (process.env.SHIPSTATION_CARRIER_IDS ?? '').split(',').map((x) => x.trim()).filter(Boolean),
+  });
+  app.registry.addStatic(shipstation);
+  // Connection check on start-up: prints carrier names (never the key) to the logs.
+  shipstation
+    .listCarriers(AbortSignal.timeout(10_000))
+    .then((cs) => console.log(`[shipstation] connected: ${cs.length} carrier account(s): ${cs.map((c) => `${c.name} (${c.id})`).join(', ') || 'none - connect carriers in ShipStation first'}`))
+    .catch((e) => console.error(`[shipstation] connection FAILED: ${(e as Error).message} ${JSON.stringify((e as { details?: unknown }).details ?? '')}`));
+}
 
 if (!production && process.env.MOCK_PROVIDER !== '0') app.registry.addStatic(new MockProvider());
 

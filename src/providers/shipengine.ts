@@ -128,11 +128,27 @@ export class ShipEngineProvider implements ShippingProvider {
     };
   }
 
+  private carrierCache: string[] | null = null;
+
+  /** Carrier accounts connected in the ShipStation / ShipEngine dashboard. */
+  async listCarriers(signal?: AbortSignal): Promise<Array<{ id: string; code: string; name: string }>> {
+    const out = await this.call<{ carriers?: Array<{ carrier_id: string; carrier_code: string; friendly_name: string; nickname?: string }> }>('GET', '/carriers', undefined, signal);
+    return (out.carriers ?? []).map((c) => ({ id: c.carrier_id, code: c.carrier_code, name: c.nickname || c.friendly_name }));
+  }
+
+  private async carrierIds(signal: AbortSignal): Promise<string[]> {
+    if (this.cfg.carrierIds.length) return this.cfg.carrierIds;
+    if (!this.carrierCache) this.carrierCache = (await this.listCarriers(signal)).map((c) => c.id);
+    return this.carrierCache;
+  }
+
   async getRates(req: ShipmentRequest, signal: AbortSignal): Promise<ProviderRate[]> {
+    const carrierIds = await this.carrierIds(signal);
+    if (!carrierIds.length) return [];
     const out = await this.call<{ rate_response?: { rates?: SeRate[] } }>(
       'POST',
       '/rates',
-      { rate_options: { carrier_ids: this.cfg.carrierIds }, shipment: this.shipmentBody(req) },
+      { rate_options: { carrier_ids: carrierIds }, shipment: this.shipmentBody(req) },
       signal,
     );
     const rates = out.rate_response?.rates ?? [];
