@@ -7,6 +7,8 @@ import { verifyStripeSignature } from '../payments/stripe.ts';
 import { CATEGORIES, type Category, type TicketStatus } from '../support/tickets.ts';
 import type { ShipmentRequest } from '../providers/types.ts';
 import { parseGbp } from '../core/money.ts';
+import { serveStatic } from './static.ts';
+import { FakeGateway } from '../payments/stripe.ts';
 
 type Ctx = {
   req: IncomingMessage;
@@ -111,6 +113,38 @@ export function buildRouter(app: App) {
   });
 
   // ---------- quotes & booking
+  /** Homepage prices without signing in. No tokens: booking needs a signed-in quote. */
+  on('POST', '/api/quotes/preview', 'public', async (c) => {
+    quoteLimiter.check(ip(c));
+    const { quotes, failures } = await app.quotes.quote('anonymous', c.body as ShipmentRequest);
+    return { quotes: quotes.map(({ token: _t, ...q }) => q), failures: failures.length };
+  });
+  on('GET', '/api/me', 'customer', async (c) => {
+    const u = await app.db.get<Record<string, unknown>>(
+      'SELECT id, email, name, company, phone, account_type, role, bookings_paused, default_payment_method IS NOT NULL AS has_card FROM customers WHERE id = $1', [me(c)]);
+    return { ...u, demoPayments: app.payments instanceof FakeGateway };
+  });
+  on('PUT', '/api/me', 'customer', async (c) => {
+    const sets: string[] = []; const vals: (string | null)[] = [];
+    for (const k of ['name', 'phone', 'company'] as const) {
+      if (typeof c.body[k] === 'string') {
+        const v = c.body[k].trim().slice(0, 120);
+        if (k === 'name' && !v) throw new AppError('bad_request', 'Name is required');
+        vals.push(v || null); sets.push(`${k} = $${vals.length}`);
+      }
+    }
+    if (sets.length) { vals.push(me(c)); await app.db.run(`UPDATE customers SET ${sets.join(', ')} WHERE id = $${vals.length}`, vals); }
+    return { ok: true };
+  });
+  /** Test mode only: simulate a successful Stripe top-up so the wallet can be tried end to end. */
+  on('POST', '/api/dev/topup', 'customer', async (c) => {
+    if (!(app.payments instanceof FakeGateway)) throw new AppError('forbidden', 'Only available in test mode');
+    const amount = Number(c.body.amountPence);
+    if (!Number.isSafeInteger(amount) || amount < 500 || amount > 50_000) throw new AppError('bad_request', 'Between £5 and £500 in test mode');
+    const pi = await app.payments.createPaymentIntent({ amount, customerStripeId: null, metadata: { purpose: 'topup', customer_id: me(c) }, idempotencyKey: `devtopup:${Date.now()}`, saveCard: false });
+    await app.webhooks.stripe({ id: `evt_dev_${pi.id}`, type: 'payment_intent.succeeded', data: { object: { id: pi.id, amount_received: amount, metadata: { purpose: 'topup', customer_id: me(c) } } } });
+    return { balancePence: await app.wallet.balance(me(c)) };
+  });
   on('POST', '/api/quotes', 'customer', async (c) => {
     quoteLimiter.check(me(c));
     const cust = await app.db.get<{ pricing_discount_bp: number }>('SELECT pricing_discount_bp FROM customers WHERE id = $1', [me(c)]);
@@ -198,7 +232,18 @@ export function buildRouter(app: App) {
     return { ok: true };
   });
   on('GET', '/api/admin/finance', 'admin', async () => app.admin.finance());
-  on('GET', '/api/admin/providers', 'admin', async () => ({ providers: await app.registry.describe() }));
+  on('GET', '/api/admin/ledger', 'admin', async () => ({ entries: await app.admin.ledgerEntries(100) }));
+  /** Live provider costs for a typical 2 kg UK parcel, so the pricing screen shows real margins. */
+  on('GET', '/api/admin/pricing/preview', 'admin', async () => {
+    const req = { from: { name: 'A', line1: '1 St', city: 'Manchester', postcode: 'M1 1AE', country: 'GB' }, to: { name: 'B', line1: '1 St', city: 'Leeds', postcode: 'LS1 5HD', country: 'GB' },
+      parcel: { weightGrams: 2000, lengthCm: 30, widthCm: 20, heightCm: 15 } };
+    const out: Array<{ provider: string; carrier: string; serviceCode: string; serviceName: string; cost: number }> = [];
+    for (const p of app.registry.all()) {
+      try { for (const r of await p.getRates(req, AbortSignal.timeout(8000))) out.push({ provider: p.id, carrier: r.carrier, serviceCode: r.serviceCode, serviceName: r.serviceName, cost: r.cost }); } catch { /* skip */ }
+    }
+    return { services: out.sort((a, b) => a.cost - b.cost), rules: await app.pricing.list() };
+  });
+  on('GET', '/api/admin/providers', 'admin', async () => ({ providers: await app.registry.describe(), live: app.registry.all().map((p) => p.id), demoPayments: app.payments instanceof FakeGateway }));
   on('PUT', '/api/admin/providers/:id', 'admin', async (c) => {
     await app.registry.save(c.params.id!, { mode: c.body.mode === 'live' ? 'live' : 'test', enabled: Boolean(c.body.enabled), secrets: c.body.secrets ?? {} });
     return { providers: await app.registry.describe() };
@@ -247,7 +292,10 @@ export function buildRouter(app: App) {
     try {
       const url = new URL(req.url ?? '/', 'http://local');
       const route = routes.find((r) => r.method === req.method && r.pattern.test(url.pathname));
-      if (!route) throw new AppError('not_found', 'Not found');
+      if (!route) {
+        if (await serveStatic(req, res, url.pathname)) return;
+        throw new AppError('not_found', 'Not found');
+      }
       const m = route.pattern.exec(url.pathname)!;
       const params = Object.fromEntries(route.keys.map((k, i) => [k, decodeURIComponent(m[i + 1]!)]));
       const raw = req.method === 'GET' ? '' : await readBody(req);

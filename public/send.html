@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Send a parcel — Kargom</title>
+<link rel="icon" href="/assets/logo-white.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#F4F6FA}
+a{color:#2463DB}a:hover{color:#1A4FB8}
+.nav:hover{background:#EEF3FB}
+.opt:hover{border-color:#2463DB}
+.btn:hover{filter:brightness(1.06)}
+.ghost:hover{background:#F4F6FA}
+.qty:hover{background:#EAF2FE}
+select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
+</style>
+<style>.kg-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1F2A3C;color:#fff;padding:12px 18px;border-radius:12px;font:600 14px 'Plus Jakarta Sans',sans-serif;z-index:60;box-shadow:0 12px 30px rgba(8,14,28,.3)}</style>
+<script type="module" src="/assets/pages/send.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/x-template" id="tpl">
+<div style="font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #1F2A3C; background: #F4F6FA; width: 100%; min-height: 100vh; display: flex; flex-direction: column">
+
+  <header style="background: #1F2A3C; color: #FFFFFF">
+    <div style="padding: 12px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px">
+      <a href="/" aria-label="Kargom.co.uk home"><img src="/assets/logo-white.png" alt="Kargom.co.uk" style="height: 28px; width: auto; display: block"></a>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 14px">
+        <button type="button" aria-label="Notifications" style="position: relative; width: 42px; height: 42px; border-radius: 10px; border: 0; background: transparent; color: #DCE4F2; display: grid; place-items: center; cursor: pointer">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"></path></svg>
+          <span style="position: absolute; top: 9px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: #E5484D; box-shadow: 0 0 0 2px #1F2A3C"></span>
+        </button>
+        <a href="/app" aria-label="Wallet balance {{balTxt}}" style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px 0 6px; border-radius: 12px; border: 1px solid #3B4A63; background: #26334A; color: #FFFFFF; font: 700 15px 'Outfit', sans-serif; text-decoration: none">
+          <span style="width: 32px; height: 32px; border-radius: 8px; background: #2463DB; display: grid; place-items: center">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="3"></rect><path d="M3 10h18M16 15h2"></path></svg>
+          </span>
+          <span style="font-variant-numeric: tabular-nums">{{balTxt}}</span>
+        </a>
+        <span style="display: flex; align-items: center; gap: 10px">
+          <span style="width: 38px; height: 38px; border-radius: 50%; background: #FFFFFF; color: #1F2A3C; display: grid; place-items: center; font: 700 14px 'Outfit', sans-serif">{{meIni}}</span>
+          <span style="display: flex; flex-direction: column; line-height: 1.25"><b style="font-size: 14px">{{meName}}</b><span style="font-size: 12px; color: #9FB0C8">{{meType}}</span></span>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <div style="flex: 1; display: flex; flex-wrap: wrap; align-items: stretch">
+    <aside aria-label="Account menu" style="flex: 1 1 230px; max-width: 250px; background: #FFFFFF; border-right: 1px solid #E1E7EF; padding: 20px 14px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box">
+      <a href="/app/send" aria-current="page" style="display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; border-radius: 11px; background: #2463DB; color: #FFFFFF; font-weight: 700; text-decoration: none; box-shadow: 0 0 0 3px #BFD6FB">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Send a parcel
+      </a>
+      <span style="height: 12px"></span>
+      <nav style="display: flex; flex-direction: column; gap: 2px">
+        <sc-for list="{{nav}}" as="n" hint-placeholder-count="8">
+          <a href="/app" class="nav" style="display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 0 12px; border-radius: 10px; color: #3E4A5C; font: 600 14px 'Plus Jakarta Sans', sans-serif; text-decoration: none">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #C9D6EA"></span>{{n}}
+          </a>
+        </sc-for>
+      </nav>
+    </aside>
+
+    <main style="flex: 999 1 640px; min-width: 0; padding: 28px 28px 0; display: flex; flex-direction: column; gap: 22px; box-sizing: border-box">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px">
+        <div>
+          <h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 32px; font-weight: 600; letter-spacing: -0.015em">Send a parcel</h1>
+          <span style="font-size: 14px; color: #586579">Five quick steps. Saved parcels and addresses make the next one even faster.</span>
+        </div>
+        <div role="radiogroup" aria-label="Shipment type" style="display: flex; padding: 4px; border-radius: 12px; background: #FFFFFF; border: 1px solid #E1E7EF">
+          <sc-for list="{{modes}}" as="m" hint-placeholder-count="2">
+            <button type="button" role="radio" aria-checked="{{m.on}}" onClick="{{m.pick}}" style="min-height: 40px; padding: 0 18px; border-radius: 9px; border: 0; background: {{m.bg}}; color: {{m.fg}}; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{m.label}}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <sc-if value="{{done}}" hint-placeholder-val="{{ false }}">
+        <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 32px; display: flex; flex-wrap: wrap; gap: 28px; align-items: center">
+          <svg width="220" height="170" viewBox="0 0 220 170" aria-hidden="true" style="flex: none">
+            <circle cx="110" cy="85" r="78" fill="#EAF2FE"></circle>
+            <rect x="58" y="22" width="104" height="128" rx="6" fill="#FFFFFF" stroke="#C9D6EA" stroke-width="2"></rect>
+            <rect x="70" y="34" width="50" height="8" rx="4" fill="#2463DB"></rect><rect x="70" y="48" width="34" height="6" rx="3" fill="#9FB0C8"></rect>
+            <rect x="70" y="64" width="34" height="34" fill="#1F2A3C"></rect>
+            <g fill="#FFFFFF"><rect x="74" y="68" width="9" height="9"></rect><rect x="91" y="68" width="9" height="9"></rect><rect x="74" y="85" width="9" height="9"></rect><rect x="86" y="81" width="5" height="5"></rect><rect x="93" y="89" width="6" height="6"></rect></g>
+            <g fill="#1F2A3C"><rect x="112" y="64" width="3" height="34"></rect><rect x="118" y="64" width="2" height="34"></rect><rect x="123" y="64" width="4" height="34"></rect><rect x="130" y="64" width="2" height="34"></rect><rect x="135" y="64" width="3" height="34"></rect><rect x="141" y="64" width="4" height="34"></rect></g>
+            <rect x="70" y="110" width="76" height="6" rx="3" fill="#C9D6EA"></rect><rect x="70" y="122" width="54" height="6" rx="3" fill="#C9D6EA"></rect>
+            <circle cx="160" cy="132" r="24" fill="#16A34A"></circle><path d="M149 132l7 7 14-15" stroke="#FFFFFF" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+          <div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 10px">
+            <span style="font-size: 13px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: .05em">Booked and paid</span>
+            <h2 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 30px; font-weight: 600">Your label is ready</h2>
+            <span style="font-size: 15px; color: #3E4A5C; line-height: 1.6">{{doneLine}}</span>
+            <span style="display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 14px; color: #3E4A5C">
+              <span>Tracking no <b style="font-family: ui-monospace, Menlo, monospace; color: #1F2A3C">{{doneRef}}</b> · {{doneTracking}}</span>
+              <span>{{paidLabel}} <b style="color: #1F2A3C">{{priceTxt}}</b></span>
+              <span>New balance <b style="color: #1F2A3C">{{balTxt}}</b></span>
+            </span>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px">
+              <a href="{{labelUrl}}" target="_blank" rel="noopener" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 11px; background: #2463DB; color: #FFFFFF; font-weight: 700; text-decoration: none">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"></path></svg>Download label (PDF)
+              </a>
+              <a href="{{trackUrl}}" target="_blank" rel="noopener" class="ghost" style="display: inline-flex; align-items: center; min-height: 46px; padding: 0 18px; border-radius: 11px; border: 1px solid #C9D6EA; color: #1F2A3C; font-weight: 700; text-decoration: none">Track parcel</a>
+              <a href="/app" class="ghost" style="display: inline-flex; align-items: center; min-height: 46px; padding: 0 18px; border-radius: 11px; border: 1px solid #C9D6EA; color: #1F2A3C; font-weight: 700; text-decoration: none">Go to dashboard</a>
+              <button type="button" onClick="{{again}}" style="min-height: 46px; padding: 0 18px; border-radius: 11px; border: 0; background: transparent; color: #2463DB; font: 700 15px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Send another parcel</button>
+            </div>
+          </div>
+        </section>
+      </sc-if>
+
+      <sc-if value="{{flow}}" hint-placeholder-val="{{ true }}">
+        <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; position: relative">
+
+          <!-- STEP 1 -->
+          <li style="display: flex; gap: 18px; padding-bottom: 22px; position: relative">
+            <span aria-hidden="true" style="position: absolute; left: 17px; top: 36px; bottom: 0; width: 3px; border-radius: 2px; background: {{s1.line}}"></span>
+            <span style="width: 36px; height: 36px; border-radius: 50%; background: {{s1.cBg}}; color: {{s1.cFg}}; display: grid; place-items: center; font: 700 15px 'Outfit', sans-serif; flex: none; position: relative; box-shadow: {{s1.ring}}">{{s1.num}}</span>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 36px">
+                <h2 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: {{s1.size}}; font-weight: 600; color: {{s1.tFg}}">Parcel details</h2>
+                <span style="font-size: 14px; color: #586579">{{s1.sum}}</span>
+                <sc-if value="{{s1.canEdit}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{s1.edit}}" style="border: 0; background: transparent; color: #2463DB; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer; min-height: 32px">Edit</button></sc-if>
+              </div>
+              <sc-if value="{{s1.open}}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+                  <svg width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
+                    <circle cx="100" cy="88" r="76" fill="#EAF2FE"></circle>
+                    <rect x="30" y="136" width="140" height="10" rx="3" fill="#33AEEF"></rect><rect x="24" y="144" width="152" height="18" rx="5" fill="#1F2A3C"></rect><rect x="82" y="149" width="36" height="8" rx="2" fill="#8FD3F7"></rect>
+                    <rect x="54" y="70" width="92" height="66" rx="4" fill="#C99A5B"></rect><rect x="54" y="70" width="92" height="15" fill="#B88648"></rect><rect x="90" y="70" width="20" height="66" fill="#E2C08A"></rect>
+                    <rect x="118" y="98" width="20" height="14" rx="2" fill="#FFFFFF"></rect>
+                    <g stroke="#2463DB" stroke-width="3" stroke-linecap="round"><path d="M54 56h92"></path><path d="M54 50v12M146 50v12"></path></g>
+                    <rect x="78" y="34" width="44" height="18" rx="9" fill="#2463DB"></rect><text x="100" y="47" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#FFFFFF">30 cm</text>
+                  </svg>
+                  <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+                    <span style="font-size: 14px; color: #3E4A5C">Pick a saved parcel or add its weight and size. Saved parcels are one click next time.</span>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between">
+                      <label style="flex: 0 1 360px; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 10px; background: #FFFFFF; border: 1px solid #E1E7EF">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8593A8" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+                        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search parcels</span>
+                        <input placeholder="Search saved parcels" style="flex: 1; min-width: 0; border: 0; background: transparent; font: 500 14px 'Plus Jakarta Sans', sans-serif">
+                      </label>
+                      <button type="button" class="ghost" onClick="{{toggleNewParcel}}" style="display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2463DB" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>New parcel
+                      </button>
+                    </div>
+                    <sc-if value="{{newParcel}}" hint-placeholder-val="{{ false }}">
+                      <div style="background: #FFFFFF; border: 1px solid #BFD6FB; border-radius: 14px; padding: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; align-items: end">
+                        <label style="grid-column: span 2; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Name<input aria-label="np_name" value="Large box" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label>
+                        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Weight (kg)<input aria-label="np_kg" value="8" inputmode="decimal" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label>
+                        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Length (cm)<input aria-label="np_l" value="60" inputmode="numeric" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label>
+                        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Width (cm)<input aria-label="np_w" value="40" inputmode="numeric" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label>
+                        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Height (cm)<input aria-label="np_h" value="40" inputmode="numeric" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label>
+                        <button type="button" class="btn" onClick="{{saveParcel}}" style="min-height: 42px; border-radius: 9px; border: 0; background: #2463DB; color: #FFFFFF; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Save parcel</button>
+                      </div>
+                    </sc-if>
+                    <div role="radiogroup" aria-label="Saved parcels" style="display: flex; flex-direction: column; gap: 10px">
+                      <sc-for list="{{parcels}}" as="o" hint-placeholder-count="3">
+                        <button type="button" role="radio" class="opt" aria-checked="{{o.on}}" onClick="{{o.pick}}" style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 14px; border: 2px solid {{o.border}}; background: {{o.bg}}; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; color: #1F2A3C">
+                          <span style="width: 20px; height: 20px; border-radius: 50%; border: 2px solid {{o.ring}}; display: grid; place-items: center; flex: none"><span style="width: 10px; height: 10px; border-radius: 50%; background: {{o.dot}}"></span></span>
+                          <span style="flex: 1; display: flex; flex-direction: column; gap: 3px"><b style="font-size: 15px">{{o.name}}</b><span style="font-size: 13px; color: #3E4A5C"><b>{{o.kg}}</b> · {{o.dims}}</span></span>
+                          <span style="font-size: 12px; font-weight: 700; color: #586579">{{o.tag}}</span>
+                        </button>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </li>
+
+          <!-- STEP 2 -->
+          <li style="display: flex; gap: 18px; padding-bottom: 22px; position: relative">
+            <span aria-hidden="true" style="position: absolute; left: 17px; top: 36px; bottom: 0; width: 3px; border-radius: 2px; background: {{s2.line}}"></span>
+            <span style="width: 36px; height: 36px; border-radius: 50%; background: {{s2.cBg}}; color: {{s2.cFg}}; display: grid; place-items: center; font: 700 15px 'Outfit', sans-serif; flex: none; position: relative; box-shadow: {{s2.ring}}">{{s2.num}}</span>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 36px">
+                <h2 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: {{s2.size}}; font-weight: 600; color: {{s2.tFg}}">Collect from</h2>
+                <span style="font-size: 14px; color: #586579">{{s2.sum}}</span>
+                <sc-if value="{{s2.canEdit}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{s2.edit}}" style="border: 0; background: transparent; color: #2463DB; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer; min-height: 32px">Edit</button></sc-if>
+              </div>
+              <sc-if value="{{s2.open}}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+                  <svg width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
+                    <circle cx="100" cy="90" r="76" fill="#EAF2FE"></circle>
+                    <path d="M40 150V92l40-30 40 30v58z" fill="#FFFFFF" stroke="#1F2A3C" stroke-width="3" stroke-linejoin="round"></path>
+                    <path d="M32 98l48-38 48 38" fill="none" stroke="#2463DB" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <rect x="68" y="116" width="24" height="34" rx="2" fill="#2463DB"></rect><rect x="50" y="104" width="14" height="14" rx="2" fill="#BFD6FB"></rect><rect x="96" y="104" width="14" height="14" rx="2" fill="#BFD6FB"></rect>
+                    <rect x="124" y="118" width="40" height="32" rx="3" fill="#C99A5B"></rect><rect x="124" y="118" width="40" height="8" fill="#B88648"></rect><rect x="139" y="118" width="10" height="32" fill="#E2C08A"></rect>
+                    <path d="M150 74 C 140 60 136 54 136 46 a14 14 0 0 1 28 0 c0 8 -4 14 -14 28z" fill="#E5484D"></path><circle cx="150" cy="46" r="5.5" fill="#FFFFFF"></circle>
+                    <rect x="20" y="150" width="160" height="3" rx="1.5" fill="#C9D6EA"></rect>
+                  </svg>
+                  <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+                    <span style="font-size: 14px; color: #3E4A5C">Where should the courier collect from, or where will you drop it off from?</span>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between">
+                      <label style="flex: 0 1 360px; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 10px; background: #FFFFFF; border: 1px solid #E1E7EF">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8593A8" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+                        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search addresses</span>
+                        <input placeholder="Search by name or postcode" style="flex: 1; min-width: 0; border: 0; background: transparent; font: 500 14px 'Plus Jakarta Sans', sans-serif">
+                      </label>
+                      <button type="button" class="ghost" onClick="{{toggleNewAddr}}" style="display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2463DB" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>New address
+                      </button>
+                    </div>
+                    <sc-if value="{{newAddr}}" hint-placeholder-val="{{ false }}">
+                      <div style="background: #FFFFFF; border: 1px solid #BFD6FB; border-radius: 14px; padding: 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end">
+                        <label style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Full name or company<input aria-label="sa_name" placeholder="" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 1 1 150px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Phone<input aria-label="sa_phone" placeholder="" inputmode="tel" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 2 1 260px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Address line 1<input aria-label="sa_line1" placeholder="" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Address line 2 (optional)<input aria-label="sa_line2" placeholder="" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 1 1 160px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Town / city<input aria-label="sa_city" placeholder="" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 1 1 130px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Postcode<input aria-label="sa_postcode" placeholder="e.g. M1 1AE" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><button type="button" class="btn" onClick="{{saveSender}}" style="min-height: 42px; padding: 0 16px; border-radius: 9px; border: 0; background: #2463DB; color: #FFFFFF; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Save address</button><span style="flex: 1 1 100%; font-size: 12px; color: #586579">Saved to your address book for next time.</span>
+                      </div>
+                    </sc-if>
+                    <div role="radiogroup" aria-label="Collection address" style="display: flex; flex-direction: column; gap: 10px">
+                      <sc-for list="{{senders}}" as="o" hint-placeholder-count="2">
+                        <button type="button" role="radio" class="opt" aria-checked="{{o.on}}" onClick="{{o.pick}}" style="display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border-radius: 14px; border: 2px solid {{o.border}}; background: {{o.bg}}; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; color: #1F2A3C">
+                          <span style="width: 20px; height: 20px; border-radius: 50%; border: 2px solid {{o.ring}}; display: grid; place-items: center; flex: none; margin-top: 2px"><span style="width: 10px; height: 10px; border-radius: 50%; background: {{o.dot}}"></span></span>
+                          <span style="flex: 1; display: flex; flex-direction: column; gap: 3px; font-size: 14px; color: #3E4A5C; line-height: 1.5"><b style="font-size: 15px; color: #1F2A3C">{{o.label}}</b><span>{{o.name}} · {{o.phone}}</span><span>{{o.line}}</span></span>
+                          <span style="font-size: 12px; font-weight: 700; color: #2463DB">{{o.tag}}</span>
+                        </button>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </li>
+
+          <!-- STEP 3 -->
+          <li style="display: flex; gap: 18px; padding-bottom: 22px; position: relative">
+            <span aria-hidden="true" style="position: absolute; left: 17px; top: 36px; bottom: 0; width: 3px; border-radius: 2px; background: {{s3.line}}"></span>
+            <span style="width: 36px; height: 36px; border-radius: 50%; background: {{s3.cBg}}; color: {{s3.cFg}}; display: grid; place-items: center; font: 700 15px 'Outfit', sans-serif; flex: none; position: relative; box-shadow: {{s3.ring}}">{{s3.num}}</span>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 36px">
+                <h2 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: {{s3.size}}; font-weight: 600; color: {{s3.tFg}}">Deliver to</h2>
+                <span style="font-size: 14px; color: #586579">{{s3.sum}}</span>
+                <sc-if value="{{s3.canEdit}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{s3.edit}}" style="border: 0; background: transparent; color: #2463DB; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer; min-height: 32px">Edit</button></sc-if>
+              </div>
+              <sc-if value="{{s3.open}}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+                  <svg width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
+                    <circle cx="100" cy="90" r="76" fill="#EAF2FE"></circle>
+                    <circle cx="40" cy="128" r="11" fill="#2463DB"></circle><circle cx="40" cy="128" r="4" fill="#FFFFFF"></circle>
+                    <path d="M52 128 H 92 V 80 H 140" stroke="#33AEEF" stroke-width="5" stroke-dasharray="2 10" stroke-linecap="round" fill="none"></path>
+                    <path d="M148 104 C 132 84 126 74 126 62 a22 22 0 0 1 44 0 c0 12 -6 22 -22 42z" fill="#2463DB"></path>
+                    <rect x="137" y="50" width="22" height="20" rx="3" fill="#FFFFFF"></rect><rect x="137" y="50" width="22" height="6" fill="#BFD6FB"></rect>
+                    <ellipse cx="148" cy="112" rx="16" ry="4" fill="#C9D6EA"></ellipse>
+                  </svg>
+                  <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+                    <span style="font-size: 14px; color: #3E4A5C">Who is it going to? Choose a saved recipient or add a new one.</span>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between">
+                      <label style="flex: 0 1 360px; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 10px; background: #FFFFFF; border: 1px solid #E1E7EF">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8593A8" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+                        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search recipients</span>
+                        <input placeholder="Search by name or postcode" style="flex: 1; min-width: 0; border: 0; background: transparent; font: 500 14px 'Plus Jakarta Sans', sans-serif">
+                      </label>
+                      <button type="button" class="ghost" onClick="{{toggleNewAddr}}" style="display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2463DB" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>New recipient
+                      </button>
+                    </div>
+                    <sc-if value="{{newAddr}}" hint-placeholder-val="{{ false }}">
+                      <div style="background: #FFFFFF; border: 1px solid #BFD6FB; border-radius: 14px; padding: 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end">
+                        <label style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Full name<input aria-label="ra_name" placeholder="Recipient name" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 1 1 150px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Phone<input aria-label="ra_phone" placeholder="Used for delivery updates" inputmode="tel" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Email (optional)<input aria-label="ra_email" placeholder="For tracking emails" type="email" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 2 1 260px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Address line 1<input aria-label="ra_line1" placeholder="" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Address line 2 (optional)<input aria-label="ra_line2" placeholder="" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 1 1 160px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Town / city<input aria-label="ra_city" placeholder="" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 1 1 130px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">{{postLabel}}<input aria-label="ra_postcode" placeholder="{{postPh}}" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif; text-transform: uppercase"></label><sc-if value="{{intl}}"><label style="flex: 1 1 180px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Country<select aria-label="ra_country" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif; background: #FFFFFF; color: #1F2A3C"><sc-for list="{{countries}}" as="c"><option value="{{c.code}}">{{c.name}}</option></sc-for></select></label></sc-if><button type="button" class="btn" onClick="{{saveRecip}}" style="min-height: 42px; padding: 0 16px; border-radius: 9px; border: 0; background: #2463DB; color: #FFFFFF; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Save recipient</button>
+                      </div>
+                    </sc-if>
+                    <div role="radiogroup" aria-label="Recipient" style="display: flex; flex-direction: column; gap: 10px">
+                      <sc-for list="{{recips}}" as="o" hint-placeholder-count="2">
+                        <button type="button" role="radio" class="opt" aria-checked="{{o.on}}" onClick="{{o.pick}}" style="display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border-radius: 14px; border: 2px solid {{o.border}}; background: {{o.bg}}; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; color: #1F2A3C">
+                          <span style="width: 20px; height: 20px; border-radius: 50%; border: 2px solid {{o.ring}}; display: grid; place-items: center; flex: none; margin-top: 2px"><span style="width: 10px; height: 10px; border-radius: 50%; background: {{o.dot}}"></span></span>
+                          <span style="flex: 1; display: flex; flex-direction: column; gap: 3px; font-size: 14px; color: #3E4A5C; line-height: 1.5"><b style="font-size: 15px; color: #1F2A3C">{{o.label}}</b><span>{{o.name}} · {{o.phone}}</span><span>{{o.line}}</span></span>
+                          <span style="font-size: 12px; font-weight: 700; color: #2463DB">{{o.tag}}</span>
+                        </button>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </li>
+
+          <!-- STEP 4 -->
+          <li style="display: flex; gap: 18px; padding-bottom: 22px; position: relative">
+            <span aria-hidden="true" style="position: absolute; left: 17px; top: 36px; bottom: 0; width: 3px; border-radius: 2px; background: {{s4.line}}"></span>
+            <span style="width: 36px; height: 36px; border-radius: 50%; background: {{s4.cBg}}; color: {{s4.cFg}}; display: grid; place-items: center; font: 700 15px 'Outfit', sans-serif; flex: none; position: relative; box-shadow: {{s4.ring}}">{{s4.num}}</span>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 36px">
+                <h2 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: {{s4.size}}; font-weight: 600; color: {{s4.tFg}}">What's inside</h2>
+                <span style="font-size: 14px; color: #586579">{{s4.sum}}</span>
+                <sc-if value="{{s4.canEdit}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{s4.edit}}" style="border: 0; background: transparent; color: #2463DB; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer; min-height: 32px">Edit</button></sc-if>
+              </div>
+              <sc-if value="{{s4.open}}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+                  <svg width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
+                    <circle cx="100" cy="88" r="76" fill="#EAF2FE"></circle>
+                    <rect x="56" y="38" width="30" height="46" rx="3" fill="#2463DB" transform="rotate(-10 71 61)"></rect><rect x="62" y="44" width="18" height="4" rx="2" fill="#BFD6FB" transform="rotate(-10 71 61)"></rect>
+                    <path d="M98 40 h26 v34 a13 13 0 0 1 -26 0z" fill="#33AEEF"></path><path d="M124 48 h8 a8 8 0 0 1 0 16 h-8" fill="none" stroke="#33AEEF" stroke-width="5"></path>
+                    <path d="M120 62 l18 -10 l14 12 l-8 8 l-4 -3 v20 h-22z" fill="#FFFFFF" stroke="#1F2A3C" stroke-width="2.5" stroke-linejoin="round" transform="translate(-6 -2)"></path>
+                    <path d="M44 86 h112 l-8 64 h-96z" fill="#C99A5B"></path><path d="M44 86 l-14 -16 h48 l12 16z" fill="#B88648"></path><path d="M156 86 l14 -16 h-48 l-12 16z" fill="#B88648"></path>
+                    <rect x="88" y="86" width="24" height="64" fill="#E2C08A"></rect>
+                  </svg>
+                  <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+                    <span style="font-size: 14px; color: #3E4A5C">Select what's in the parcel. Values are used for cover{{customsHint}}.</span>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between">
+                      <label style="flex: 0 1 360px; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 10px; background: #FFFFFF; border: 1px solid #E1E7EF">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8593A8" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+                        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search items</span>
+                        <input placeholder="Search saved items" style="flex: 1; min-width: 0; border: 0; background: transparent; font: 500 14px 'Plus Jakarta Sans', sans-serif">
+                      </label>
+                      <button type="button" class="ghost" onClick="{{toggleNewItem}}" style="display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2463DB" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>New item
+                      </button>
+                    </div>
+                    <sc-if value="{{newItem}}">
+                      <div style="background: #FFFFFF; border: 1px solid #BFD6FB; border-radius: 14px; padding: 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end"><label style="flex: 2 1 220px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">What is it<input aria-label="ni_name" placeholder="e.g. Ceramic mug set" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 1 1 120px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Value each (£)<input aria-label="ni_value" placeholder="e.g. 24.00" inputmode="decimal" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 1 1 140px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">HS code (optional)<input aria-label="ni_hs" placeholder="e.g. 6912.00" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label><label style="flex: 1 1 160px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Made in<select aria-label="ni_origin" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif; background: #FFFFFF; color: #1F2A3C"><sc-for list="{{countries}}" as="c"><option value="{{c.code}}">{{c.name}}</option></sc-for></select></label><button type="button" class="btn" onClick="{{saveItem}}" style="min-height: 42px; padding: 0 16px; border-radius: 9px; border: 0; background: #2463DB; color: #FFFFFF; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Save item</button></div>
+                    </sc-if>
+                    <div style="display: flex; flex-direction: column; gap: 10px">
+                      <sc-for list="{{items}}" as="it" hint-placeholder-count="3">
+                        <div style="display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 14px; border: 2px solid {{it.border}}; background: {{it.bg}}">
+                          <button type="button" role="checkbox" aria-checked="{{it.on}}" aria-label="Include {{it.name}}" onClick="{{it.toggle}}" style="width: 24px; height: 24px; border-radius: 7px; border: 2px solid {{it.ring}}; background: {{it.box}}; display: grid; place-items: center; cursor: pointer; flex: none; padding: 0">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>
+                          </button>
+                          <span style="width: 44px; height: 44px; border-radius: 10px; background: {{it.thumb}}; color: #FFFFFF; display: grid; place-items: center; font: 700 16px 'Outfit', sans-serif; flex: none">{{it.ini}}</span>
+                          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><b style="font-size: 15px">{{it.name}}</b><span style="font-size: 13px; color: #586579">{{it.meta}}</span></span>
+                          <span style="display: flex; align-items: center; border: 1px solid #E1E7EF; border-radius: 10px; background: #FFFFFF">
+                            <button type="button" class="qty" onClick="{{it.minus}}" aria-label="Fewer {{it.name}}" style="width: 38px; height: 38px; border: 0; background: transparent; border-radius: 9px 0 0 9px; color: #1F2A3C; font: 700 18px 'Plus Jakarta Sans', sans-serif; cursor: pointer">−</button>
+                            <span style="min-width: 30px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums">{{it.qty}}</span>
+                            <button type="button" class="qty" onClick="{{it.plus}}" aria-label="More {{it.name}}" style="width: 38px; height: 38px; border: 0; background: transparent; border-radius: 0 9px 9px 0; color: #2463DB; font: 700 18px 'Plus Jakarta Sans', sans-serif; cursor: pointer">+</button>
+                          </span>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-radius: 12px; background: #EAF2FE; font-size: 14px">
+                      <span>Declared value <b style="font-variant-numeric: tabular-nums">{{declared}}</b></span>
+                      <span style="font-weight: 600; color: #586579">{{itemsNote}}</span>
+                    </div>
+                    <sc-if value="{{intl}}" hint-placeholder-val="{{ false }}">
+                      <div style="display: flex; flex-wrap: wrap; gap: 10px; padding: 14px 16px; border-radius: 12px; border: 1px solid #E1E7EF; background: #FFFFFF; align-items: flex-end">
+                        <span style="flex: 1 1 100%; font-size: 13px; font-weight: 700">Customs declaration <span style="font-weight: 500; color: #586579">· we print the CN22/CN23 with your label</span></span>
+                        <label style="flex: 1 1 180px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Reason for export<select aria-label="customs_reason" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 8px; font: 600 14px 'Plus Jakarta Sans', sans-serif; background: #FFFFFF; color: #1F2A3C"><option value="merchandise">Sale of goods</option><option value="gift">Gift</option><option value="documents">Documents</option><option value="returned_goods">Returned goods</option><option value="sample">Commercial sample</option></select></label>
+                        <label style="flex: 1 1 180px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Duties paid by<select aria-label="customs_duties" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 8px; font: 600 14px 'Plus Jakarta Sans', sans-serif; background: #FFFFFF; color: #1F2A3C"><option>Recipient (DAP)</option><option>Me, the sender (DDP)</option></select></label>
+                      </div>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </li>
+
+          <!-- STEP 5 -->
+          <li style="display: flex; gap: 18px; padding-bottom: 22px; position: relative">
+            <span style="width: 36px; height: 36px; border-radius: 50%; background: {{s5.cBg}}; color: {{s5.cFg}}; display: grid; place-items: center; font: 700 15px 'Outfit', sans-serif; flex: none; position: relative; box-shadow: {{s5.ring}}">{{s5.num}}</span>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 36px">
+                <h2 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: {{s5.size}}; font-weight: 600; color: {{s5.tFg}}">Choose a courier</h2>
+                <span style="font-size: 14px; color: #586579">{{s5.sum}}</span>
+              </div>
+              <sc-if value="{{s5.open}}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+                  <svg width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
+                    <circle cx="100" cy="88" r="76" fill="#EAF2FE"></circle>
+                    <rect x="22" y="76" width="102" height="58" rx="8" fill="#2463DB"></rect><rect x="34" y="92" width="48" height="8" rx="4" fill="#FFFFFF" opacity=".9"></rect><rect x="34" y="106" width="30" height="6" rx="3" fill="#8FD3F7"></rect>
+                    <path d="M124 88 h22 l20 22 v24 h-42 z" fill="#1F4FB8"></path><path d="M130 94 h14 l14 16 h-28 z" fill="#BFD6FB"></path>
+                    <circle cx="50" cy="138" r="12" fill="#1F2A3C"></circle><circle cx="50" cy="138" r="4.5" fill="#C9D6EA"></circle><circle cx="142" cy="138" r="12" fill="#1F2A3C"></circle><circle cx="142" cy="138" r="4.5" fill="#C9D6EA"></circle>
+                    <circle cx="146" cy="56" r="24" fill="#16A34A"></circle><path d="M135 56l7 7 14-15" stroke="#FFFFFF" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <rect x="10" y="150" width="180" height="3" rx="1.5" fill="#C9D6EA"></rect>
+                  </svg>
+                  <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px">
+                      <span style="font-size: 14px; color: #3E4A5C">{{quoteCount}} services compared for your parcel. Prices include VAT.</span>
+                      <div role="tablist" aria-label="Sort" style="display: flex; gap: 6px">
+                        <sc-for list="{{sorts}}" as="t" hint-placeholder-count="3">
+                          <button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: {{t.fg}}; font: 600 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{t.label}}</button>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <div role="radiogroup" aria-label="Courier service" style="display: flex; flex-direction: column; gap: 10px">
+                      <sc-for list="{{quotes}}" as="q" hint-placeholder-count="5">
+                        <button type="button" role="radio" class="opt" aria-checked="{{q.on}}" onClick="{{q.pick}}" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 16px; border-radius: 14px; border: 2px solid {{q.border}}; background: {{q.bg}}; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; color: #1F2A3C">
+                          <span style="width: 20px; height: 20px; border-radius: 50%; border: 2px solid {{q.ring}}; display: grid; place-items: center; flex: none"><span style="width: 10px; height: 10px; border-radius: 50%; background: {{q.dot}}"></span></span>
+                          <span style="width: 76px; height: 40px; border-radius: 9px; border: 1px solid #E1E7EF; background: #FFFFFF; display: grid; place-items: center; flex: none"><img src="{{q.logo}}" alt="{{q.carrier}}" style="max-width: 62px; max-height: 26px; object-fit: contain"></span>
+                          <span style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 3px">
+                            <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><b style="font-size: 15px">{{q.service}}</b><span style="font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: {{q.badgeBg}}; color: {{q.badgeFg}}">{{q.badge}}</span></span>
+                            <span style="font-size: 13px; color: #586579">{{q.eta}} · {{q.how}}</span>
+                          </span>
+                          <span style="display: flex; flex-direction: column; align-items: flex-end; gap: 1px">
+                            <b style="font-family: 'Outfit', sans-serif; font-size: 22px; font-variant-numeric: tabular-nums">{{q.price}}</b>
+                            <span style="font-size: 12px; color: #586579">{{q.ex}} exc VAT</span>
+                          </span>
+                        </button>
+                      </sc-for>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 14px; background: #FFFFFF; border: 1px solid #E1E7EF">
+                      <b style="font-size: 15px">How would you like to pay?</b>
+                      <div role="radiogroup" aria-label="Payment method" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px">
+                        <sc-for list="{{payMethods}}" as="m" hint-placeholder-count="3">
+                          <button type="button" role="radio" class="opt" aria-checked="{{m.on}}" onClick="{{m.pick}}" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 2px solid {{m.border}}; background: {{m.bg}}; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; color: #1F2A3C">
+                            <span style="width: 18px; height: 18px; border-radius: 50%; border: 2px solid {{m.ring}}; display: grid; place-items: center; flex: none"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{m.dot}}"></span></span>
+                            <span style="width: 38px; height: 26px; border-radius: 5px; background: {{m.iconBg}}; color: #FFFFFF; display: grid; place-items: center; font: 800 9px 'Plus Jakarta Sans', sans-serif; flex: none">{{m.icon}}</span>
+                            <span style="display: flex; flex-direction: column; gap: 1px"><b style="font-size: 14px">{{m.label}}</b><span style="font-size: 12px; color: {{m.noteFg}}">{{m.note}}</span></span>
+                          </button>
+                        </sc-for>
+                      </div>
+                      <sc-if value="{{short}}" hint-placeholder-val="{{ false }}">
+                        <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #FFF8EC; font-size: 13px; color: #7A4A00">Not enough in your wallet for this label. Pay by card, or
+                          <a href="/app" style="font-weight: 700; color: #7A4A00">top up your wallet</a></span>
+                      </sc-if>
+                      <span style="display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: #586579; line-height: 1.5">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2463DB" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none; margin-top: 1px"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6M12 7.5v.5"></path></svg>
+                        Couriers weigh and measure every parcel. If it comes out heavier or bigger than you entered, we charge the difference to this same payment method and tell you straight away.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </li>
+        </ol>
+
+        <div style="position: sticky; bottom: 0; padding: 12px 0 20px; background: linear-gradient(rgba(244,246,250,0), #F4F6FA 30%); z-index: 5">
+          <div style="background: #1F2A3C; color: #FFFFFF; border-radius: 16px; padding: 12px 12px 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; box-shadow: 0 12px 32px rgba(8,14,28,.25)">
+            <b style="font-size: 14px; padding-right: 18px; border-right: 1px solid #3B4A63">{{modeLabel}}</b>
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 14px">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8FD3F7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"></path><path d="M3 8v8l9 5 9-5V8M12 13v8"></path></svg>{{barParcel}}
+            </span>
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 14px">{{barFrom}}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8FD3F7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>{{barTo}}
+            </span>
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 14px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8FD3F7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"></path><circle cx="7" cy="18" r="2"></circle><circle cx="17" cy="18" r="2"></circle></svg>{{barCourier}}
+            </span>
+            <span style="margin-left: auto; display: flex; gap: 8px">
+              <sc-if value="{{canBack}}" hint-placeholder-val="{{ false }}">
+                <button type="button" onClick="{{back}}" style="min-height: 46px; padding: 0 16px; border-radius: 11px; border: 1px solid #3B4A63; background: transparent; color: #DCE4F2; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Back</button>
+              </sc-if>
+              <button type="button" class="btn" onClick="{{next}}" aria-disabled="{{nextDisabled}}" style="min-height: 46px; padding: 0 22px; border-radius: 11px; border: 0; background: {{nextBg}}; color: {{nextFg}}; font: 700 15px 'Plus Jakarta Sans', sans-serif; cursor: {{nextCursor}}">{{nextLabel}}</button>
+            </span>
+          </div>
+        </div>
+      </sc-if>
+    </main>
+  </div>
+</div>
+</script>
+</body>
+</html>

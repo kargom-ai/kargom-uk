@@ -16,6 +16,8 @@ export type ShipEngineConfig = {
   carrierIds: string[];  // carrier accounts connected in the provider dashboard
   labelFormat?: 'pdf' | 'zpl' | 'png';
   labelLayout?: '4x6' | 'letter';
+  /** Ask for test labels (no carrier charge). Always on outside production. */
+  testLabels?: boolean;
   fetchImpl?: typeof fetch;
 };
 
@@ -133,7 +135,8 @@ export class ShipEngineProvider implements ShippingProvider {
   /** Carrier accounts connected in the ShipStation / ShipEngine dashboard. */
   async listCarriers(signal?: AbortSignal): Promise<Array<{ id: string; code: string; name: string }>> {
     const out = await this.call<{ carriers?: Array<{ carrier_id: string; carrier_code: string; friendly_name: string; nickname?: string }> }>('GET', '/carriers', undefined, signal);
-    return (out.carriers ?? []).map((c) => ({ id: c.carrier_id, code: c.carrier_code, name: c.nickname || c.friendly_name }));
+    // friendly_name is the carrier ("Royal Mail"); nickname can be a billing label, so it is not used.
+    return (out.carriers ?? []).map((c) => ({ id: c.carrier_id, code: c.carrier_code, name: c.friendly_name || c.carrier_code }));
   }
 
   private async carrierIds(signal: AbortSignal): Promise<string[]> {
@@ -176,6 +179,7 @@ export class ShipEngineProvider implements ShippingProvider {
     }>('POST', `/labels/rates/${encodeURIComponent(rate.providerRateId)}`, {
       label_format: this.cfg.labelFormat ?? 'pdf',
       label_layout: this.cfg.labelLayout ?? '4x6',
+      ...(this.cfg.testLabels ? { test_label: true } : {}),
     });
     return {
       providerLabelId: out.label_id,

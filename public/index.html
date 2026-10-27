@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kargom — compare and book cheap parcel delivery</title>
+<link rel="icon" href="/assets/logo-white.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#2463DB}a:hover{color:#1A4FB8}
+select,input{font-family:'Plus Jakarta Sans',sans-serif}
+input:focus,select:focus{outline:none}
+.fld:focus-within{border-color:#2463DB;box-shadow:inset 0 0 0 1px #2463DB}
+.tab:hover{filter:brightness(1.08)}
+.go:hover{background:#1A4FB8}
+.play:hover .dot{transform:scale(1.06)}
+</style>
+<style>.kg-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1F2A3C;color:#fff;padding:12px 18px;border-radius:12px;font:600 14px 'Plus Jakarta Sans',sans-serif;z-index:60;box-shadow:0 12px 30px rgba(8,14,28,.3)}</style>
+<script type="module" src="/assets/pages/home.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/x-template" id="tpl">
+<div style="font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #1F2A3C; background: #FFFFFF; width: 100%; min-height: 100vh">
+
+  <header style="background: #1F2A3C">
+    <div style="max-width: 1080px; margin: 0 auto; padding: 14px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px">
+      <a href="/" aria-label="Kargom.co.uk home"><img src="/assets/logo-white.png" alt="Kargom.co.uk" style="height: 28px; width: auto; display: block"></a>
+      <nav aria-label="Main menu" style="display: flex; flex-wrap: wrap; align-items: center; gap: 22px; font-size: 14px; font-weight: 600">
+        <a href="/app/send" style="color: #8FD3F7; text-decoration: none">Send a parcel</a>
+        <a href="#" style="color: #DCE4F2; text-decoration: none">Tracking</a>
+        <a href="#" style="color: #DCE4F2; text-decoration: none">Couriers</a>
+        <a href="#" style="color: #DCE4F2; text-decoration: none">Business</a>
+        <a href="/app?view=help" style="color: #DCE4F2; text-decoration: none">Help</a>
+        <a href="{{nav1.href}}" style="color: #FFFFFF; background: #2463DB; text-decoration: none; padding: 10px 16px; border-radius: 8px">{{nav1.label}}</a>
+        <a href="{{nav2.href}}" style="color: #DCE4F2; text-decoration: none">{{nav2.label}}</a>
+      </nav>
+    </div>
+  </header>
+
+  <section style="background: linear-gradient(110deg, #3D6DEB 0%, #2A4FC8 55%, #1D3593 100%); color: #FFFFFF">
+    <div style="max-width: 1080px; margin: 0 auto; padding: 56px 24px 0">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px">
+        <div style="flex: 999 1 460px; display: flex; flex-direction: column; gap: 30px; padding-bottom: 40px">
+          <h1 style="margin: 0; font-family: 'Outfit', sans-serif; line-height: 1.1; letter-spacing: -0.015em">
+            <span style="display: block; font-size: 42px; font-weight: 300">Compare and book</span>
+            <span style="display: block; font-size: 48px; font-weight: 700">cheap parcel delivery</span>
+          </h1>
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px 40px">
+            <button type="button" class="play" onClick="{{openVideo}}" style="display: flex; align-items: center; gap: 12px; padding: 0; border: 0; background: none; color: #FFFFFF; font: 600 16px 'Plus Jakarta Sans', sans-serif; cursor: pointer; min-height: 48px">
+              <span class="dot" style="width: 46px; height: 46px; border-radius: 50%; background: #FFFFFF; display: grid; place-items: center; box-shadow: 0 6px 16px rgba(0,0,0,.2); transition: transform .15s">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="#2463DB" aria-hidden="true"><path d="M7 4v16l13-8z"></path></svg>
+              </span>
+              Watch our video
+            </button>
+            <span style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 14px; color: #DCE4F2">Send from only <b style="font-family: 'Outfit', sans-serif; font-size: 24px; font-weight: 700; color: #FFFFFF">£2.39</b> (£1.99 exc VAT)</span>
+          </div>
+        </div>
+        <img src="/assets/cat-parcels.webp" alt="Kargom mascot, a kitten in a Kargom cap leaning on parcels addressed to Berlin, Dubai and New York" style="flex: none; width: 420px; max-width: 100%; height: auto; display: block; margin-bottom: -2px">
+      </div>
+
+      <div role="tablist" aria-label="Delivery type" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+        <sc-for list="{{modes}}" as="m" hint-placeholder-count="4">
+          <button type="button" role="tab" class="tab" aria-selected="{{m.on}}" onClick="{{m.pick}}" style="min-height: 50px; border: 0; border-radius: {{m.radius}}; background: {{m.bg}}; color: {{m.fg}}; font: 600 17px 'Outfit', sans-serif; cursor: pointer; padding: 0 8px">{{m.label}}</button>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div style="max-width: 1080px; margin: 0 auto; padding: 0 24px">
+      <div style="background: #FFFFFF; border: 1px solid #D8DEE8; border-top: 0; border-radius: 0 0 6px 6px; padding: 10px; box-shadow: 0 14px 30px rgba(20,35,80,.10)">
+        <form style="display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch">
+          <sc-for list="{{fields}}" as="f" hint-placeholder-count="3">
+            <div class="fld" style="flex: {{f.flex}}; display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 10px 14px; border: 1px solid #D8DEE8; border-radius: 4px; min-height: 64px; box-sizing: border-box; min-width: 0; background: {{f.bg}}">
+              <span style="font-size: 12px; color: #586579">{{f.label}}</span>
+              <sc-if value="{{f.isLocked}}" hint-placeholder-val="{{ false }}">
+                <span style="display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 15px; color: #1F2A3C">{{f.value}}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A96A8" stroke-width="2.2" stroke-linecap="round" role="img" aria-label="Fixed"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+                </span>
+              </sc-if>
+              <sc-if value="{{f.isSelect}}" hint-placeholder-val="{{ false }}">
+                <select aria-label="{{f.label}}" style="border: 0; padding: 0; font-weight: 600; font-size: 15px; color: #1F2A3C; background: transparent; margin-left: -2px">
+                  <sc-for list="{{f.options}}" as="o" hint-placeholder-count="3"><option>{{o}}</option></sc-for>
+                </select>
+              </sc-if>
+              <sc-if value="{{f.isInput}}" hint-placeholder-val="{{ true }}">
+                <span style="display: flex; align-items: baseline; gap: 8px">
+                  <input aria-label="{{f.label}}" placeholder="{{f.placeholder}}" inputmode="{{f.mode}}" style="flex: 1; border: 0; padding: 0; font-weight: 600; font-size: 15px; color: #1F2A3C; min-width: 0; background: transparent">
+                  <span style="font-size: 13px; color: #586579">{{f.unit}}</span>
+                </span>
+              </sc-if>
+              <sc-if value="{{f.isRadio}}" hint-placeholder-val="{{ false }}">
+                <span style="display: flex; gap: 16px; font-size: 14px">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer"><input type="radio" name="dims" checked="{{laterOn}}" onChange="{{dimsLater}}" style="width: 16px; height: 16px; margin: 0; accent-color: #2463DB">Later</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer"><input type="radio" name="dims" checked="{{nowOn}}" onChange="{{dimsNow}}" style="width: 16px; height: 16px; margin: 0; accent-color: #2463DB">Now</label>
+                </span>
+              </sc-if>
+            </div>
+          </sc-for>
+          <a href="{{cta.href}}" onClick="{{cta.go}}" class="go" style="flex: 1 1 180px; display: flex; align-items: center; justify-content: center; min-height: 64px; border-radius: 4px; background: #2463DB; color: #FFFFFF; font: 600 19px 'Outfit', sans-serif; text-decoration: none; padding: 0 18px">{{cta.label}}</a>
+        </form>
+        <sc-if value="{{showDims}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px">
+            <label class="fld" style="flex: 1 1 120px; display: flex; flex-direction: column; gap: 5px; padding: 10px 14px; border: 1px solid #D8DEE8; border-radius: 4px; font-size: 12px; color: #586579">Length (cm)<input aria-label="Length (cm)" inputmode="decimal" placeholder="e.g. 30" style="border: 0; padding: 0; font-weight: 600; font-size: 15px; color: #1F2A3C"></label>
+            <label class="fld" style="flex: 1 1 120px; display: flex; flex-direction: column; gap: 5px; padding: 10px 14px; border: 1px solid #D8DEE8; border-radius: 4px; font-size: 12px; color: #586579">Width (cm)<input aria-label="Width (cm)" inputmode="decimal" placeholder="e.g. 20" style="border: 0; padding: 0; font-weight: 600; font-size: 15px; color: #1F2A3C"></label>
+            <label class="fld" style="flex: 1 1 120px; display: flex; flex-direction: column; gap: 5px; padding: 10px 14px; border: 1px solid #D8DEE8; border-radius: 4px; font-size: 12px; color: #586579">Height (cm)<input aria-label="Height (cm)" inputmode="decimal" placeholder="e.g. 15" style="border: 0; padding: 0; font-weight: 600; font-size: 15px; color: #1F2A3C"></label>
+            <label class="fld" style="flex: 1 1 120px; display: flex; flex-direction: column; gap: 5px; padding: 10px 14px; border: 1px solid #D8DEE8; border-radius: 4px; font-size: 12px; color: #586579">Parcels<input inputmode="numeric" value="1" style="border: 0; padding: 0; font-weight: 600; font-size: 15px; color: #1F2A3C"></label>
+          </div>
+        </sc-if>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; margin-top: 14px; font-size: 14px">
+        <sc-for list="{{links}}" as="k" hint-placeholder-count="3">
+          <a href="#" style="color: #3E4A5C; text-decoration: none; padding: 2px 12px 2px 0; margin-right: 12px; border-right: 1px solid #D8DEE8">{{k}}</a>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <section style="max-width: 1080px; margin: 0 auto; padding: 72px 24px 32px; display: flex; flex-direction: column; align-items: center; gap: 32px">
+    <h2 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 30px; font-weight: 400; text-align: center">Send your parcel with trusted UK couriers</h2>
+    <div style="width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px">
+      <sc-for list="{{couriers}}" as="c" hint-placeholder-count="9">
+        <a href="#" style="height: 110px; background: #F4F6FA; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-decoration: none; color: #1F2A3C">
+          <sc-if value="{{c.hasLogo}}" hint-placeholder-val="{{ true }}">
+            <img src="{{c.logo}}" alt="{{c.name}}" style="max-height: 46px; max-width: 80%; object-fit: contain">
+          </sc-if>
+          <sc-if value="{{c.noLogo}}" hint-placeholder-val="{{ false }}">
+            <b style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 700">{{c.name}}</b>
+          </sc-if>
+          <span style="font-size: 12px; color: #586579">{{c.note}}</span>
+        </a>
+      </sc-for>
+    </div>
+    <a href="#" style="font-weight: 600; font-size: 15px; color: #1F2A3C">Browse all couriers</a>
+  </section>
+
+  <section style="max-width: 1080px; margin: 0 auto; padding: 56px 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 32px">
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div style="height: 220px; border-radius: 14px; background: #EAF2FE; overflow: hidden; display: grid; place-items: center">
+<svg viewBox="0 0 320 220" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="display: block; font-family: 'Outfit', sans-serif">
+<circle cx="276" cy="36" r="34" fill="#D6E6FD"></circle><circle cx="40" cy="200" r="26" fill="#D6E6FD"></circle>
+<rect x="30" y="160" width="76" height="9" rx="3" fill="#33AEEF"></rect><rect x="24" y="168" width="88" height="22" rx="5" fill="#1F2A3C"></rect><rect x="50" y="174" width="36" height="10" rx="2" fill="#8FD3F7"></rect>
+<rect x="40" y="112" width="56" height="48" rx="3" fill="#C99A5B"></rect><rect x="40" y="112" width="56" height="11" fill="#B88648"></rect><rect x="62" y="112" width="12" height="48" fill="#E2C08A"></rect>
+<rect x="22" y="80" width="50" height="22" rx="11" fill="#1F2A3C"></rect><text x="47" y="95" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">2 kg</text>
+<rect x="124" y="26" width="176" height="168" rx="12" fill="#FFFFFF" stroke="#C9D6EA" stroke-width="2"></rect>
+<circle cx="140" cy="42" r="4" fill="#C9D6EA"></circle><circle cx="152" cy="42" r="4" fill="#C9D6EA"></circle><circle cx="164" cy="42" r="4" fill="#C9D6EA"></circle>
+<rect x="134" y="62" width="156" height="34" rx="8" fill="#EAF2FE" stroke="#2463DB" stroke-width="2"></rect>
+<rect x="230" y="54" width="56" height="16" rx="8" fill="#16A34A"></rect><text x="258" y="65.5" text-anchor="middle" font-size="9" font-weight="700" fill="#FFFFFF">CHEAPEST</text>
+<circle cx="152" cy="79" r="9" fill="#E5484D"></circle><rect x="168" y="74" width="44" height="10" rx="5" fill="#1F2A3C"></rect><text x="282" y="84" text-anchor="end" font-size="14" font-weight="700" fill="#1F2A3C">£2.39</text>
+<rect x="134" y="104" width="156" height="34" rx="8" fill="#FFFFFF" stroke="#E3EAF4" stroke-width="2"></rect>
+<circle cx="152" cy="121" r="9" fill="#00A0B0"></circle><rect x="168" y="116" width="52" height="10" rx="5" fill="#9FB0C8"></rect><text x="282" y="126" text-anchor="end" font-size="14" font-weight="600" fill="#6B7A90">£3.29</text>
+<rect x="134" y="146" width="156" height="34" rx="8" fill="#FFFFFF" stroke="#E3EAF4" stroke-width="2"></rect>
+<circle cx="152" cy="163" r="9" fill="#F5A623"></circle><rect x="168" y="158" width="38" height="10" rx="5" fill="#9FB0C8"></rect><text x="282" y="168" text-anchor="end" font-size="14" font-weight="600" fill="#6B7A90">£4.15</text>
+</svg>
+      </div>
+      <span style="font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 700; color: #2463DB">Step 1</span>
+      <h3 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 600">Compare quotes</h3>
+      <p style="margin: 0; color: #3E4A5C; line-height: 1.6">Enter the weight, see every courier and service side by side, sorted by price or speed.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div style="height: 220px; border-radius: 14px; background: #EAF2FE; overflow: hidden; display: grid; place-items: center">
+<svg viewBox="0 0 320 220" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="display: block; font-family: 'Outfit', sans-serif">
+<circle cx="56" cy="40" r="30" fill="#D6E6FD"></circle><circle cx="292" cy="196" r="28" fill="#D6E6FD"></circle>
+<rect x="30" y="40" width="80" height="146" rx="16" fill="#1F2A3C"></rect><rect x="37" y="54" width="66" height="118" rx="7" fill="#FFFFFF"></rect><rect x="58" y="45" width="24" height="4" rx="2" fill="#2C3A50"></rect>
+<circle cx="70" cy="88" r="17" fill="#16A34A"></circle><path d="M62 88l6 6 11-12" stroke="#FFFFFF" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="70" y="124" text-anchor="middle" font-size="12" font-weight="700" fill="#1F2A3C">Paid</text><text x="70" y="140" text-anchor="middle" font-size="11" font-weight="600" fill="#6B7A90">£2.39</text>
+<rect x="46" y="152" width="48" height="12" rx="6" fill="#2463DB"></rect>
+<path d="M116 112 C 132 112 136 92 150 88" stroke="#2463DB" stroke-width="3" stroke-dasharray="5 6" fill="none" stroke-linecap="round"></path>
+<rect x="176" y="22" width="92" height="96" rx="3" fill="#FFFFFF" stroke="#C9D6EA" stroke-width="2"></rect>
+<rect x="184" y="30" width="44" height="7" rx="3.5" fill="#2463DB"></rect><rect x="184" y="41" width="30" height="5" rx="2.5" fill="#9FB0C8"></rect>
+<rect x="184" y="54" width="30" height="30" fill="#1F2A3C"></rect>
+<g fill="#FFFFFF"><rect x="188" y="58" width="8" height="8"></rect><rect x="202" y="58" width="8" height="8"></rect><rect x="188" y="72" width="8" height="8"></rect><rect x="199" y="69" width="4" height="4"></rect><rect x="205" y="75" width="5" height="5"></rect></g>
+<g fill="#1F2A3C"><rect x="222" y="54" width="3" height="30"></rect><rect x="228" y="54" width="2" height="30"></rect><rect x="233" y="54" width="4" height="30"></rect><rect x="240" y="54" width="2" height="30"></rect><rect x="245" y="54" width="3" height="30"></rect><rect x="251" y="54" width="2" height="30"></rect><rect x="256" y="54" width="4" height="30"></rect></g>
+<rect x="184" y="92" width="64" height="5" rx="2.5" fill="#C9D6EA"></rect><rect x="184" y="101" width="48" height="5" rx="2.5" fill="#C9D6EA"></rect>
+<rect x="154" y="110" width="136" height="60" rx="12" fill="#1F2A3C"></rect><rect x="168" y="106" width="108" height="12" rx="4" fill="#2C3A50"></rect>
+<rect x="166" y="170" width="112" height="12" rx="4" fill="#2C3A50"></rect><circle cx="272" cy="130" r="5" fill="#33AEEF"></circle><rect x="168" y="126" width="40" height="6" rx="3" fill="#3B4A63"></rect>
+</svg>
+      </div>
+      <span style="font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 700; color: #2463DB">Step 2</span>
+      <h3 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 600">Book and print</h3>
+      <p style="margin: 0; color: #3E4A5C; line-height: 1.6">Pay securely, then print your label at home or show a QR code at the drop-off point.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div style="height: 220px; border-radius: 14px; background: #EAF2FE; overflow: hidden; display: grid; place-items: center">
+<svg viewBox="0 0 320 220" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" aria-hidden="true" style="display: block; font-family: 'Outfit', sans-serif">
+<circle cx="164" cy="34" r="30" fill="#D6E6FD"></circle>
+<rect x="0" y="190" width="320" height="3" rx="1.5" fill="#C9D6EA"></rect>
+<rect x="22" y="44" width="100" height="146" rx="8" fill="#FFFFFF" stroke="#1F2A3C" stroke-width="3"></rect><rect x="22" y="44" width="100" height="18" rx="8" fill="#1F2A3C"></rect><rect x="22" y="54" width="100" height="8" fill="#1F2A3C"></rect>
+<g fill="#E3EAF4"><rect x="30" y="70" width="26" height="24" rx="3"></rect><rect x="60" y="70" width="26" height="24" rx="3"></rect><rect x="90" y="70" width="24" height="24" rx="3"></rect><rect x="30" y="98" width="26" height="24" rx="3"></rect><rect x="90" y="98" width="24" height="24" rx="3"></rect><rect x="30" y="126" width="26" height="24" rx="3"></rect><rect x="60" y="126" width="26" height="24" rx="3"></rect><rect x="90" y="126" width="24" height="24" rx="3"></rect><rect x="30" y="154" width="26" height="28" rx="3"></rect><rect x="90" y="154" width="24" height="28" rx="3"></rect></g>
+<rect x="60" y="98" width="26" height="24" rx="3" fill="#2463DB"></rect><circle cx="80" cy="110" r="2.5" fill="#FFFFFF"></circle>
+<rect x="60" y="154" width="26" height="28" rx="3" fill="#33AEEF"></rect>
+<rect x="132" y="160" width="30" height="30" rx="3" fill="#C99A5B"></rect><rect x="132" y="160" width="30" height="7" fill="#B88648"></rect><rect x="144" y="160" width="7" height="30" fill="#E2C08A"></rect>
+<path d="M110 34 Q 190 -6 236 60" stroke="#2463DB" stroke-width="3" stroke-dasharray="5 6" fill="none" stroke-linecap="round"></path>
+<path d="M236 84 C 226 70 222 64 222 56 a14 14 0 0 1 28 0 c0 8 -4 14 -14 28z" fill="#E5484D"></path><circle cx="236" cy="56" r="5.5" fill="#FFFFFF"></circle>
+<rect x="170" y="112" width="96" height="62" rx="8" fill="#2463DB"></rect><rect x="182" y="128" width="52" height="8" rx="4" fill="#FFFFFF" opacity=".9"></rect><rect x="182" y="142" width="34" height="6" rx="3" fill="#8FD3F7"></rect>
+<path d="M266 124 h22 l20 22 v28 h-42 z" fill="#1F4FB8"></path><path d="M272 130 h14 l14 16 h-28 z" fill="#BFD6FB"></path>
+<circle cx="196" cy="178" r="12" fill="#1F2A3C"></circle><circle cx="196" cy="178" r="4.5" fill="#C9D6EA"></circle><circle cx="284" cy="178" r="12" fill="#1F2A3C"></circle><circle cx="284" cy="178" r="4.5" fill="#C9D6EA"></circle>
+</svg>
+      </div>
+      <span style="font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 700; color: #2463DB">Step 3</span>
+      <h3 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 600">Drop off or get collected</h3>
+      <p style="margin: 0; color: #3E4A5C; line-height: 1.6">Hand it to a local shop or locker, or book a collection from your door, and track it to delivery.</p>
+    </div>
+  </section>
+
+  <section style="background: #F4F6FA">
+    <div style="max-width: 1080px; margin: 0 auto; padding: 56px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px">
+      <div style="flex: 999 1 420px; display: flex; flex-direction: column; gap: 10px">
+        <h2 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 34px; font-weight: 700; letter-spacing: -0.01em">Shipping for your online shop?</h2>
+        <p style="margin: 0; color: #3E4A5C; line-height: 1.6; max-width: 540px">Open a free business account: bulk labels, saved addresses and one monthly invoice for every courier.</p>
+      </div>
+      <a href="#" style="display: flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 24px; border-radius: 8px; background: #1F2A3C; color: #FFFFFF; font-weight: 700; text-decoration: none">Open a business account</a>
+    </div>
+  </section>
+
+  <footer style="background: #1F2A3C">
+    <div style="max-width: 1080px; margin: 0 auto; padding: 28px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; color: #AEB9C9">
+      <img src="/assets/logo-white.png" alt="Kargom.co.uk" style="height: 22px; width: auto">
+      <span>© 2026 Kargom.co.uk · All prices include VAT</span>
+    </div>
+  </footer>
+
+  <sc-if value="{{video}}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-modal="true" aria-label="Kargom video" style="position: fixed; inset: 0; background: rgba(8,14,28,.8); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 10">
+      <div style="width: 100%; max-width: 880px; display: flex; flex-direction: column; gap: 10px">
+        <button type="button" onClick="{{closeVideo}}" aria-label="Close video" style="align-self: flex-end; width: 44px; height: 44px; border-radius: 50%; border: 0; background: #FFFFFF; color: #1F2A3C; display: grid; place-items: center; cursor: pointer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+        </button>
+        <div style="aspect-ratio: 16 / 9; max-width: 100%; background: #0B0F17; border-radius: 10px; display: grid; place-items: center; color: #AEB9C9; font-size: 16px; font-weight: 600">Video coming soon</div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</script>
+</body>
+</html>

@@ -199,8 +199,9 @@ export class AdjustmentService {
   }
 
   async listAll(status?: AdjustmentStatus) {
-    return this.db.all<AdjustmentRow & { ref: string; customer_id: string; service_name: string }>(
-      `SELECT a.*, s.ref, s.customer_id, s.service_name FROM adjustments a JOIN shipments s ON s.id = a.shipment_id
+    return this.db.all<AdjustmentRow & { ref: string; customer_id: string; service_name: string; parcel_json: string; carrier: string; provider: string; customer_name: string }>(
+      `SELECT a.*, s.ref, s.customer_id, s.service_name, s.parcel_json, s.carrier, s.provider, c.name AS customer_name
+         FROM adjustments a JOIN shipments s ON s.id = a.shipment_id JOIN customers c ON c.id = s.customer_id
         ${status ? 'WHERE a.status = $1' : ''} ORDER BY a.created_at DESC LIMIT 200`, status ? [status] : []);
   }
 }

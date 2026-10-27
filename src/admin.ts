@@ -53,10 +53,10 @@ export class AdminQueries {
     const params: (string | number)[] = [];
     if (filter.status) { params.push(filter.status); where.push(`s.status = $${params.length}`); }
     if (filter.customerId) { params.push(filter.customerId); where.push(`s.customer_id = $${params.length}`); }
-    params.push(Math.min(filter.limit ?? 100, 500));
+    params.push(Math.min(filter.limit ?? 500, 1000));
     return this.db.all(
       `SELECT s.id, s.ref, s.status, s.provider, s.carrier, s.service_name, s.tracking_number, s.cost_pence, s.price_pence, s.vat_pence,
-              s.pay_method, s.created_at, s.customer_id, c.name AS customer_name,
+              s.pay_method, s.created_at, s.customer_id, c.name AS customer_name, s.from_json, s.to_json, s.parcel_json,
               (SELECT a.status FROM adjustments a WHERE a.shipment_id = s.id ORDER BY a.created_at DESC LIMIT 1) AS adjustment_status
          FROM shipments s JOIN customers c ON c.id = s.customer_id
         ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
@@ -69,7 +69,8 @@ export class AdminQueries {
       `SELECT c.id, c.name, c.email, c.company, c.account_type, c.bookings_paused, c.created_at,
               (SELECT COUNT(*) FROM shipments s WHERE s.customer_id = c.id AND s.status NOT IN ('failed','awaiting_payment')) AS shipments,
               (SELECT COALESCE(SUM(price_pence),0) FROM shipments s WHERE s.customer_id = c.id AND s.status NOT IN ('failed','awaiting_payment','pending')) AS spend_pence,
-              (SELECT -COALESCE(SUM(amount),0) FROM ledger_lines l WHERE l.account = 'wallet:' || c.id) AS wallet_pence
+              (SELECT -COALESCE(SUM(amount),0) FROM ledger_lines l WHERE l.account = 'wallet:' || c.id) AS wallet_pence,
+              (SELECT COALESCE(SUM(a.diff_pence),0) FROM adjustments a JOIN shipments s2 ON s2.id = a.shipment_id WHERE s2.customer_id = c.id AND a.status IN ('pending','failed')) AS owed_pence
          FROM customers c WHERE c.role = 'customer' ${q ? 'AND (LOWER(c.name) LIKE $1 OR LOWER(c.email) LIKE $1 OR LOWER(COALESCE(c.company, \'\')) LIKE $1)' : ''}
         ORDER BY c.created_at DESC LIMIT 200`, q ? [q] : []);
   }
@@ -105,6 +106,31 @@ export class AdminQueries {
       addresses: (addresses as Array<{ json: string; kind: string; used: number }>).map((a) => ({ kind: a.kind, used: Number(a.used), address: JSON.parse(a.json) })),
       carriers,
     };
+  }
+
+  /** Recent money movements for the Finance ledger table. */
+  async ledgerEntries(limit = 100) {
+    const rows = await this.db.all<{ id: string; kind: string; ref: string | null; memo: string | null; created_at: string; account: string; amount: number }>(
+      `SELECT e.id, e.kind, e.ref, e.memo, e.created_at, l.account, l.amount FROM ledger_entries e JOIN ledger_lines l ON l.entry_id = e.id
+        WHERE l.account LIKE 'wallet:%' OR l.account = 'cash:stripe' OR l.account LIKE 'hold:%'
+        ORDER BY e.created_at DESC, e.id DESC LIMIT $1`, [limit * 3]);
+    const byEntry = new Map<string, { id: string; kind: string; ref: string | null; memo: string | null; created_at: string; customerId: string | null; amount: number; method: string }>();
+    for (const r of rows) {
+      const cur = byEntry.get(r.id) ?? { id: r.id, kind: r.kind, ref: r.ref, memo: r.memo, created_at: r.created_at, customerId: null, amount: 0, method: '' };
+      const m = /^(wallet|hold):(.+)$/.exec(r.account);
+      if (m) cur.customerId = m[2]!;
+      if (r.account.startsWith('wallet:')) { cur.amount = -r.amount; cur.method = 'Wallet'; }
+      if (r.account === 'cash:stripe' && !cur.method) { cur.amount = r.amount; cur.method = 'Card (Stripe)'; }
+      byEntry.set(r.id, cur);
+    }
+    const list = [...byEntry.values()].slice(0, limit);
+    const ids = [...new Set(list.map((x) => x.customerId).filter(Boolean))] as string[];
+    const names = new Map<string, string>();
+    for (const id of ids) {
+      const c = await this.db.get<{ name: string }>('SELECT name FROM customers WHERE id = $1', [id]);
+      if (c) names.set(id, c.name);
+    }
+    return list.map((x) => ({ ...x, customerName: x.customerId ? names.get(x.customerId) ?? '' : '' }));
   }
 
   /** Balances straight from the ledger: what we hold, owe and earned. */

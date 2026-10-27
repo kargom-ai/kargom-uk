@@ -231,7 +231,7 @@ export class BookingService {
     return { kind: 'booked', shipment: s };
   }
 
-  async listForCustomer(customerId: string, limit = 50) {
+  async listForCustomer(customerId: string, limit = 500) {
     return this.db.all<ShipmentRow>('SELECT * FROM shipments WHERE customer_id = $1 ORDER BY created_at DESC LIMIT $2', [customerId, limit]);
   }
 }

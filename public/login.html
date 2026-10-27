@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — Kargom.co.uk</title>
+<link rel="icon" href="/assets/logo-white.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#1F2A3C;background:#F4F6FA;min-height:100vh;display:flex;flex-direction:column}
+a{color:#2463DB}a:hover{color:#1A4FB8}
+input,select,button{font-family:inherit}
+input:focus{outline:none;border-color:#2463DB;box-shadow:inset 0 0 0 1px #2463DB}
+.lbl{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#3E4A5C}
+.inp{min-height:48px;border-radius:10px;border:1px solid #C9D6EA;padding:0 14px;font:500 15px 'Plus Jakarta Sans',sans-serif;color:#1F2A3C;background:#FFFFFF;width:100%}
+.tab{flex:1;min-height:46px;border:0;background:transparent;font:700 15px 'Plus Jakarta Sans',sans-serif;color:#586579;cursor:pointer;border-bottom:3px solid transparent}
+.tab[aria-selected="true"]{color:#1F2A3C;border-bottom-color:#2463DB}
+.type{flex:1;display:flex;align-items:center;gap:10px;min-height:48px;padding:0 14px;border-radius:10px;border:1px solid #C9D6EA;background:#FFFFFF;font-weight:700;font-size:14px;cursor:pointer}
+.type:has(input:checked){border-color:#2463DB;background:#F5F9FF;box-shadow:inset 0 0 0 1px #2463DB}
+.go{min-height:52px;border-radius:10px;border:0;background:#2463DB;color:#FFFFFF;font:700 16px 'Plus Jakarta Sans',sans-serif;cursor:pointer}
+.go:hover{background:#1A4FB8}.go:disabled{opacity:.6;cursor:default}
+.err{padding:10px 12px;border-radius:10px;background:#FDECEC;color:#B42318;font-size:14px;font-weight:600}
+.perk{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.45}
+.perk b{display:block;font-size:16px}
+.tick{flex:none;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.16);display:grid;place-items:center;font-weight:800}
+</style>
+<script type="module" src="/assets/pages/login.js"></script>
+</head>
+<body>
+<header style="background:#1F2A3C">
+  <div style="max-width:1080px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:14px">
+    <a href="/" aria-label="Kargom.co.uk home"><img src="/assets/logo-white.png" alt="Kargom.co.uk" style="height:28px;width:auto;display:block"></a>
+    <nav aria-label="Main menu" style="display:flex;gap:22px;font-size:14px;font-weight:600">
+      <a href="/" style="color:#DCE4F2;text-decoration:none">Compare prices</a>
+      <a href="/app?view=help" style="color:#DCE4F2;text-decoration:none">Help</a>
+    </nav>
+  </div>
+</header>
+<main style="flex:1;background:linear-gradient(110deg,#3D6DEB 0%,#2A4FC8 55%,#1D3593 100%)">
+  <div style="max-width:1080px;margin:0 auto;padding:48px 24px 64px;display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;justify-content:space-between">
+    <section style="flex:1 1 360px;color:#FFFFFF;display:flex;flex-direction:column;gap:22px;padding-top:12px">
+      <h1 style="margin:0;font-family:'Outfit',sans-serif;font-size:clamp(34px,5vw,48px);font-weight:700;line-height:1.08">Cheaper UK parcel delivery,<br>in one account.</h1>
+      <span style="font-size:17px;color:#DCE4F2;max-width:440px">Compare Royal Mail, Evri, DPD, InPost and more, book in a minute and track everything from your dashboard.</span>
+      <div style="display:flex;flex-direction:column;gap:16px;max-width:440px">
+        <span class="perk"><span class="tick">✓</span><span><b>Pay as you go</b>Top up your wallet or pay by card at checkout.</span></span>
+        <span class="perk"><span class="tick">✓</span><span><b>No surprise charges</b>If a courier re-weighs your parcel, we only charge when the price actually changes.</span></span>
+        <span class="perk"><span class="tick">✓</span><span><b>Real people on support</b>Open a request from your dashboard and we reply fast.</span></span>
+      </div>
+    </section>
+    <section style="flex:0 1 440px;width:100%;background:#FFFFFF;border-radius:20px;box-shadow:0 24px 60px rgba(8,14,40,.28);overflow:hidden">
+      <div role="tablist" aria-label="Account" style="display:flex;border-bottom:1px solid #E1E7EF">
+        <button type="button" class="tab" role="tab" id="t-login" aria-selected="true">Sign in</button>
+        <button type="button" class="tab" role="tab" id="t-register" aria-selected="false">Create account</button>
+      </div>
+      <form id="f" novalidate style="padding:24px;display:flex;flex-direction:column;gap:14px">
+        <div id="reg-fields" hidden style="display:flex;flex-direction:column;gap:14px">
+          <div role="radiogroup" aria-label="Account type" style="display:flex;gap:10px">
+            <label class="type"><input type="radio" name="accountType" value="personal" checked> Personal</label>
+            <label class="type"><input type="radio" name="accountType" value="business"> Business</label>
+          </div>
+          <label class="lbl">Full name<input class="inp" name="name" autocomplete="name"></label>
+          <label class="lbl">Company (optional)<input class="inp" name="company" autocomplete="organization"></label>
+        </div>
+        <label class="lbl">Email<input class="inp" name="email" type="email" autocomplete="email" required></label>
+        <label class="lbl">Password<input class="inp" name="password" type="password" autocomplete="current-password" required minlength="10"></label>
+        <span id="hint" style="font-size:13px;color:#586579"></span>
+        <div id="msg" role="status"></div>
+        <button class="go" id="submit" type="submit">Sign in</button>
+        <span style="font-size:12px;color:#8593A8;text-align:center">By continuing you agree to the Kargom terms and privacy policy.</span>
+      </form>
+    </section>
+  </div>
+</main>
+<footer style="background:#1F2A3C;color:#9FB0C8;font-size:13px">
+  <div style="max-width:1080px;margin:0 auto;padding:18px 24px">© Kargom.co.uk · Parcel delivery made simple</div>
+</footer>
+</body>
+</html>

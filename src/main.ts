@@ -34,16 +34,21 @@ if (process.env.SHIPSTATION_API_KEY) {
     baseUrl: process.env.SHIPSTATION_BASE_URL ?? 'https://api.shipstation.com/v2',
     apiKey: process.env.SHIPSTATION_API_KEY,
     carrierIds: (process.env.SHIPSTATION_CARRIER_IDS ?? '').split(',').map((x) => x.trim()).filter(Boolean),
+    // Outside production every label is a TEST label, so trying the site never buys real postage.
+    testLabels: !production || process.env.SHIPSTATION_TEST_LABELS === '1',
   });
   app.registry.addStatic(shipstation);
   // Connection check on start-up: prints carrier names (never the key) to the logs.
   shipstation
     .listCarriers(AbortSignal.timeout(10_000))
-    .then((cs) => console.log(`[shipstation] connected: ${cs.length} carrier account(s): ${cs.map((c) => `${c.name} (${c.id})`).join(', ') || 'none - connect carriers in ShipStation first'}`))
+    .then((cs) => console.log(`[shipstation] connected: ${cs.length} carrier account(s): ${cs.map((c) => `${c.name} [${c.code}] (${c.id})`).join(', ') || 'none - connect carriers in ShipStation first'}`))
     .catch((e) => console.error(`[shipstation] connection FAILED: ${(e as Error).message} ${JSON.stringify((e as { details?: unknown }).details ?? '')}`));
 }
 
-if (!production && process.env.MOCK_PROVIDER !== '0') app.registry.addStatic(new MockProvider());
+// The fake courier only runs when no real provider is configured (or MOCK_PROVIDER=1).
+if (!production && (process.env.MOCK_PROVIDER === '1' || (!process.env.SHIPSTATION_API_KEY && process.env.MOCK_PROVIDER !== '0'))) {
+  app.registry.addStatic(new MockProvider());
+}
 
 const port = Number(process.env.PORT ?? 8080);
 await startServer(app, port);

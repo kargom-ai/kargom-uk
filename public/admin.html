@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — Kargom</title>
+<link rel="icon" href="/assets/logo-white.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#F4F6FA}
+a{color:#2463DB}a:hover{color:#1A4FB8}
+.nav:hover{background:#2C3A50}
+tr.row:hover td{background:#F8FAFD}
+.btn:hover{filter:brightness(1.06)}
+.ghost:hover{background:#F4F6FA}
+.stage:hover{border-color:#2463DB}
+.clink:hover{color:#2463DB !important;text-decoration:underline}
+select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
+</style>
+<style>.kg-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1F2A3C;color:#fff;padding:12px 18px;border-radius:12px;font:600 14px 'Plus Jakarta Sans',sans-serif;z-index:60;box-shadow:0 12px 30px rgba(8,14,28,.3)}</style>
+<script type="module" src="/assets/pages/admin.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/x-template" id="tpl">
+<div style="font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #1F2A3C; background: #F4F6FA; width: 100%; min-height: 100vh; display: flex; flex-wrap: wrap; align-items: stretch">
+
+  <aside aria-label="Admin menu" style="flex: 1 1 230px; max-width: 250px; background: #1F2A3C; color: #DCE4F2; padding: 18px 14px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box">
+    <span style="display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px">
+      <img src="/assets/logo-white.png" alt="Kargom.co.uk" style="height: 20px; width: auto; display: block">
+      <span style="font-size: 11px; font-weight: 800; letter-spacing: .08em; padding: 3px 7px; border-radius: 6px; background: #E5484D; color: #FFFFFF">ADMIN</span>
+    </span>
+    <nav style="display: flex; flex-direction: column; gap: 2px">
+      <sc-for list="{{nav}}" as="n" hint-placeholder-count="7">
+        <button type="button" class="nav" onClick="{{n.pick}}" aria-current="{{n.cur}}" style="display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 0 12px; border: 0; border-radius: 10px; background: {{n.bg}}; color: {{n.fg}}; font: 600 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer; text-align: left">
+          <span style="width: 8px; height: 8px; border-radius: 50%; background: {{n.dot}}"></span>
+          <span style="flex: 1">{{n.label}}</span>
+          <span style="font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: {{n.badgeBg}}; color: #FFFFFF">{{n.badge}}</span>
+        </button>
+      </sc-for>
+    </nav>
+    <div style="margin-top: auto; border-top: 1px solid #2C3A50; padding: 14px 8px 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px">
+      <span style="display: flex; align-items: center; justify-content: space-between">System status <b style="color: {{sysFg}}">{{sysTxt}}</b></span>
+      <span style="color: #9FB0C8">Data refreshes every 30 seconds</span>
+      <span style="display: flex; gap: 14px"><a href="/app" style="color: #C9D6EA; font-weight: 700; text-decoration: none">Customer view</a><button type="button" onClick="{{signOut}}" style="border: 0; padding: 0; background: transparent; color: #C9D6EA; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Sign out</button></span>
+    </div>
+  </aside>
+
+  <div style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column">
+    <header style="background: #FFFFFF; border-bottom: 1px solid #E1E7EF; padding: 12px 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px">
+      <label style="flex: 0 1 420px; display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid #E1E7EF; background: #F8FAFD">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8593A8" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search</span>
+        <input placeholder="Search shipments, customers, payments" aria-label="Global search" onKeydown="{{globalSearch}}" style="flex: 1; min-width: 0; border: 0; background: transparent; font: 500 14px 'Plus Jakarta Sans', sans-serif">
+      </label>
+      <div role="radiogroup" aria-label="Environment" style="display: flex; padding: 3px; border-radius: 10px; background: #F4F6FA; border: 1px solid #E1E7EF">
+        <sc-for list="{{envs}}" as="e" hint-placeholder-count="2">
+          <button type="button" role="radio" aria-checked="{{e.on}}" onClick="{{e.pick}}" style="min-height: 34px; padding: 0 12px; border-radius: 8px; border: 0; background: {{e.bg}}; color: {{e.fg}}; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{e.label}}</button>
+        </sc-for>
+      </div>
+      <div role="radiogroup" aria-label="Period" style="display: flex; gap: 4px; margin-left: auto">
+        <sc-for list="{{periods}}" as="p" hint-placeholder-count="4">
+          <button type="button" role="radio" aria-checked="{{p.on}}" onClick="{{p.pick}}" style="min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid {{p.border}}; background: {{p.bg}}; color: {{p.fg}}; font: 600 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{p.label}}</button>
+        </sc-for>
+      </div>
+      <span style="display: flex; align-items: center; gap: 10px">
+        <span style="width: 36px; height: 36px; border-radius: 50%; background: #1F2A3C; color: #FFFFFF; display: grid; place-items: center; font: 700 13px 'Outfit', sans-serif">{{meIni}}</span>
+        <span style="display: flex; flex-direction: column; line-height: 1.25"><b style="font-size: 14px">{{meName}}</b><span style="font-size: 12px; color: #586579">Super admin</span></span>
+      </span>
+    </header>
+
+    <sc-if value="{{isTest}}" hint-placeholder-val="{{ false }}">
+      <div role="status" style="background: #FFF4E0; color: #7A4A00; padding: 8px 28px; font-size: 13px; font-weight: 600">Test mode: you are looking at sandbox data. No real labels are bought and no cards are charged.</div>
+    </sc-if>
+
+    <main style="padding: 26px 28px 40px; display: flex; flex-direction: column; gap: 20px; min-width: 0">
+
+      <!-- OVERVIEW -->
+      <sc-if value="{{vOver}}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px">
+          <div><h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 30px; font-weight: 600">Overview</h1><span style="font-size: 14px; color: #586579">{{periodTxt}} · live data</span></div>
+          <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #166534; font-weight: 700"><span style="width: 8px; height: 8px; border-radius: 50%; background: #16A34A; box-shadow: 0 0 0 4px #D1F0DA"></span>Updated live</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px">
+          <sc-for list="{{kpis}}" as="k" hint-placeholder-count="6">
+            <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px">
+              <span style="font-size: 13px; color: #586579; font-weight: 600">{{k.label}}</span>
+              <span style="font-family: 'Outfit', sans-serif; font-size: 27px; font-weight: 700; font-variant-numeric: tabular-nums">{{k.value}}</span>
+              <span style="font-size: 12px; font-weight: 700; color: {{k.dFg}}">{{k.delta}}</span>
+            </section>
+          </sc-for>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch">
+          <section style="flex: 999 1 560px; min-width: 0; background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px">
+              <h2 style="margin: 0; font-size: 18px">Shipments and revenue</h2>
+              <span style="display: flex; gap: 14px; font-size: 12px; color: #586579"><span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #8FB4F5"></span>Shipments</span><span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 14px; height: 3px; border-radius: 2px; background: #1F2A3C"></span>Gross profit</span></span>
+            </div>
+            <div style="position: relative; height: 200px">
+              <div role="img" aria-label="Daily shipments for the last 30 days, between 280 and 520 a day" style="position: absolute; inset: 0 0 18px 0; display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid #E1E7EF">
+                <sc-for list="{{bars}}" as="b" hint-placeholder-count="30">
+                  <span title="{{b.tip}}" style="flex: 1; height: {{b.h}}; border-radius: 3px 3px 0 0; background: {{b.c}}"></span>
+                </sc-for>
+              </div>
+              <svg viewBox="0 0 300 100" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 0; bottom: 18px; width: 100%; height: calc(100% - 18px)"><polyline points="{{line}}" fill="none" stroke="#1F2A3C" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"></polyline></svg>
+              <div style="position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; font-size: 11px; color: #8593A8"><span>{{ax0}}</span><span>{{ax1}}</span><span>{{ax2}}</span><span>{{ax3}}</span></div>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 12px; border-top: 1px solid #EEF2F7; padding-top: 14px">
+              <sc-for list="{{funnel}}" as="f" hint-placeholder-count="4">
+                <div style="flex: 1 1 140px; display: flex; flex-direction: column; gap: 2px">
+                  <span style="font-size: 12px; color: #586579; font-weight: 600">{{f.label}}</span>
+                  <b style="font-family: 'Outfit', sans-serif; font-size: 20px; font-variant-numeric: tabular-nums">{{f.value}}</b>
+                  <span style="font-size: 12px; color: #586579">{{f.note}}</span>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+          <section style="flex: 1 1 320px; background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; justify-content: space-between; align-items: center"><h2 style="margin: 0; font-size: 18px">Live activity</h2><button type="button" onClick="{{goFlow}}" style="border: 0; background: transparent; color: #2463DB; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer; min-height: 32px">Open flow</button></div>
+            <sc-for list="{{feed}}" as="e" hint-placeholder-count="7">
+              <div style="display: flex; gap: 10px; align-items: flex-start">
+                <span style="width: 30px; height: 30px; border-radius: 9px; background: {{e.bg}}; color: {{e.fg}}; display: grid; place-items: center; font: 800 13px 'Outfit', sans-serif; flex: none">{{e.icon}}</span>
+                <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 13px"><b>{{e.t}}</b><span style="color: #586579">{{e.s}}</span></span>
+                <span style="font-size: 12px; color: #8593A8; white-space: nowrap">{{e.ago}}</span>
+              </div>
+            </sc-for>
+          </section>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px">
+          <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+            <h2 style="margin: 0; font-size: 18px">Courier mix</h2>
+            <sc-for list="{{mix}}" as="m" hint-placeholder-count="6">
+              <div style="display: flex; flex-direction: column; gap: 5px">
+                <div style="display: flex; justify-content: space-between; font-size: 14px"><span style="display: flex; align-items: center; gap: 8px"><img src="{{m.logo}}" alt="" style="width: 44px; height: 18px; object-fit: contain">{{m.name}}</span><span style="font-variant-numeric: tabular-nums"><b>{{m.n}}</b> <span style="color: #586579">· margin {{m.mg}}</span></span></div>
+                <div style="height: 8px; border-radius: 4px; background: #EEF2F7"><div style="height: 8px; border-radius: 4px; width: {{m.w}}; background: #2463DB"></div></div>
+              </div>
+            </sc-for>
+          </section>
+          <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; justify-content: space-between; align-items: center"><h2 style="margin: 0; font-size: 18px">Connections health</h2><button type="button" onClick="{{goConn}}" style="border: 0; background: transparent; color: #2463DB; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer; min-height: 32px">Manage</button></div>
+            <sc-for list="{{health}}" as="h" hint-placeholder-count="5">
+              <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: #F8FAFD">
+                <span style="width: 34px; height: 34px; border-radius: 9px; background: {{h.color}}; color: #FFFFFF; display: grid; place-items: center; font: 700 14px 'Outfit', sans-serif; flex: none">{{h.ini}}</span>
+                <span style="flex: 1; display: flex; flex-direction: column; gap: 1px"><b style="font-size: 14px">{{h.name}}</b><span style="font-size: 12px; color: #586579">{{h.note}}</span></span>
+                <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: {{h.fg}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{h.fg}}"></span>{{h.state}}</span>
+              </div>
+            </sc-for>
+          </section>
+          <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+            <h2 style="margin: 0; font-size: 18px">Needs action</h2>
+            <sc-for list="{{alerts}}" as="a" hint-placeholder-count="4">
+              <button type="button" onClick="{{a.go}}" style="display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 12px; border: 0; background: {{a.bg}}; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; color: #1F2A3C">
+                <span style="width: 9px; height: 9px; border-radius: 50%; background: {{a.dot}}; margin-top: 6px; flex: none"></span>
+                <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><b style="font-size: 14px">{{a.t}}</b><span style="font-size: 13px; color: #3E4A5C">{{a.s}}</span></span>
+              </button>
+            </sc-for>
+          </section>
+        </div>
+      </sc-if>
+
+      <!-- SHIPMENT FLOW -->
+      <sc-if value="{{vFlow}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px">
+          <div><h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 30px; font-weight: 600">Shipment flow</h1><span style="font-size: 14px; color: #586579">Every parcel from booking to doorstep, updated by courier webhooks.</span></div>
+          <a href="#" onClick="{{exportFlow}}" class="ghost" style="display: inline-flex; align-items: center; min-height: 42px; padding: 0 14px; border-radius: 10px; background: #FFFFFF; border: 1px solid #C9D6EA; font-size: 14px; font-weight: 700; color: #1F2A3C; text-decoration: none">Export CSV</a>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px">
+          <sc-for list="{{stages}}" as="s" hint-placeholder-count="7">
+            <button type="button" class="stage" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 14px; border: 2px solid {{s.border}}; background: {{s.bg}}; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; color: #1F2A3C">
+              <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: {{s.fg}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{s.fg}}"></span>{{s.label}}</span>
+              <b style="font-family: 'Outfit', sans-serif; font-size: 26px; font-variant-numeric: tabular-nums">{{s.n}}</b>
+              <span style="font-size: 12px; color: #586579">{{s.note}}</span>
+            </button>
+          </sc-for>
+        </div>
+        <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; overflow: hidden">
+          <div style="overflow-x: auto">
+            <table style="width: 100%; min-width: 1080px; border-collapse: collapse; font-size: 13px">
+              <thead>
+                <tr style="text-align: left; color: #586579; font-size: 11px; text-transform: uppercase; letter-spacing: .05em">
+                  <th style="padding: 12px 20px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Shipment</th>
+                  <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Customer</th>
+                  <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Route</th>
+                  <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Service · via</th>
+                  <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Cost</th>
+                  <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Price</th>
+                  <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Margin</th>
+                  <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Paid</th>
+                  <th style="padding: 12px 20px 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{flowRows}}" as="r" hint-placeholder-count="10">
+                  <tr class="row">
+                    <td style="padding: 11px 20px; border-bottom: 1px solid #EEF2F7"><span style="display: flex; flex-direction: column"><b style="font-family: ui-monospace, Menlo, monospace; font-size: 12px">{{r.no}}</b><span style="font-size: 12px; color: #586579">{{r.time}}</span></span></td>
+                    <td style="padding: 11px 10px; border-bottom: 1px solid #EEF2F7"><button type="button" class="clink" style="border: 0; padding: 0; background: transparent; color: #1F2A3C; font: inherit; font-weight: 700; cursor: pointer; text-align: left" onClick="{{r.openCust}}">{{r.cust}}</button></td>
+                    <td style="padding: 11px 10px; border-bottom: 1px solid #EEF2F7; color: #3E4A5C">{{r.route}}</td>
+                    <td style="padding: 11px 10px; border-bottom: 1px solid #EEF2F7"><span style="display: flex; align-items: center; gap: 8px"><img src="{{r.logo}}" alt="" style="width: 44px; height: 18px; object-fit: contain"><span style="display: flex; flex-direction: column"><span>{{r.svc}}</span><span style="font-size: 11px; color: #586579">via {{r.via}}</span></span></span></td>
+                    <td style="padding: 11px 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-variant-numeric: tabular-nums; color: #586579">{{r.cost}}</td>
+                    <td style="padding: 11px 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700">{{r.price}}</td>
+                    <td style="padding: 11px 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-variant-numeric: tabular-nums; color: #166534; font-weight: 700">{{r.margin}}</td>
+                    <td style="padding: 11px 10px; border-bottom: 1px solid #EEF2F7; color: #3E4A5C">{{r.paid}}</td>
+                    <td style="padding: 11px 20px 11px 10px; border-bottom: 1px solid #EEF2F7; white-space: nowrap"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: {{r.sBg}}; color: {{r.sFg}}"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{r.sFg}}"></span>{{r.status}}</span><sc-if value="{{r.adj}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{goAdj}}" title="{{r.adjTxt}}" aria-label="Weight adjustment: {{r.adjTxt}}" style="margin-left: 6px; vertical-align: middle; width: 22px; height: 22px; border-radius: 50%; border: 0; background: {{r.adjBg}}; color: #FFFFFF; font: 800 12px 'Outfit', sans-serif; cursor: pointer">i</button></sc-if></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </sc-if>
+
+      <!-- ADJUSTMENTS -->
+      <sc-if value="{{vAdj}}" hint-placeholder-val="{{ false }}">
+        <div><h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 30px; font-weight: 600">Weight adjustments</h1><span style="font-size: 14px; color: #586579">When a courier weighs or measures a parcel differently, their webhook lands here. The difference is collected from the customer's wallet or card.</span></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px">
+          <sc-for list="{{adjStats}}" as="k" hint-placeholder-count="4">
+            <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px">
+              <span style="font-size: 13px; color: #586579; font-weight: 600">{{k.label}}</span>
+              <span style="font-family: 'Outfit', sans-serif; font-size: 27px; font-weight: 700; font-variant-numeric: tabular-nums; color: {{k.color}}">{{k.value}}</span>
+              <span style="font-size: 12px; color: #586579">{{k.note}}</span>
+            </section>
+          </sc-for>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+          <section style="flex: 999 1 600px; min-width: 0; background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; overflow: hidden">
+            <div style="overflow-x: auto">
+              <table style="width: 100%; min-width: 860px; border-collapse: collapse; font-size: 13px">
+                <thead>
+                  <tr style="text-align: left; color: #586579; font-size: 11px; text-transform: uppercase; letter-spacing: .05em">
+                    <th style="padding: 12px 20px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Shipment</th>
+                    <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Declared → measured</th>
+                    <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Courier bills us</th>
+                    <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Customer pays</th>
+                    <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Method</th>
+                    <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Status</th>
+                    <th style="padding: 12px 20px 12px 10px; border-bottom: 1px solid #E1E7EF"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{adjRows}}" as="a" hint-placeholder-count="7">
+                    <tr class="row">
+                      <td style="padding: 11px 20px; border-bottom: 1px solid #EEF2F7"><span style="display: flex; flex-direction: column"><b style="font-family: ui-monospace, Menlo, monospace; font-size: 12px">{{a.no}}</b><span style="font-size: 12px; color: #586579"><button type="button" class="clink" style="border: 0; padding: 0; background: transparent; color: #1F2A3C; font: inherit; font-weight: 700; cursor: pointer; text-align: left" onClick="{{a.openCust}}">{{a.cust}}</button> · {{a.svc}}</span></span></td>
+                      <td style="padding: 11px 10px; border-bottom: 1px solid #EEF2F7"><span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700">{{a.from}} <span style="color: {{a.toFg}}">→ {{a.to}}</span></span><br><span style="font-size: 11px; color: #586579">{{a.src}}</span></td>
+                      <td style="padding: 11px 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-variant-numeric: tabular-nums; color: #586579">{{a.cost}}</td>
+                      <td style="padding: 11px 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700">{{a.charge}}</td>
+                      <td style="padding: 11px 10px; border-bottom: 1px solid #EEF2F7; color: #3E4A5C">{{a.method}}</td>
+                      <td style="padding: 11px 10px; border-bottom: 1px solid #EEF2F7"><span style="display: inline-flex; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: {{a.sBg}}; color: {{a.sFg}}; white-space: nowrap">{{a.status}}</span></td>
+                      <td style="padding: 11px 20px 11px 10px; border-bottom: 1px solid #EEF2F7">
+                        <sc-if value="{{a.actionable}}" hint-placeholder-val="{{ true }}">
+                          <span style="display: flex; gap: 6px; justify-content: flex-end">
+                            <button type="button" class="btn" onClick="{{a.charge_}}" style="min-height: 32px; padding: 0 10px; border-radius: 8px; border: 0; background: #2463DB; color: #FFFFFF; font: 700 12px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{a.chargeTxt}}</button>
+                            <button type="button" class="ghost" onClick="{{a.waive}}" style="min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 12px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Waive</button>
+                          </span>
+                        </sc-if>
+                      </td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section style="flex: 1 1 300px; background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+            <h2 style="margin: 0; font-size: 18px">Collection rules</h2>
+            <sc-for list="{{adjRules}}" as="r" hint-placeholder-count="4">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+                <span style="display: flex; flex-direction: column; gap: 2px"><b style="font-size: 14px">{{r.label}}</b><span style="font-size: 12px; color: #586579">{{r.note}}</span></span>
+                <button type="button" role="switch" aria-checked="{{r.on}}" aria-label="{{r.label}}" onClick="{{r.toggle}}" style="width: 48px; height: 28px; border-radius: 999px; border: 0; background: {{r.bg}}; position: relative; cursor: pointer; flex: none"><span style="position: absolute; top: 3px; left: {{r.x}}; width: 22px; height: 22px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,.25)"></span></button>
+              </div>
+            </sc-for>
+            <label style="display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; font-weight: 700; border-top: 1px solid #EEF2F7; padding-top: 14px">Handling fee per adjustment
+              <span style="display: flex; align-items: center; gap: 4px; border: 1px solid #C9D6EA; border-radius: 9px; padding: 0 10px; min-height: 40px">£<input value="0.50" inputmode="decimal" style="width: 52px; border: 0; font: 700 14px 'Plus Jakarta Sans', sans-serif"></span>
+            </label>
+            <span style="font-size: 12px; color: #586579; line-height: 1.5">We only charge when the measured weight or size costs more. Same price band: the customer sees a yellow note and pays nothing. Order of collection: wallet first, then the saved card. If both fail, new bookings are paused.</span>
+          </section>
+        </div>
+      </sc-if>
+
+
+      <!-- SUPPORT -->
+      <sc-if value="{{vSup}}" hint-placeholder-val="{{ false }}">
+        <div><h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 30px; font-weight: 600">Support</h1><span style="font-size: 14px; color: #586579">Customer requests from the Help tab. Replies go to the customer's panel and by email.</span></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px">
+          <sc-for list="{{supStats}}" as="k" hint-placeholder-count="5">
+            <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 3px">
+              <span style="font-size: 13px; color: #586579; font-weight: 600">{{k.label}}</span>
+              <span style="font-family: 'Outfit', sans-serif; font-size: 25px; font-weight: 700; font-variant-numeric: tabular-nums; color: {{k.color}}">{{k.value}}</span>
+              <span style="font-size: 12px; color: #586579">{{k.note}}</span>
+            </section>
+          </sc-for>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch">
+          <section style="flex: 1 1 300px; max-width: 360px; background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 8px; align-self: flex-start">
+            <div role="tablist" aria-label="Queue" style="display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 6px">
+              <sc-for list="{{qTabs}}" as="t" hint-placeholder-count="4">
+                <button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 32px; padding: 0 10px; border-radius: 999px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: {{t.fg}}; font: 600 12px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{t.label}} · {{t.n}}</button>
+              </sc-for>
+            </div>
+            <sc-for list="{{queue}}" as="t" hint-placeholder-count="5">
+              <button type="button" onClick="{{t.pick}}" aria-current="{{t.cur}}" style="display: flex; flex-direction: column; gap: 5px; padding: 12px; border-radius: 12px; border: 2px solid {{t.border}}; background: {{t.bg}}; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; color: #1F2A3C">
+                <span style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+                  <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #586579"><span style="font-family: ui-monospace, Menlo, monospace">{{t.no}}</span><span style="font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 5px; background: {{t.pBg}}; color: {{t.pFg}}">{{t.prio}}</span></span>
+                  <span style="font-size: 11px; font-weight: 700; color: {{t.slaFg}}">{{t.sla}}</span>
+                </span>
+                <b style="font-size: 14px; line-height: 1.35">{{t.subject}}</b>
+                <span style="font-size: 12px; color: #586579">{{t.cust}} · {{t.cat}}</span>
+              </button>
+            </sc-for>
+          </section>
+
+          <section style="flex: 999 1 460px; min-width: 0; background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; display: flex; flex-direction: column; min-height: 560px">
+            <div style="padding: 16px 20px; border-bottom: 1px solid #EEF2F7; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px">
+              <span style="display: flex; flex-direction: column; gap: 3px"><b style="font-family: 'Outfit', sans-serif; font-size: 20px">{{tk.subject}}</b><span style="font-size: 13px; color: #586579">{{tk.no}} · <button type="button" class="clink" style="border: 0; padding: 0; background: transparent; color: #1F2A3C; font: inherit; font-weight: 700; cursor: pointer; text-align: left" onClick="{{tkOpenCust}}">{{tk.cust}}</button> · {{tk.cat}}</span></span>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700">Assigned
+                <select style="min-height: 36px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 8px; font: 600 13px 'Plus Jakarta Sans', sans-serif; color: #1F2A3C; background: #FFFFFF"><option>{{meName}}</option><option>Unassigned</option></select>
+              </label>
+            </div>
+            <div style="flex: 1; display: flex; flex-wrap: wrap; min-height: 0">
+              <div style="flex: 999 1 360px; min-width: 0; display: flex; flex-direction: column">
+                <div style="flex: 1; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; background: #FAFBFD">
+                  <sc-for list="{{thread}}" as="m" hint-placeholder-count="3">
+                    <div style="display: flex; flex-direction: column; gap: 4px; align-items: {{m.align}}">
+                      <span style="font-size: 12px; color: #586579"><b style="color: #1F2A3C">{{m.who}}</b> · {{m.time}}</span>
+                      <div style="max-width: 520px; padding: 12px 14px; border-radius: {{m.radius}}; background: {{m.bg}}; color: {{m.fg}}; font-size: 14px; line-height: 1.55; border: 1px solid {{m.border}}">{{m.text}}</div>
+                      <sc-if value="{{m.hasFile}}" hint-placeholder-val="{{ false }}"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; background: #EEF2F7; color: #3E4A5C">📎 {{m.file}}</span></sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="padding: 14px 20px; border-top: 1px solid #EEF2F7; display: flex; flex-direction: column; gap: 10px; background: {{replyBg}}">
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+                    <div role="radiogroup" aria-label="Reply type" style="display: flex; padding: 3px; border-radius: 9px; background: #F4F6FA; border: 1px solid #E1E7EF">
+                      <sc-for list="{{replyModes}}" as="r" hint-placeholder-count="2">
+                        <button type="button" role="radio" aria-checked="{{r.on}}" onClick="{{r.pick}}" style="min-height: 30px; padding: 0 10px; border-radius: 7px; border: 0; background: {{r.bg}}; color: {{r.fg}}; font: 700 12px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{r.label}}</button>
+                      </sc-for>
+                    </div>
+                    <label style="display: flex; align-items: center"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Saved replies</span>
+                      <select onChange="{{useCanned}}" style="min-height: 34px; border-radius: 8px; border: 1px solid #C9D6EA; padding: 0 8px; font: 600 12px 'Plus Jakarta Sans', sans-serif; color: #1F2A3C; background: #FFFFFF"><option>Saved replies…</option><option>Weight adjustment explained</option><option>Trace raised with courier</option><option>Refund added to wallet</option><option>Claim form needed</option></select>
+                    </label>
+                  </div>
+                  <label style="display: flex; flex-direction: column"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Reply</span>
+                    <textarea rows="3" aria-label="Admin reply" value="{{aDraft}}" onInput="{{setADraft}}" placeholder="{{replyPh}}" style="border-radius: 10px; border: 1px solid #C9D6EA; padding: 10px 12px; font: 500 14px 'Plus Jakarta Sans', sans-serif; color: #1F2A3C; resize: vertical; background: #FFFFFF"></textarea>
+                  </label>
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700">Then set to
+                      <select onChange="{{setNext}}" style="min-height: 36px; border-radius: 8px; border: 1px solid #C9D6EA; padding: 0 8px; font: 600 13px 'Plus Jakarta Sans', sans-serif; color: #1F2A3C; background: #FFFFFF"><option>Waiting on customer</option><option>Solved</option><option>Waiting on us</option></select>
+                    </label>
+                    <button type="button" class="btn" onClick="{{sendAdmin}}" style="margin-left: auto; min-height: 42px; padding: 0 18px; border-radius: 10px; border: 0; background: {{sendBg}}; color: #FFFFFF; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{sendTxt}}</button>
+                  </div>
+                </div>
+              </div>
+              <aside aria-label="Customer details" style="flex: 1 1 220px; border-left: 1px solid #EEF2F7; padding: 18px; display: flex; flex-direction: column; gap: 12px; font-size: 13px">
+                <b style="font-size: 14px">Customer</b>
+                <sc-for list="{{tkInfo}}" as="i" hint-placeholder-count="4">
+                  <div style="display: flex; justify-content: space-between; gap: 8px"><span style="color: #586579">{{i.k}}</span><b style="text-align: right; color: {{i.fg}}">{{i.v}}</b></div>
+                </sc-for>
+                <b style="font-size: 14px; border-top: 1px solid #EEF2F7; padding-top: 12px">Shipment</b>
+                <sc-for list="{{tkShip}}" as="i" hint-placeholder-count="4">
+                  <div style="display: flex; justify-content: space-between; gap: 8px"><span style="color: #586579">{{i.k}}</span><b style="text-align: right; color: {{i.fg}}">{{i.v}}</b></div>
+                </sc-for>
+                <b style="font-size: 14px; border-top: 1px solid #EEF2F7; padding-top: 12px">Quick actions</b>
+                <sc-for list="{{tkActions}}" as="a" hint-placeholder-count="3">
+                  <button type="button" class="ghost" onClick="{{a.go}}" style="min-height: 36px; padding: 0 10px; border-radius: 9px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 12px 'Plus Jakarta Sans', sans-serif; cursor: pointer; text-align: left">{{a.label}}</button>
+                </sc-for>
+              </aside>
+            </div>
+          </section>
+        </div>
+      </sc-if>
+
+      <!-- FINANCE -->
+      <sc-if value="{{vFin}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px">
+          <div><h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 30px; font-weight: 600">Finance</h1><span style="font-size: 14px; color: #586579">{{periodTxt}} · all amounts in GBP</span></div>
+          <span style="display: flex; gap: 8px">
+            <a href="#" onClick="{{vatReport}}" class="ghost" style="display: inline-flex; align-items: center; min-height: 42px; padding: 0 14px; border-radius: 10px; background: #FFFFFF; border: 1px solid #C9D6EA; font-size: 14px; font-weight: 700; color: #1F2A3C; text-decoration: none">VAT report</a>
+            <a href="#" onClick="{{exportLedger}}" class="ghost" style="display: inline-flex; align-items: center; min-height: 42px; padding: 0 14px; border-radius: 10px; background: #FFFFFF; border: 1px solid #C9D6EA; font-size: 14px; font-weight: 700; color: #1F2A3C; text-decoration: none">Export ledger (Xero / CSV)</a>
+          </span>
+        </div>
+        <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+          <h2 style="margin: 0; font-size: 18px">Profit and loss</h2>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0">
+            <sc-for list="{{pnl}}" as="p" hint-placeholder-count="6">
+              <div style="padding: 6px 16px; border-left: 3px solid {{p.line}}; display: flex; flex-direction: column; gap: 2px">
+                <span style="font-size: 12px; color: #586579; font-weight: 600">{{p.label}}</span>
+                <b style="font-family: 'Outfit', sans-serif; font-size: 22px; font-variant-numeric: tabular-nums; color: {{p.fg}}">{{p.value}}</b>
+                <span style="font-size: 12px; color: #586579">{{p.note}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px">
+          <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 10px">
+            <h2 style="margin: 0; font-size: 18px">Customer wallets</h2>
+            <sc-for list="{{walletRows}}" as="w" hint-placeholder-count="5">
+              <div style="display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 6px 0; border-bottom: 1px solid #EEF2F7"><span>{{w.k}}</span><b style="font-variant-numeric: tabular-nums; color: {{w.fg}}">{{w.v}}</b></div>
+            </sc-for>
+            <span style="font-size: 12px; color: #586579; line-height: 1.5">Wallet balances are money owed to customers. Keep them in a separate client account.</span>
+          </section>
+          <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+            <h2 style="margin: 0; font-size: 18px">How customers paid</h2>
+            <div style="display: flex; height: 14px; border-radius: 7px; overflow: hidden"><span style="width: 61%; background: #2463DB"></span><span style="width: 34%; background: #33AEEF"></span><span style="width: 5%; background: #1D3593"></span></div>
+            <sc-for list="{{payMix}}" as="m" hint-placeholder-count="3">
+              <div style="display: flex; align-items: center; justify-content: space-between; font-size: 14px"><span style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; border-radius: 3px; background: {{m.c}}"></span>{{m.k}}</span><span style="font-variant-numeric: tabular-nums"><b>{{m.v}}</b> <span style="color: #586579">· {{m.p}}</span></span></div>
+            </sc-for>
+            <div style="border-top: 1px solid #EEF2F7; padding-top: 10px; display: flex; justify-content: space-between; font-size: 14px"><span>Payment fees (Stripe)</span><b style="font-variant-numeric: tabular-nums">{{feesTxt}}</b></div>
+          </section>
+          <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 10px">
+            <h2 style="margin: 0; font-size: 18px">Owed to shipping providers</h2>
+            <sc-for list="{{payables}}" as="p" hint-placeholder-count="3">
+              <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: #F8FAFD">
+                <span style="width: 34px; height: 34px; border-radius: 9px; background: {{p.color}}; color: #FFFFFF; display: grid; place-items: center; font: 700 14px 'Outfit', sans-serif">{{p.ini}}</span>
+                <span style="flex: 1; display: flex; flex-direction: column; gap: 1px"><b style="font-size: 14px">{{p.name}}</b><span style="font-size: 12px; color: {{p.dueFg}}">{{p.due}}</span></span>
+                <b style="font-variant-numeric: tabular-nums">{{p.amt}}</b>
+              </div>
+            </sc-for>
+          </section>
+        </div>
+        <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; overflow: hidden">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 18px 20px 12px">
+            <h2 style="margin: 0; font-size: 18px">Ledger</h2>
+            <div role="tablist" aria-label="Entry type" style="display: flex; flex-wrap: wrap; gap: 6px">
+              <sc-for list="{{ledTabs}}" as="t" hint-placeholder-count="5">
+                <button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: {{t.fg}}; font: 600 12px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{t.label}}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="overflow-x: auto">
+            <table style="width: 100%; min-width: 860px; border-collapse: collapse; font-size: 13px">
+              <thead>
+                <tr style="text-align: left; color: #586579; font-size: 11px; text-transform: uppercase; letter-spacing: .05em">
+                  <th style="padding: 10px 20px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Time</th>
+                  <th style="padding: 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Type</th>
+                  <th style="padding: 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Customer</th>
+                  <th style="padding: 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Reference</th>
+                  <th style="padding: 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Method</th>
+                  <th style="padding: 10px 20px 10px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ledger}}" as="l" hint-placeholder-count="8">
+                  <tr class="row">
+                    <td style="padding: 10px 20px; border-bottom: 1px solid #EEF2F7; color: #586579; white-space: nowrap">{{l.time}}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7"><span style="display: inline-flex; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; background: {{l.bg}}; color: {{l.fg}}">{{l.type}}</span></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7"><button type="button" class="clink" style="border: 0; padding: 0; background: transparent; color: #1F2A3C; font: inherit; font-weight: 700; cursor: pointer; text-align: left" onClick="{{l.openCust}}">{{l.cust}}</button></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #3E4A5C">{{l.ref}}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; color: #3E4A5C">{{l.method}}</td>
+                    <td style="padding: 10px 20px 10px 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; color: {{l.aFg}}">{{l.amt}}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </sc-if>
+
+      <!-- CUSTOMERS -->
+      <sc-if value="{{vCust}}" hint-placeholder-val="{{ false }}">
+        <div><h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 30px; font-weight: 600">Customers</h1><span style="font-size: 14px; color: #586579">Everyone with a Kargom.co.uk account.</span></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px">
+          <sc-for list="{{custStats}}" as="k" hint-placeholder-count="5">
+            <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px">
+              <span style="font-size: 13px; color: #586579; font-weight: 600">{{k.label}}</span>
+              <span style="font-family: 'Outfit', sans-serif; font-size: 27px; font-weight: 700; font-variant-numeric: tabular-nums">{{k.value}}</span>
+              <span style="font-size: 12px; font-weight: 700; color: {{k.dFg}}">{{k.delta}}</span>
+            </section>
+          </sc-for>
+        </div>
+        <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; overflow: hidden">
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 16px 20px">
+            <div role="tablist" aria-label="Customer type" style="display: flex; flex-wrap: wrap; gap: 6px">
+              <sc-for list="{{custTabs}}" as="t" hint-placeholder-count="4">
+                <button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: {{t.fg}}; font: 600 12px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{t.label}}</button>
+              </sc-for>
+            </div>
+            <label style="flex: 0 1 300px; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid #E1E7EF; background: #F8FAFD">
+              <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search customers</span>
+              <input placeholder="Name, email or company" aria-label="Search customers" onInput="{{setCustQ}}" style="flex: 1; min-width: 0; border: 0; background: transparent; font: 500 13px 'Plus Jakarta Sans', sans-serif">
+            </label>
+          </div>
+          <div style="overflow-x: auto">
+            <table style="width: 100%; min-width: 980px; border-collapse: collapse; font-size: 13px">
+              <thead>
+                <tr style="text-align: left; color: #586579; font-size: 11px; text-transform: uppercase; letter-spacing: .05em">
+                  <th style="padding: 10px 20px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Customer</th>
+                  <th style="padding: 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Type</th>
+                  <th style="padding: 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Joined</th>
+                  <th style="padding: 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Shipments</th>
+                  <th style="padding: 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Spend</th>
+                  <th style="padding: 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Wallet</th>
+                  <th style="padding: 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Unpaid</th>
+                  <th style="padding: 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Status</th>
+                  <th style="padding: 10px 20px 10px 10px; border-bottom: 1px solid #E1E7EF"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{custRows}}" as="c" hint-placeholder-count="8">
+                  <tr class="row">
+                    <td style="padding: 10px 20px; border-bottom: 1px solid #EEF2F7"><span style="display: flex; align-items: center; gap: 10px"><span style="width: 32px; height: 32px; border-radius: 50%; background: {{c.color}}; color: #FFFFFF; display: grid; place-items: center; font: 700 12px 'Outfit', sans-serif; flex: none">{{c.ini}}</span><span style="display: flex; flex-direction: column"><button type="button" class="clink" style="border: 0; padding: 0; background: transparent; color: #1F2A3C; font: inherit; font-weight: 700; cursor: pointer; text-align: left" onClick="{{c.openCust}}">{{c.name}}</button><span style="font-size: 12px; color: #586579">{{c.email}}</span></span></span></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; color: #3E4A5C">{{c.type}}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; color: #586579">{{c.joined}}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-variant-numeric: tabular-nums">{{c.n}}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700">{{c.spend}}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-variant-numeric: tabular-nums">{{c.wallet}}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; color: {{c.owFg}}">{{c.owed}}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7"><span style="display: inline-flex; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; background: {{c.sBg}}; color: {{c.sFg}}">{{c.status}}</span></td>
+                    <td style="padding: 10px 20px 10px 10px; border-bottom: 1px solid #EEF2F7; text-align: right"><button type="button" onClick="{{c.openCust}}" style="border: 0; background: transparent; color: #2463DB; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer; min-height: 32px">View profile</button></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </sc-if>
+
+
+      <!-- CUSTOMER PROFILE -->
+      <sc-if value="{{vProf}}" hint-placeholder-val="{{ false }}">
+        <button type="button" onClick="{{profBack}}" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; border: 0; padding: 0; background: transparent; color: #2463DB; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>{{backTxt}}
+        </button>
+        <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 18px 24px">
+          <span style="width: 64px; height: 64px; border-radius: 50%; background: {{pf.color}}; color: #FFFFFF; display: grid; place-items: center; font: 700 22px 'Outfit', sans-serif; flex: none">{{pf.ini}}</span>
+          <div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 6px">
+            <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px"><h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 600">{{pf.name}}</h1><span style="font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: {{pf.sBg}}; color: {{pf.sFg}}">{{pf.status}}</span></span>
+            <span style="display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: #3E4A5C">
+              <span>{{pf.type}} · {{pf.company}}</span><span>{{pf.email}}</span><span>{{pf.phone}}</span><span>Customer since {{pf.joined}}</span>
+            </span>
+            <span style="display: flex; flex-wrap: wrap; gap: 6px">
+              <sc-for list="{{pf.tags}}" as="t" hint-placeholder-count="3"><span style="font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: #EEF2F7; color: #3E4A5C">{{t}}</span></sc-for>
+            </span>
+          </div>
+          <span style="display: flex; flex-wrap: wrap; gap: 8px">
+            <button type="button" class="ghost" onClick="{{pAct.mail}}" style="min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Email customer</button>
+            <button type="button" class="ghost" onClick="{{pAct.credit}}" style="min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Add wallet credit</button>
+            <button type="button" class="ghost" onClick="{{pAct.pause}}" style="min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid #F3B4B4; background: #FFFFFF; color: #B42318; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{pf.pauseTxt}}</button>
+            <button type="button" class="btn" onClick="{{pAct.view}}" style="min-height: 40px; padding: 0 14px; border-radius: 10px; border: 0; background: #1F2A3C; color: #FFFFFF; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">View their panel</button>
+          </span>
+        </section>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px">
+          <sc-for list="{{pf.kpis}}" as="k" hint-placeholder-count="8">
+            <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 3px">
+              <span style="font-size: 12px; color: #586579; font-weight: 600">{{k.label}}</span>
+              <span style="font-family: 'Outfit', sans-serif; font-size: 23px; font-weight: 700; font-variant-numeric: tabular-nums; color: {{k.fg}}">{{k.value}}</span>
+            </section>
+          </sc-for>
+        </div>
+
+        <div role="tablist" aria-label="Profile sections" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #E1E7EF">
+          <sc-for list="{{pTabs}}" as="t" hint-placeholder-count="6">
+            <button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 44px; padding: 0 14px; border: 0; border-bottom: 3px solid {{t.line}}; background: transparent; color: {{t.fg}}; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer; margin-bottom: -1px">{{t.label}} <span style="font-size: 12px; color: #8593A8">{{t.n}}</span></button>
+          </sc-for>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+          <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+
+            <sc-if value="{{pt.ship}}" hint-placeholder-val="{{ true }}">
+              <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; overflow: hidden">
+                <div style="overflow-x: auto">
+                  <table style="width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px">
+                    <thead><tr style="text-align: left; color: #586579; font-size: 11px; text-transform: uppercase; letter-spacing: .05em">
+                      <th style="padding: 12px 20px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Shipment</th>
+                      <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">To</th>
+                      <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Service</th>
+                      <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Weight</th>
+                      <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Price</th>
+                      <th style="padding: 12px 20px 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Status</th>
+                    </tr></thead>
+                    <tbody>
+                      <sc-for list="{{pf.ships}}" as="r" hint-placeholder-count="6">
+                        <tr class="row">
+                          <td style="padding: 10px 20px; border-bottom: 1px solid #EEF2F7"><span style="display: flex; flex-direction: column"><b style="font-family: ui-monospace, Menlo, monospace; font-size: 12px">{{r.no}}</b><span style="font-size: 12px; color: #586579">{{r.date}} · {{r.src}}</span></span></td>
+                          <td style="padding: 10px; border-bottom: 1px solid #EEF2F7"><span style="display: flex; flex-direction: column"><b>{{r.to}}</b><span style="font-size: 12px; color: #586579">{{r.town}}</span></span></td>
+                          <td style="padding: 10px; border-bottom: 1px solid #EEF2F7"><span style="display: flex; align-items: center; gap: 8px"><img src="{{r.logo}}" alt="" style="width: 44px; height: 18px; object-fit: contain">{{r.svc}}</span></td>
+                          <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; font-weight: 700; color: {{r.wFg}}">{{r.kg}}</td>
+                          <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums">{{r.price}}</td>
+                          <td style="padding: 10px 20px 10px 10px; border-bottom: 1px solid #EEF2F7"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: {{r.sBg}}; color: {{r.sFg}}; white-space: nowrap"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{r.sFg}}"></span>{{r.status}}</span></td>
+                        </tr>
+                      </sc-for>
+                    </tbody>
+                  </table>
+                </div>
+                <span style="display: block; padding: 12px 20px; font-size: 13px; color: #586579">Showing the latest {{pf.shipsShown}} of {{pf.shipsTotal}} shipments</span>
+              </section>
+            </sc-if>
+
+            <sc-if value="{{pt.addr}}" hint-placeholder-val="{{ false }}">
+              <sc-for list="{{pf.addrGroups}}" as="g" hint-placeholder-count="2">
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <b style="font-size: 15px">{{g.title}} <span style="color: #8593A8; font-weight: 600">· {{g.n}}</span></b>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px">
+                    <sc-for list="{{g.items}}" as="a" hint-placeholder-count="3">
+                      <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #3E4A5C; line-height: 1.5">
+                        <span style="display: flex; justify-content: space-between; gap: 8px"><b style="font-size: 14px; color: #1F2A3C">{{a.label}}</b><span style="font-size: 11px; font-weight: 700; color: #1D4FB8">{{a.tag}}</span></span>
+                        <span>{{a.name}} · {{a.phone}}</span><span>{{a.line}}</span>
+                        <span style="font-size: 12px; color: #8593A8">Used {{a.used}}</span>
+                      </section>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </sc-if>
+
+            <sc-if value="{{pt.prod}}" hint-placeholder-val="{{ false }}">
+              <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; overflow: hidden">
+                <div style="overflow-x: auto">
+                  <table style="width: 100%; min-width: 700px; border-collapse: collapse; font-size: 13px">
+                    <thead><tr style="text-align: left; color: #586579; font-size: 11px; text-transform: uppercase; letter-spacing: .05em">
+                      <th style="padding: 12px 20px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Product</th>
+                      <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">SKU</th>
+                      <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">HS code · origin</th>
+                      <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Value</th>
+                      <th style="padding: 12px 20px 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Times shipped</th>
+                    </tr></thead>
+                    <tbody>
+                      <sc-for list="{{pf.prods}}" as="p" hint-placeholder-count="5">
+                        <tr class="row">
+                          <td style="padding: 10px 20px; border-bottom: 1px solid #EEF2F7"><span style="display: flex; align-items: center; gap: 10px"><span style="width: 32px; height: 32px; border-radius: 8px; background: {{p.c}}; color: #FFFFFF; display: grid; place-items: center; font: 700 13px 'Outfit', sans-serif">{{p.ini}}</span><b>{{p.name}}</b></span></td>
+                          <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #3E4A5C">{{p.sku}}</td>
+                          <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; color: #3E4A5C">{{p.hs}}</td>
+                          <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-variant-numeric: tabular-nums">{{p.val}}</td>
+                          <td style="padding: 10px 20px 10px 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums">{{p.n}}</td>
+                        </tr>
+                      </sc-for>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </sc-if>
+
+            <sc-if value="{{pt.pay}}" hint-placeholder-val="{{ false }}">
+              <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+                <b style="font-size: 15px">Saved payment methods</b>
+                <sc-for list="{{pf.cards}}" as="c" hint-placeholder-count="2">
+                  <div style="display: flex; align-items: center; gap: 12px; font-size: 14px"><span style="width: 40px; height: 26px; border-radius: 5px; background: {{c.bg}}; color: #FFFFFF; display: grid; place-items: center; font: 800 9px 'Plus Jakarta Sans', sans-serif">{{c.brand}}</span><b>{{c.label}}</b><span style="color: #586579">{{c.note}}</span></div>
+                </sc-for>
+              </section>
+              <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; overflow: hidden">
+                <div style="overflow-x: auto">
+                  <table style="width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13px">
+                    <thead><tr style="text-align: left; color: #586579; font-size: 11px; text-transform: uppercase; letter-spacing: .05em">
+                      <th style="padding: 12px 20px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Date</th>
+                      <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Type</th>
+                      <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Detail</th>
+                      <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Method</th>
+                      <th style="padding: 12px 20px 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Amount</th>
+                    </tr></thead>
+                    <tbody>
+                      <sc-for list="{{pf.pays}}" as="l" hint-placeholder-count="6">
+                        <tr class="row">
+                          <td style="padding: 10px 20px; border-bottom: 1px solid #EEF2F7; color: #586579">{{l.date}}</td>
+                          <td style="padding: 10px; border-bottom: 1px solid #EEF2F7"><span style="display: inline-flex; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; background: {{l.bg}}; color: {{l.fg}}">{{l.type}}</span></td>
+                          <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; color: #3E4A5C">{{l.detail}}</td>
+                          <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; color: #3E4A5C">{{l.method}}</td>
+                          <td style="padding: 10px 20px 10px 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; color: {{l.aFg}}">{{l.amt}}</td>
+                        </tr>
+                      </sc-for>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </sc-if>
+
+            <sc-if value="{{pt.sup}}" hint-placeholder-val="{{ false }}">
+              <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+                <sc-for list="{{pf.tickets}}" as="t" hint-placeholder-count="3">
+                  <button type="button" onClick="{{t.open}}" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid #E1E7EF; background: #FFFFFF; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; color: #1F2A3C">
+                    <span style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #586579">{{t.no}}</span>
+                    <b style="flex: 1 1 240px; font-size: 14px">{{t.subject}}</b>
+                    <span style="font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: {{t.sBg}}; color: {{t.sFg}}">{{t.status}}</span>
+                  </button>
+                </sc-for>
+                <span style="font-size: 13px; color: #586579; padding: 4px 6px">{{pf.noTickets}}</span>
+              </section>
+            </sc-if>
+
+            <sc-if value="{{pt.notes}}" hint-placeholder-val="{{ false }}">
+              <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+                <sc-for list="{{pf.notes}}" as="n" hint-placeholder-count="2">
+                  <div style="padding: 12px 14px; border-radius: 12px; background: #FFF8EC; border: 1px solid #F5D9A8; display: flex; flex-direction: column; gap: 4px; font-size: 14px"><span style="font-size: 12px; color: #7A4A00"><b>{{n.who}}</b> · {{n.when}}</span>{{n.text}}</div>
+                </sc-for>
+                <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Add a note (only admins see this)
+                  <textarea rows="2" placeholder="e.g. Agreed 10% off the markup from November" style="border-radius: 10px; border: 1px solid #C9D6EA; padding: 10px 12px; font: 500 14px 'Plus Jakarta Sans', sans-serif; color: #1F2A3C; resize: vertical"></textarea>
+                </label>
+                <button type="button" class="btn" onClick="{{pAct.note}}" style="align-self: flex-end; min-height: 40px; padding: 0 16px; border-radius: 10px; border: 0; background: #E89B12; color: #FFFFFF; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Save note</button>
+              </section>
+            </sc-if>
+          </div>
+
+          <aside aria-label="Customer summary" style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 16px">
+            <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 10px">
+              <b style="font-size: 15px">Couriers they use</b>
+              <sc-for list="{{pf.mix}}" as="m" hint-placeholder-count="4">
+                <div style="display: flex; flex-direction: column; gap: 5px">
+                  <div style="display: flex; justify-content: space-between; font-size: 13px"><span style="display: flex; align-items: center; gap: 8px"><img src="{{m.logo}}" alt="" style="width: 40px; height: 16px; object-fit: contain">{{m.name}}</span><b style="font-variant-numeric: tabular-nums">{{m.p}}</b></div>
+                  <div style="height: 6px; border-radius: 3px; background: #EEF2F7"><div style="height: 6px; border-radius: 3px; width: {{m.p}}; background: #2463DB"></div></div>
+                </div>
+              </sc-for>
+            </section>
+            <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+              <b style="font-size: 15px">Account</b>
+              <sc-for list="{{pf.facts}}" as="f" hint-placeholder-count="6">
+                <div style="display: flex; justify-content: space-between; gap: 10px"><span style="color: #586579">{{f.k}}</span><b style="text-align: right; color: {{f.fg}}">{{f.v}}</b></div>
+              </sc-for>
+            </section>
+          </aside>
+        </div>
+      </sc-if>
+
+      <!-- CONNECTIONS -->
+      <sc-if value="{{vConn}}" hint-placeholder-val="{{ false }}">
+        <div><h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 30px; font-weight: 600">Connections</h1><span style="font-size: 14px; color: #586579">Plug in shipping and payment providers with their API keys. Keys are stored encrypted and never shown again in full.</span></div>
+
+        <sc-for list="{{connGroups}}" as="g" hint-placeholder-count="2">
+          <section style="display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px">
+              <h2 style="margin: 0; font-size: 19px">{{g.title}}</h2>
+              <span style="font-size: 13px; color: #586579">{{g.note}}</span>
+            </div>
+            <sc-for list="{{g.items}}" as="c" hint-placeholder-count="3">
+              <div style="background: #FFFFFF; border: 1px solid {{c.border}}; border-radius: 16px; overflow: hidden">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 16px 18px">
+                  <span style="width: 44px; height: 44px; border-radius: 12px; background: {{c.color}}; color: #FFFFFF; display: grid; place-items: center; font: 700 18px 'Outfit', sans-serif; flex: none">{{c.ini}}</span>
+                  <span style="flex: 1 1 240px; display: flex; flex-direction: column; gap: 3px">
+                    <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><b style="font-size: 16px">{{c.name}}</b><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: {{c.sBg}}; color: {{c.sFg}}"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{c.sFg}}"></span>{{c.state}}</span></span>
+                    <span style="font-size: 13px; color: #586579">{{c.desc}}</span>
+                  </span>
+                  <span style="display: flex; flex-wrap: wrap; gap: 5px; flex: 0 1 300px">
+                    <sc-for list="{{c.chips}}" as="x" hint-placeholder-count="4"><span style="font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: #EEF2F7; color: #3E4A5C">{{x}}</span></sc-for>
+                  </span>
+                  <button type="button" class="ghost" onClick="{{c.toggleOpen}}" aria-expanded="{{c.open}}" style="min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{c.openTxt}}</button>
+                </div>
+                <sc-if value="{{c.isOpen}}" hint-placeholder-val="{{ false }}">
+                  <div style="border-top: 1px solid #EEF2F7; background: #FAFBFD; padding: 18px; display: flex; flex-direction: column; gap: 14px">
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+                      <span style="font-size: 13px; font-weight: 700">Mode</span>
+                      <div role="radiogroup" aria-label="Mode" style="display: flex; padding: 3px; border-radius: 10px; background: #FFFFFF; border: 1px solid #E1E7EF">
+                        <sc-for list="{{c.modes}}" as="m" hint-placeholder-count="2">
+                          <button type="button" role="radio" aria-checked="{{m.on}}" onClick="{{m.pick}}" style="min-height: 32px; padding: 0 12px; border-radius: 8px; border: 0; background: {{m.bg}}; color: {{m.fg}}; font: 700 12px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{m.label}}</button>
+                        </sc-for>
+                      </div>
+                      <a href="#" onClick="{{c.where}}" style="font-size: 13px; font-weight: 700; text-decoration: none; margin-left: auto">Where do I find these keys?</a>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px">
+                      <sc-for list="{{c.fields}}" as="f" hint-placeholder-count="2">
+                        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">{{f.label}}
+                          <input type="{{f.type}}" aria-label="{{f.key}}" value="{{f.value}}" placeholder="{{f.ph}}" autocomplete="off" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 13px ui-monospace, Menlo, monospace; color: #1F2A3C; background: #FFFFFF">
+                          <span style="font-weight: 500; color: #8593A8">{{f.help}}</span>
+                        </label>
+                      </sc-for>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 6px">
+                      <span style="font-size: 12px; font-weight: 700; color: #586579">Webhook URL · paste this into the provider's dashboard</span>
+                      <span style="display: flex; gap: 6px; align-items: center">
+                        <input readonly="" value="{{c.hook}}" aria-label="Webhook URL" style="flex: 1; min-width: 0; min-height: 40px; border-radius: 9px; border: 1px solid #E1E7EF; padding: 0 10px; font: 600 13px ui-monospace, Menlo, monospace; color: #1F2A3C; background: #F4F6FA">
+                        <button type="button" class="ghost" onClick="{{c.copy}}" style="min-height: 40px; padding: 0 12px; border-radius: 9px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Copy</button>
+                      </span>
+                      <span style="display: flex; flex-wrap: wrap; gap: 5px; font-size: 12px; color: #586579">Events we listen for:
+                        <sc-for list="{{c.events}}" as="x" hint-placeholder-count="3"><span style="font-family: ui-monospace, Menlo, monospace; font-size: 11px; padding: 2px 6px; border-radius: 5px; background: #EAF2FE; color: #1D4FB8">{{x}}</span></sc-for>
+                      </span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border-top: 1px solid #EEF2F7; padding-top: 14px">
+                      <button type="button" class="ghost" onClick="{{c.test}}" style="min-height: 42px; padding: 0 16px; border-radius: 10px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Test connection</button>
+                      <span style="font-size: 13px; font-weight: 700; color: {{c.testFg}}">{{c.testTxt}}</span>
+                      <button type="button" class="btn" onClick="{{c.save}}" style="margin-left: auto; min-height: 42px; padding: 0 18px; border-radius: 10px; border: 0; background: #2463DB; color: #FFFFFF; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{c.saveTxt}}</button>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </section>
+        </sc-for>
+
+        <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+          <h2 style="margin: 0; font-size: 19px">Routing</h2>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px">
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">When two providers sell the same service<select style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 8px; font: 600 14px 'Plus Jakarta Sans', sans-serif; color: #1F2A3C; background: #FFFFFF"><option>Book with the cheaper one</option><option>Book with the faster API</option><option>Always prefer ShipStation</option><option>Always prefer ShipEngine</option></select></label>
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">If booking fails<select style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 8px; font: 600 14px 'Plus Jakarta Sans', sans-serif; color: #1F2A3C; background: #FFFFFF"><option>Try the next provider, then refund</option><option>Refund straight away</option></select></label>
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Quote timeout per provider<select style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 8px; font: 600 14px 'Plus Jakarta Sans', sans-serif; color: #1F2A3C; background: #FFFFFF"><option>2.5 seconds</option><option>4 seconds</option><option>6 seconds</option></select></label>
+          </div>
+        </section>
+      </sc-if>
+
+      <!-- PRICING -->
+      <sc-if value="{{vPrice}}" hint-placeholder-val="{{ false }}">
+        <div><h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 30px; font-weight: 600">Pricing rules</h1><span style="font-size: 14px; color: #586579">What customers pay = provider cost + your markup + VAT. Changes apply to new quotes straight away.</span></div>
+        <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; overflow: hidden">
+          <div style="overflow-x: auto">
+            <table style="width: 100%; min-width: 900px; border-collapse: collapse; font-size: 13px">
+              <thead>
+                <tr style="text-align: left; color: #586579; font-size: 11px; text-transform: uppercase; letter-spacing: .05em">
+                  <th style="padding: 12px 20px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Service</th>
+                  <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Our cost (2 kg)</th>
+                  <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Markup %</th>
+                  <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF">Fixed £</th>
+                  <th style="padding: 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Customer price inc VAT</th>
+                  <th style="padding: 12px 20px 12px 10px; font-weight: 700; border-bottom: 1px solid #E1E7EF; text-align: right">Margin</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{rules}}" as="r" hint-placeholder-count="7">
+                  <tr class="row">
+                    <td style="padding: 10px 20px; border-bottom: 1px solid #EEF2F7"><span style="display: flex; align-items: center; gap: 10px"><img src="{{r.logo}}" alt="" style="width: 44px; height: 18px; object-fit: contain"><b>{{r.svc}}</b></span></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-variant-numeric: tabular-nums; color: #586579">{{r.cost}}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7"><span style="display: inline-flex; align-items: center; border: 1px solid #C9D6EA; border-radius: 8px"><button type="button" onClick="{{r.dn}}" aria-label="Lower markup" style="width: 30px; height: 32px; border: 0; background: transparent; cursor: pointer; font: 700 15px 'Plus Jakarta Sans', sans-serif">−</button><b style="min-width: 40px; text-align: center; font-variant-numeric: tabular-nums">{{r.pct}}</b><button type="button" onClick="{{r.up}}" aria-label="Raise markup" style="width: 30px; height: 32px; border: 0; background: transparent; cursor: pointer; font: 700 15px 'Plus Jakarta Sans', sans-serif; color: #2463DB">+</button></span></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; font-variant-numeric: tabular-nums">{{r.fixed}}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums">{{r.price}}</td>
+                    <td style="padding: 10px 20px 10px 10px; border-bottom: 1px solid #EEF2F7; text-align: right; font-weight: 700; color: {{r.mFg}}; font-variant-numeric: tabular-nums">{{r.margin}}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section style="background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px">
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Minimum margin per label<input value="£0.30" style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 10px; font: 600 14px 'Plus Jakarta Sans', sans-serif"></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Round prices<select style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 8px; font: 600 14px 'Plus Jakarta Sans', sans-serif; color: #1F2A3C; background: #FFFFFF"><option>Up to the nearest 9p (£2.39)</option><option>No rounding</option></select></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #586579">Business customers over 100 labels a month<select style="min-height: 42px; border-radius: 9px; border: 1px solid #C9D6EA; padding: 0 8px; font: 600 14px 'Plus Jakarta Sans', sans-serif; color: #1F2A3C; background: #FFFFFF"><option>5% off the markup</option><option>10% off the markup</option><option>No discount</option></select></label>
+        </section>
+      </sc-if>
+    </main>
+  </div>
+
+  <sc-if value="{{toast}}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: #1F2A3C; color: #FFFFFF; border-radius: 12px; padding: 12px 18px; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 30px rgba(8,14,28,.3); z-index: 11">
+      {{toastTxt}}<button type="button" onClick="{{hideToast}}" aria-label="Dismiss" style="border: 0; background: transparent; color: #9FB0C8; cursor: pointer; font: 700 13px 'Plus Jakarta Sans', sans-serif; min-height: 32px">OK</button>
+    </div>
+  </sc-if>
+</div>
+</script>
+</body>
+</html>
