@@ -1,0 +1,17 @@
+{
+  "name": "kargom",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kargom.co.uk: parcel price comparison, booking, wallet and admin backend",
+  "type": "module",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "start": "node src/main.ts",
+    "test": "node --test --test-reporter=spec \"test/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.8.0"
+  }
+}

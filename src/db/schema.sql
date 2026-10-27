@@ -1,0 +1,148 @@
+-- Kargom schema. Portable between SQLite (dev/test) and Postgres (production).
+-- Money columns are integer pence. Timestamps are ISO-8601 UTC strings.
+
+CREATE TABLE IF NOT EXISTS customers (
+  id                 TEXT PRIMARY KEY,
+  email              TEXT NOT NULL UNIQUE,
+  name               TEXT NOT NULL,
+  company            TEXT,
+  phone              TEXT,
+  account_type       TEXT NOT NULL DEFAULT 'personal',   -- personal | business
+  role               TEXT NOT NULL DEFAULT 'customer',   -- customer | admin
+  password_hash      TEXT NOT NULL,
+  bookings_paused    INTEGER NOT NULL DEFAULT 0,
+  stripe_customer_id TEXT,
+  default_payment_method TEXT,                           -- Stripe pm_… saved for off-session charges
+  pricing_discount_bp INTEGER NOT NULL DEFAULT 0,        -- discount on markup, in basis points
+  created_at         TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash  TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  expires_at  TEXT NOT NULL
+);
+
+-- Double-entry ledger. Every entry's lines sum to zero.
+-- Line amount > 0 is a debit, < 0 a credit. Wallets are liabilities, so a
+-- customer's wallet balance is the NEGATIVE of the sum of its lines.
+CREATE TABLE IF NOT EXISTS ledger_entries (
+  id              TEXT PRIMARY KEY,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  kind            TEXT NOT NULL,          -- topup | hold | capture | release | refund | adjustment | card_sale | credit
+  ref             TEXT,                   -- shipment / payment / adjustment id
+  memo            TEXT,
+  created_at      TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ledger_lines (
+  entry_id TEXT NOT NULL REFERENCES ledger_entries(id),
+  account  TEXT NOT NULL,
+  amount   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ledger_lines_account ON ledger_lines(account);
+
+CREATE TABLE IF NOT EXISTS holds (
+  id          TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  amount      INTEGER NOT NULL,
+  status      TEXT NOT NULL,             -- held | captured | released
+  ref         TEXT,
+  created_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS shipments (
+  id                 TEXT PRIMARY KEY,
+  ref                TEXT NOT NULL UNIQUE,      -- KGM-UK-10483
+  customer_id        TEXT NOT NULL REFERENCES customers(id),
+  idempotency_key    TEXT NOT NULL UNIQUE,
+  status             TEXT NOT NULL,             -- pending | booked | collected | in_transit | out_for_delivery | delivered | exception | cancelled | failed
+  provider           TEXT NOT NULL,
+  provider_rate_id   TEXT,
+  provider_label_id  TEXT,
+  carrier            TEXT NOT NULL,
+  service_code       TEXT NOT NULL,
+  service_name       TEXT NOT NULL,
+  tracking_number    TEXT,
+  label_url          TEXT,
+  from_json          TEXT NOT NULL,
+  to_json            TEXT NOT NULL,
+  parcel_json        TEXT NOT NULL,             -- declared weight + dims
+  cost_pence         INTEGER NOT NULL,          -- what the provider charges us (net)
+  price_pence        INTEGER NOT NULL,          -- what the customer pays (gross, inc VAT)
+  vat_pence          INTEGER NOT NULL,
+  pay_method         TEXT NOT NULL,             -- wallet | card
+  payment_ref        TEXT,                      -- hold id or Stripe payment intent id
+  created_at         TEXT NOT NULL,
+  updated_at         TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS shipments_customer ON shipments(customer_id, created_at);
+CREATE INDEX IF NOT EXISTS shipments_tracking ON shipments(tracking_number);
+
+CREATE TABLE IF NOT EXISTS shipment_seq (n INTEGER NOT NULL);
+
+CREATE TABLE IF NOT EXISTS adjustments (
+  id               TEXT PRIMARY KEY,
+  shipment_id      TEXT NOT NULL REFERENCES shipments(id),
+  source_event_id  TEXT NOT NULL,              -- provider event id, for idempotency
+  measured_json    TEXT NOT NULL,
+  old_price_pence  INTEGER NOT NULL,
+  new_price_pence  INTEGER NOT NULL,
+  diff_pence       INTEGER NOT NULL,           -- 0 when the measured size costs the same
+  status           TEXT NOT NULL,              -- pending | no_charge | charged | failed | waived | disputed
+  method           TEXT,                       -- wallet | card
+  payment_ref      TEXT,
+  created_at       TEXT NOT NULL,
+  UNIQUE (shipment_id, source_event_id)
+);
+
+CREATE TABLE IF NOT EXISTS tracking_events (
+  id          TEXT PRIMARY KEY,
+  shipment_id TEXT NOT NULL REFERENCES shipments(id),
+  status      TEXT NOT NULL,
+  description TEXT,
+  occurred_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS webhook_events (
+  provider    TEXT NOT NULL,
+  event_id    TEXT NOT NULL,
+  received_at TEXT NOT NULL,
+  PRIMARY KEY (provider, event_id)
+);
+
+CREATE TABLE IF NOT EXISTS tickets (
+  id          TEXT PRIMARY KEY,
+  ref         TEXT NOT NULL UNIQUE,            -- T-1045
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  shipment_id TEXT REFERENCES shipments(id),
+  category    TEXT NOT NULL,
+  subject     TEXT NOT NULL,
+  status      TEXT NOT NULL,                   -- waiting_us | waiting_customer | solved
+  priority    TEXT NOT NULL DEFAULT 'normal',  -- low | normal | high | urgent
+  assignee_id TEXT,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ticket_messages (
+  id          TEXT PRIMARY KEY,
+  ticket_id   TEXT NOT NULL REFERENCES tickets(id),
+  author_type TEXT NOT NULL,                   -- customer | agent | note
+  author_id   TEXT NOT NULL,
+  body        TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pricing_rules (
+  service_key TEXT PRIMARY KEY,                -- "*" = default, or "<carrier>:<service_code>"
+  markup_bp   INTEGER NOT NULL,
+  fixed_pence INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS provider_configs (
+  id          TEXT PRIMARY KEY,                -- shipstation | shipengine | easypost | stripe ...
+  kind        TEXT NOT NULL,                   -- shipping | payment
+  mode        TEXT NOT NULL DEFAULT 'test',    -- test | live
+  enabled     INTEGER NOT NULL DEFAULT 0,
+  secrets_enc TEXT,                            -- AES-256-GCM encrypted JSON
+  updated_at  TEXT NOT NULL
+);

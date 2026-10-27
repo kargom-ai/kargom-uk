@@ -1,0 +1,33 @@
+import { SqliteDb } from './db/sqlite.ts';
+import { createApp } from './app.ts';
+import { startServer } from './http/server.ts';
+import { FakeGateway, StripeGateway } from './payments/stripe.ts';
+import { MockProvider } from './providers/mock.ts';
+
+const env = (k: string, fallback?: string) => {
+  const v = process.env[k] ?? fallback;
+  if (v === undefined) throw new Error(`Missing environment variable ${k}`);
+  return v;
+};
+
+const production = process.env.NODE_ENV === 'production';
+const db = new SqliteDb(env('DATABASE_PATH', './kargom.db'));
+
+const stripeKey = process.env.STRIPE_SECRET_KEY;
+if (production && !stripeKey) throw new Error('STRIPE_SECRET_KEY is required in production');
+const payments = stripeKey ? new StripeGateway(stripeKey) : new FakeGateway();
+
+const app = await createApp(db, {
+  quoteSecret: env('QUOTE_SECRET', production ? undefined : 'dev-only-quote-secret-change-me-0123456789'),
+  masterKey: env('MASTER_KEY', production ? undefined : Buffer.alloc(32, 7).toString('base64')),
+  carrierWebhookToken: env('CARRIER_WEBHOOK_TOKEN', production ? undefined : 'dev-webhook-token'),
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? null,
+  quoteTimeoutMs: Number(process.env.QUOTE_TIMEOUT_MS ?? 2500),
+  quoteTtlMs: Number(process.env.QUOTE_TTL_MS ?? 15 * 60_000),
+}, payments);
+
+if (!production && process.env.MOCK_PROVIDER !== '0') app.registry.addStatic(new MockProvider());
+
+const port = Number(process.env.PORT ?? 8080);
+await startServer(app, port);
+console.log(`Kargom API listening on :${port}${stripeKey ? '' : ' (fake payments: set STRIPE_SECRET_KEY for real ones)'}`);
