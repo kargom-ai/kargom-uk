@@ -260,7 +260,7 @@ export function buildRouter(app: App) {
       },
       AbortSignal.timeout(10_000),
     );
-    return { ok: true, ms: Date.now() - started, rates: rates.length, carriers: [...new Set(rates.map((r) => r.carrierName))] };
+    return { ok: true, ms: Date.now() - started, rates: rates.length, carriers: [...new Set(rates.map((r) => r.carrierName))], problems: (p as { lastProblems?: string[] }).lastProblems ?? [] };
   });
   on('GET', '/api/admin/pricing', 'admin', async () => ({ rules: await app.pricing.list() }));
   on('PUT', '/api/admin/pricing/:key', 'admin', async (c) => {

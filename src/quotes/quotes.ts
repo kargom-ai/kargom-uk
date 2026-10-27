@@ -101,7 +101,9 @@ export class QuoteService {
     settled.forEach((s, i) => {
       const provider = providers[i]!.id;
       if (s.status === 'rejected') {
-        failures.push({ provider, error: String((s.reason as Error)?.message ?? s.reason) });
+        const err = s.reason as Error & { details?: { body?: string } };
+        failures.push({ provider, error: String(err?.message ?? s.reason) });
+        console.warn(`[quotes] ${provider} failed: ${err?.message ?? s.reason} ${err?.details?.body ?? ''}`);
         return;
       }
       for (const r of s.value) {

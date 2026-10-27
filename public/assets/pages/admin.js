@@ -490,7 +490,7 @@ class Component extends DCLogic {
           if (p.id === 'stripe') { this.say(st.demoPayments ? 'Stripe is not connected yet: payments are simulated.' : 'Stripe is connected.'); return; }
           this.setState({ tested: { ...st.tested, [p.id]: 'Testing…' } });
           try { const r = await api(`/api/admin/providers/${p.id}/test`, { method: 'POST' });
-            this.setState({ tested: { ...this.state.tested, [p.id]: `✓ Connected · ${r.ms} ms · ${r.rates} rates · ${r.carriers.join(', ')}` } });
+            this.setState({ tested: { ...this.state.tested, [p.id]: r.rates ? `✓ Connected · ${r.ms} ms · ${r.rates} rates · ${r.carriers.join(', ')}` : `✗ Connected, but 0 rates. ${(r.problems || []).slice(0, 3).join(' | ') || 'No reason given by the carriers.'}` } });
           } catch (e) { this.setState({ tested: { ...this.state.tested, [p.id]: `✗ ${e.message}` } }); }
         },
         testTxt: t || '', testFg: t && t.startsWith('✗') ? '#B42318' : '#166534',

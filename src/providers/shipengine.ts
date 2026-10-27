@@ -54,19 +54,22 @@ export function normaliseCarrier(code: string, friendly: string): string {
 
 const toPence = (amount: number) => Math.round(amount * 100);
 
+/** Carriers reject empty strings and nulls in odd places, so only send fields that have a value. */
 function seAddress(a: Address) {
-  return {
-    name: a.name,
-    company_name: a.company ?? null,
-    phone: a.phone ?? '',
-    email: a.email ?? null,
-    address_line1: a.line1,
-    address_line2: a.line2 ?? null,
-    city_locality: a.city,
-    state_province: '',
+  const out: Record<string, string> = {
+    name: a.name || 'Customer',
+    // Most carriers insist on a phone number; quotes from the homepage do not have one yet.
+    phone: a.phone && a.phone.trim() ? a.phone.trim() : (process.env.DEFAULT_SHIPPER_PHONE ?? '07700900000'),
+    address_line1: a.line1 || 'Address',
+    city_locality: a.city || 'City',
     postal_code: a.postcode,
     country_code: a.country,
+    address_residential_indicator: 'unknown',
   };
+  if (a.company) out.company_name = a.company;
+  if (a.email) out.email = a.email;
+  if (a.line2) out.address_line2 = a.line2;
+  return out;
 }
 
 const TRACK_MAP: Record<string, TrackingStatus> = {
@@ -98,7 +101,13 @@ export class ShipEngineProvider implements ShippingProvider {
     });
     const text = await res.text();
     if (!res.ok) {
-      throw new AppError('provider_failed', `${this.id} ${method} ${path} failed with ${res.status}`, { body: text.slice(0, 500) });
+      // Put the provider's own explanation in the message, so the admin screen and logs say what is wrong.
+      let why = '';
+      try {
+        const j = JSON.parse(text) as { errors?: Array<{ message?: string; field_name?: string }>; message?: string };
+        why = (j.errors ?? []).map((e) => e.message ?? '').filter(Boolean).join('; ') || j.message || '';
+      } catch { why = text.slice(0, 200); }
+      throw new AppError('provider_failed', `${this.id} ${method} ${path} failed with ${res.status}${why ? `: ${why.slice(0, 300)}` : ''}`, { body: text.slice(0, 500) });
     }
     return (text ? JSON.parse(text) : {}) as T;
   }
@@ -114,8 +123,8 @@ export class ShipEngineProvider implements ShippingProvider {
           dimensions: { unit: 'centimeter', length: p.lengthCm, width: p.widthCm, height: p.heightCm },
         },
       ],
-      customs: req.customs
-        ? {
+      ...(req.customs
+        ? { customs: {
             contents: req.customs.contents,
             non_delivery: 'return_to_sender',
             customs_items: req.customs.items.map((i) => ({
@@ -125,12 +134,14 @@ export class ShipEngineProvider implements ShippingProvider {
               harmonized_tariff_code: i.hsCode ?? null,
               country_of_origin: i.originCountry,
             })),
-          }
-        : null,
+          } }
+        : {}),
     };
   }
 
   private carrierCache: string[] | null = null;
+  /** Carrier error messages from the latest rate request (shown on the admin test button). */
+  lastProblems: string[] = [];
 
   /** Carrier accounts connected in the ShipStation / ShipEngine dashboard. */
   async listCarriers(signal?: AbortSignal): Promise<Array<{ id: string; code: string; name: string }>> {
@@ -148,13 +159,23 @@ export class ShipEngineProvider implements ShippingProvider {
   async getRates(req: ShipmentRequest, signal: AbortSignal): Promise<ProviderRate[]> {
     const carrierIds = await this.carrierIds(signal);
     if (!carrierIds.length) return [];
-    const out = await this.call<{ rate_response?: { rates?: SeRate[] } }>(
+    const out = await this.call<{ rate_response?: { rates?: SeRate[]; invalid_rates?: SeRate[]; errors?: Array<{ message?: string }> } }>(
       'POST',
       '/rates',
       { rate_options: { carrier_ids: carrierIds }, shipment: this.shipmentBody(req) },
       signal,
     );
     const rates = out.rate_response?.rates ?? [];
+    // Make carrier-side refusals visible in the server log instead of silently showing no prices.
+    const problems = [
+      ...(out.rate_response?.errors ?? []).map((e) => e.message ?? ''),
+      ...[...rates, ...(out.rate_response?.invalid_rates ?? [])].filter((r) => r.error_messages?.length).map((r) => `${r.carrier_friendly_name ?? r.carrier_code}: ${r.error_messages!.join('; ')}`),
+      ...rates.filter((r) => !r.error_messages?.length && r.shipping_amount?.currency?.toLowerCase() !== 'gbp').slice(0, 3)
+        .map((r) => `${r.carrier_friendly_name}: price in ${r.shipping_amount?.currency?.toUpperCase()} not GBP (account currency)`),
+    ].filter(Boolean);
+    const usable = rates.filter((r) => !r.error_messages?.length && r.shipping_amount?.currency?.toLowerCase() === 'gbp');
+    this.lastProblems = problems.slice(0, 10);
+    if (!usable.length) console.warn(`[${this.id}] no usable rates (${rates.length} returned). ${problems.slice(0, 5).join(' | ') || 'No error given: check the carriers serve this route.'}`);
     return rates
       .filter((r) => !r.error_messages?.length && r.shipping_amount?.currency?.toLowerCase() === 'gbp')
       .map((r) => ({

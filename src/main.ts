@@ -23,7 +23,7 @@ const app = await createApp(db, {
   masterKey: env('MASTER_KEY', production ? undefined : Buffer.alloc(32, 7).toString('base64')),
   carrierWebhookToken: env('CARRIER_WEBHOOK_TOKEN', production ? undefined : 'dev-webhook-token'),
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? null,
-  quoteTimeoutMs: Number(process.env.QUOTE_TIMEOUT_MS ?? 2500),
+  quoteTimeoutMs: Number(process.env.QUOTE_TIMEOUT_MS ?? 12000),
   quoteTtlMs: Number(process.env.QUOTE_TTL_MS ?? 15 * 60_000),
 }, payments);
 
@@ -42,7 +42,13 @@ if (process.env.SHIPSTATION_API_KEY) {
   shipstation
     .listCarriers(AbortSignal.timeout(10_000))
     .then((cs) => console.log(`[shipstation] connected: ${cs.length} carrier account(s): ${cs.map((c) => `${c.name} [${c.code}] (${c.id})`).join(', ') || 'none - connect carriers in ShipStation first'}`))
-    .catch((e) => console.error(`[shipstation] connection FAILED: ${(e as Error).message} ${JSON.stringify((e as { details?: unknown }).details ?? '')}`));
+    .then(() => shipstation.getRates({
+      from: { name: 'Test', line1: '1 Piccadilly', city: 'Manchester', postcode: 'M1 1AE', country: 'GB', phone: '07700900000' },
+      to: { name: 'Test', line1: '2 Park Row', city: 'Leeds', postcode: 'LS1 5HD', country: 'GB', phone: '07700900000' },
+      parcel: { weightGrams: 1000, lengthCm: 20, widthCm: 15, heightCm: 10 },
+    }, AbortSignal.timeout(20_000)))
+    .then((rates) => console.log(`[shipstation] test quote Manchester → Leeds 1 kg: ${rates.length} rate(s)${rates.length ? ': ' + rates.slice(0, 6).map((r) => `${r.carrierName} ${r.serviceName} £${(r.cost / 100).toFixed(2)}`).join(', ') : ' · ' + (shipstation.lastProblems.join(' | ') || 'no reason given')}`))
+    .catch((e) => console.error(`[shipstation] FAILED: ${(e as Error).message} ${JSON.stringify((e as { details?: unknown }).details ?? '')}`));
 }
 
 // The fake courier only runs when no real provider is configured (or MOCK_PROVIDER=1).
