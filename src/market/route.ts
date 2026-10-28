@@ -52,3 +52,16 @@ export async function routeInfo(from: { postcode: string; country: string }, to:
   if (cache.size > 5000) cache.delete(cache.keys().next().value!);
   return v;
 }
+
+const outs = new Map<string, Promise<LatLng | null>>();
+/** Centre of a UK outward code ("M1", "SW1A"), cached. */
+export function outcodeCoords(outcode: string, f: typeof fetch = fetch): Promise<LatLng | null> {
+  const k = outcode.toUpperCase().trim();
+  if (!/^[A-Z]{1,2}\d[A-Z\d]?$/.test(k)) return Promise.resolve(null);
+  if (!outs.has(k)) {
+    outs.set(k, f(`https://api.postcodes.io/outcodes/${encodeURIComponent(k)}`, { signal: AbortSignal.timeout(5000) })
+      .then(async (r) => { if (!r.ok) return null; const j = (await r.json()) as { result?: { latitude?: number; longitude?: number } }; return j.result?.latitude != null ? { lat: j.result.latitude, lng: j.result.longitude! } : null; })
+      .catch(() => { outs.delete(k); return null; }));
+  }
+  return outs.get(k)!;
+}

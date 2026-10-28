@@ -291,6 +291,7 @@ export function buildRouter(app: App) {
   on('POST', '/api/jobs', 'customer', async (c) => { marketLimiter.check(me(c)); return app.market.createJob(me(c), c.body); });
   on('GET', '/api/jobs', 'customer', async (c) => ({ jobs: await app.market.listJobs(me(c)) }));
   on('GET', '/api/jobs/:id', 'customer', async (c) => app.market.customerJob(me(c), c.params.id!));
+  on('GET', '/api/jobs/:id/partners', 'customer', async (c) => app.market.nearbyPartners(me(c), c.params.id!));
   on('POST', '/api/jobs/:id/cancel', 'customer', async (c) => app.market.cancelJob(me(c), c.params.id!));
   on('POST', '/api/jobs/:id/offers/:offer/accept', 'customer', async (c) => app.market.acceptOffer(me(c), c.params.id!, c.params.offer!));
   on('POST', '/api/jobs/:id/review', 'customer', async (c) => app.market.review(me(c), c.params.id!, c.body.rating, c.body.comment));
@@ -301,7 +302,7 @@ export function buildRouter(app: App) {
     loginLimiter.check(ip(c));
     const b = c.body;
     await app.market.registerPartner({ email: str(b.email, 'Email', 200), password: str(b.password, 'Password', 200), name: str(b.name, 'Your name', 120),
-      company: str(b.company, 'Company name', 120), phone: str(b.phone, 'Phone', 40), kind: str(b.kind, 'Type', 20) });
+      company: str(b.company, 'Company name', 120), phone: str(b.phone, 'Phone', 40), kind: str(b.kind, 'Type', 20), basePostcode: typeof b.basePostcode === 'string' ? b.basePostcode : undefined });
     const { token } = await app.auth.login(str(b.email, 'Email'), str(b.password, 'Password'));
     c.res.setHeader('Set-Cookie', `kg_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 86400}`);
     return { ok: true };

@@ -75,6 +75,28 @@ test('market: freight requests validate the load and stay private to freight par
   await assert.rejects(m.requirePartner(customer), /partner/);
 });
 
+test('market: customers see companies based nearest to the start of their move', async () => {
+  const { app } = await makeApp();
+  const m = app.market;
+  const coords: Record<string, [number, number]> = { M1: [53.48, -2.24], M4: [53.48, -2.23], LS1: [53.80, -1.55], SW1A: [51.50, -0.14] };
+  const fake = (async (url: string) => {
+    const k = decodeURIComponent(String(url).split('/').pop()!);
+    const c = coords[k];
+    return new Response(JSON.stringify(c ? { result: { latitude: c[0], longitude: c[1] } } : {}), { status: c ? 200 : 404 });
+  }) as typeof fetch;
+  const customer = await app.auth.register({ email: 'kim@example.com', password: 'correct-horse-1', name: 'Kim Lee', accountType: 'personal' });
+  const london = await m.registerPartner({ email: 'l@m.co.uk', password: 'correct-horse-1', name: 'L', company: 'London Movers', phone: '020 0000 0000', kind: 'removals', basePostcode: 'SW1A 1AA' });
+  await m.registerPartner({ email: 'n@m.co.uk', password: 'correct-horse-1', name: 'N', company: 'Northern Vans', phone: '0161 000 0000', kind: 'removals', basePostcode: 'm4' });
+  await m.registerPartner({ email: 'h@m.co.uk', password: 'correct-horse-1', name: 'H', company: 'Haulier', phone: '0161 000 0001', kind: 'freight', basePostcode: 'M1' });
+  await assert.rejects(m.updateProfile(london.customerId, { basePostcode: 'nowhere' }), /postcode/);
+  const job = await m.createJob(customer, { kind: 'removals', from: home('1 High St', 'Manchester', 'M1 1AE'), to: home('2 Park Rd', 'Leeds', 'LS1 5HD'), date: tomorrow(), phone: '07700 900123',
+    details: { moveType: 'home', size: '1' } });
+  const near = await m.nearbyPartners(customer, job.id, fake);
+  assert.deepEqual(near.partners.map((p) => p.company), ['Northern Vans', 'London Movers'], 'closest first, removal companies only');
+  assert.equal(near.partners[0]!.basedIn, 'M4');
+  assert.ok(near.partners[0]!.milesAway! < 5 && near.partners[1]!.milesAway! > 100);
+});
+
 test('market: straight-line distance is sensible', () => {
   const manchester = { lat: 53.4808, lng: -2.2426 }, leeds = { lat: 53.8008, lng: -1.5491 };
   const miles = haversineMiles(manchester, leeds);

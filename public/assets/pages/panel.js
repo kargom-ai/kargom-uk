@@ -22,7 +22,7 @@ class Component extends DCLogic {
       nav: views.includes(startView) ? startView : 'dash', tab: 'all', txTab: 'all', topup: false, amt: 50, method: 'card', toast: '', auto: false, adj: '',
       hT: '', newT: false, cat: 'where_is_my_parcel', shipSel: {}, abTab: 'rec', setTab: 'profile',
       notif: { booked: [1, 0], collected: [1, 0], out: [0, 1], deliv: [1, 1], issue: [1, 1], low: [1, 0] }, fmt: 'a4', qr: true, cover: false, tfa: false,
-      me: null, bal: 0, statement: [], shipments: [], adjustments: [], tickets: [], thread: null, loaded: false,
+      me: null, bal: 0, statement: [], shipments: [], adjustments: [], tickets: [], jobs: [], thread: null, loaded: false,
     };
     this.draft = '';
   }
@@ -57,8 +57,8 @@ class Component extends DCLogic {
   }
 
   async reload() {
-    const [w, s, a, t] = await Promise.all([api('/api/wallet'), api('/api/shipments'), api('/api/adjustments'), api('/api/tickets')]);
-    this.setState({ bal: w.balancePence / 100, statement: w.statement, shipments: s.shipments, adjustments: a.adjustments, tickets: t.tickets, loaded: true });
+    const [w, s, a, t, j] = await Promise.all([api('/api/wallet'), api('/api/shipments'), api('/api/adjustments'), api('/api/tickets'), api('/api/jobs').catch(() => ({ jobs: [] }))]);
+    this.setState({ bal: w.balancePence / 100, statement: w.statement, shipments: s.shipments, adjustments: a.adjustments, tickets: t.tickets, jobs: j.jobs, loaded: true });
     if (this.state.nav === 'help' && !this.state.hT && t.tickets[0]) this.openTicket(t.tickets[0].id);
   }
 
@@ -95,18 +95,32 @@ class Component extends DCLogic {
       const on = !!st.shipSel[s.id];
       return { id: s.id, no: s.ref, to: to.name, city: `${to.city} ${to.postcode}`, logo: CARRIER_LOGO[s.carrier] || '', service: s.service_name, key,
         status: STATUS_LABEL[s.status] || S[key][0], sBg: S[key][1], sFg: S[key][2], price: gbp(s.price_pence / 100), date: shortDate(s.created_at),
+        isShip: true, isJob: false, hasLogo: Boolean(CARRIER_LOGO[s.carrier]), noLogo: !CARRIER_LOGO[s.carrier], at: s.created_at,
         labelUrl: s.label_url || '#', trackUrl: s.tracking_number ? `https://kargoradari.com/?q=${encodeURIComponent(s.tracking_number)}` : '#',
         ...adjOf(s), on: on ? 'true' : 'false', ring: on ? '#2463DB' : '#9FB0C8', box: on ? '#2463DB' : '#FFFFFF',
         toggle: () => this.setState({ shipSel: { ...st.shipSel, [s.id]: !on } }) };
     };
     const all = st.shipments.map(shipRow);
-    const rows = (st.tab === 'all' ? all : all.filter((r) => r.key === st.tab)).slice(0, 6);
+    // Moving & freight requests sit in the same "Recent" list on the dashboard.
+    const JOB = { open: ['Waiting for offers', '#FFF4E0', '#9A5B00'], booked: ['Booked', '#E6F4EA', '#166534'], completed: ['Completed', '#EAF2FE', '#1D4FB8'], cancelled: ['Cancelled', '#EEF2F7', '#586579'] };
+    const jobRows = st.jobs.map((j) => {
+      const [label, bg, fg] = JOB[j.status] || JOB.open;
+      const offers = j.status === 'open' && j.offers ? `${j.offers} offer${j.offers > 1 ? 's' : ''}` : '';
+      return { id: j.id, no: `#${j.ref}`, date: shortDate(j.createdAt), to: `${j.fromArea} → ${j.toArea}`, city: j.date ? `on ${new Date(`${j.date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : '',
+        service: j.title, logo: '', hasLogo: false, noLogo: true, svc: j.kind === 'removals' ? 'Removals' : 'Freight', key: 'move', status: offers || label, sBg: offers ? '#E6F4EA' : bg, sFg: offers ? '#166534' : fg,
+        price: j.bestPence ? `from ${gbp(j.bestPence / 100)}` : '—', isShip: false, isJob: true, jobUrl: `/app/requests/${j.id}`, at: j.createdAt,
+        adj: false, adjShort: '', aBg: '', aFg: '', aDot: '', openAdj: () => {}, labelUrl: '#', trackUrl: '#' };
+    });
+    const dashAll = [...all, ...jobRows].sort((x, y) => (x.at < y.at ? 1 : -1));
+    const rows = (st.tab === 'all' ? dashAll : dashAll.filter((r) => r.key === st.tab)).slice(0, 6);
     const tabDefs = [['all', 'All'], ['print', 'Ready to print'], ['coll', 'Processing'], ['transit', 'In transit'], ['deliv', 'Delivered'], ['issue', 'Issue']];
     const mkTabs = () => tabDefs.map(([id, label]) => ({
       label, n: id === 'all' ? all.length : all.filter((r) => r.key === id).length, on: st.tab === id ? 'true' : 'false',
       bg: st.tab === id ? '#1F2A3C' : '#FFFFFF', fg: st.tab === id ? '#FFFFFF' : '#3E4A5C', border: st.tab === id ? '#1F2A3C' : '#C9D6EA',
       pick: () => this.setState({ tab: id }) }));
-    const tabs = mkTabs();
+    const tabs = [...mkTabs(), ...(jobRows.length ? [{ label: 'Moving & freight', n: jobRows.length, on: st.tab === 'move' ? 'true' : 'false',
+      bg: st.tab === 'move' ? '#1F2A3C' : '#FFFFFF', fg: st.tab === 'move' ? '#FFFFFF' : '#3E4A5C', border: st.tab === 'move' ? '#1F2A3C' : '#C9D6EA', pick: () => this.setState({ tab: 'move' }) }] : [])];
+    tabs[0].n = dashAll.length;
     const tiles = [['print', 'Ready to print'], ['coll', 'Processing'], ['transit', 'In transit'], ['deliv', 'Delivered'], ['issue', 'Issues']].map(([id, label]) => ({
       label, n: all.filter((r) => r.key === id).length, bg: S[id][1], fg: S[id][2], border: st.tab === id ? S[id][2] : '#E1E7EF',
       pick: () => this.setState({ tab: st.tab === id ? 'all' : id }) }));
@@ -138,6 +152,9 @@ class Component extends DCLogic {
     if (owed.length) todo.push({ t: `Weight adjustment on ${owed.length} parcel${owed.length > 1 ? 's' : ''}`, s: `Couriers measured them heavier than entered. ${gbp(owed.reduce((a, x) => a + x.diff_pence, 0) / 100)} to pay.`, a: 'Review', bg: '#FDF2F2', dot: '#E5484D', go: (e) => { e.preventDefault(); this.setState({ nav: 'ship' }); } });
     const toPrint = all.filter((r) => r.key === 'print').length;
     if (toPrint) todo.push({ t: `${toPrint} label${toPrint > 1 ? 's' : ''} not printed yet`, s: 'Print them before your drop-off or collection.', a: 'View', bg: '#FFF8EC', dot: '#E89B12', go: (e) => { e.preventDefault(); this.setState({ nav: 'ship', tab: 'print' }); } });
+    for (const j of st.jobs.filter((x) => x.status === 'open' && x.offers > 0)) {
+      todo.unshift({ t: `${j.offers} new offer${j.offers > 1 ? 's' : ''} for request #${j.ref}`, s: `${j.title}, ${j.fromArea} → ${j.toArea}. Best price so far ${gbp(j.bestPence / 100)}.`, a: 'Compare', bg: '#E6F4EA', dot: '#16A34A', go: (e) => { e.preventDefault(); location.href = `/app/requests/${j.id}`; } });
+    }
     if (st.bal < 20) todo.push({ t: 'Wallet is running low', s: 'Top up so your next label is not held at checkout.', a: 'Top up', bg: '#EAF2FE', dot: '#2463DB', go: (e) => { e.preventDefault(); this.setState({ topup: true }); } });
     if (!todo.length) todo.push({ t: 'All clear', s: 'Nothing needs your attention right now.', a: 'Send a parcel', bg: '#F4F6FA', dot: '#16A34A', go: () => { location.href = '/app/send'; } });
 

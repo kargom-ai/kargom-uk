@@ -186,6 +186,7 @@ CREATE TABLE IF NOT EXISTS partners (
   website     TEXT,
   about       TEXT,
   areas       TEXT,                           -- free text: where they work
+  base_postcode TEXT,                         -- where the company is based (for "companies near you")
   fleet       TEXT,                           -- free text: vans / lorries
   logo        TEXT,                           -- small image as a data URL
   status      TEXT NOT NULL DEFAULT 'active', -- active | suspended

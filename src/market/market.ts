@@ -3,6 +3,7 @@ import type { Clock } from '../core/clock.ts';
 import { AppError } from '../core/errors.ts';
 import { newId } from '../core/ids.ts';
 import type { AuthService } from '../auth/auth.ts';
+import { haversineMiles, outcodeCoords } from './route.ts';
 
 /**
  * Moving & road-freight requests.
@@ -18,7 +19,7 @@ import type { AuthService } from '../auth/auth.ts';
 
 export type Kind = 'removals' | 'freight';
 export type Addr = { line1: string; line2?: string; city: string; postcode: string; country: string };
-type Partner = { id: string; customer_id: string; kind: Kind; company: string; phone: string; email: string; website: string | null; about: string | null; areas: string | null; fleet: string | null; logo: string | null; status: string; created_at: string };
+type Partner = { id: string; customer_id: string; kind: Kind; company: string; phone: string; email: string; website: string | null; about: string | null; areas: string | null; base_postcode: string | null; fleet: string | null; logo: string | null; status: string; created_at: string };
 type Job = { id: string; ref: number; customer_id: string; kind: Kind; status: string; title: string; details: string; from_addr: string; to_addr: string; from_area: string; to_area: string; distance_miles: number | null; move_date: string | null; contact_phone: string; accepted_offer_id: string | null; created_at: string; updated_at: string };
 type Offer = { id: string; job_id: string; partner_id: string; price_pence: number; message: string | null; vehicle: string | null; available_date: string | null; valid_until: string | null; status: string; payment_status: string | null; created_at: string; updated_at: string };
 
@@ -47,6 +48,15 @@ const isoDate = (v: unknown, label: string, required = false) => {
 const phoneOk = (p: string) => p.replace(/\D/g, '').length >= 7;
 const outward = (pc: string) => pc.toUpperCase().trim().split(/\s+/)[0] ?? '';
 const area = (a: Addr) => `${a.city} ${a.country === 'GB' ? outward(a.postcode) : a.country}`.trim();
+/** "m1 1ae" → "M1 1AE"; accepts a full postcode or just the first half ("M1"). Empty → null. */
+const basePc = (v: unknown) => {
+  const x = s(v, 10).toUpperCase().replace(/\s+/g, ' ');
+  if (!x) return null;
+  const full = /^([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})$/.exec(x);
+  if (full) return `${full[1]} ${full[2]}`;
+  if (/^[A-Z]{1,2}\d[A-Z\d]?$/.test(x)) return x;
+  throw new AppError('bad_request', 'Enter a UK postcode for where you are based, e.g. M1 1AE or M1');
+};
 const initials = (name: string) => { const [f, l] = name.trim().split(/\s+/); return `${f ?? ''}${l ? ` ${l[0]}.` : ''}`; };
 
 function address(v: unknown, who: string): Addr {
@@ -119,7 +129,7 @@ export class Market {
 
   /* ---------------- partners ---------------- */
 
-  async registerPartner(input: { email: string; password: string; name: string; company: string; phone: string; kind: string }) {
+  async registerPartner(input: { email: string; password: string; name: string; company: string; phone: string; kind: string; basePostcode?: string }) {
     const kind = oneOf(input.kind, KINDS);
     const company = s(input.company, 120);
     if (company.length < 2) throw new AppError('bad_request', 'Enter your company name');
@@ -127,8 +137,8 @@ export class Market {
     const customerId = await this.auth.register({ email: input.email, password: input.password, name: input.name, accountType: 'business', company, phone: s(input.phone, 40) });
     await this.db.run("UPDATE customers SET account_type = 'partner' WHERE id = $1", [customerId]);
     const id = newId('ptn');
-    await this.db.run('INSERT INTO partners (id, customer_id, kind, company, phone, email, status, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
-      [id, customerId, kind, company, s(input.phone, 40), input.email.trim().toLowerCase(), 'active', this.now()]);
+    await this.db.run('INSERT INTO partners (id, customer_id, kind, company, phone, email, base_postcode, status, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      [id, customerId, kind, company, s(input.phone, 40), input.email.trim().toLowerCase(), basePc(input.basePostcode), 'active', this.now()]);
     return { id, customerId };
   }
 
@@ -152,6 +162,7 @@ export class Market {
     if (website && !/^https?:\/\//i.test(website)) website = `https://${website}`;
     const company = v.company === undefined ? p.company : s(v.company, 120);
     if (company.length < 2) throw new AppError('bad_request', 'Enter your company name');
+    if (v.basePostcode !== undefined) await this.db.run('UPDATE partners SET base_postcode = $1 WHERE id = $2', [basePc(v.basePostcode), p.id]);
     await this.db.run('UPDATE partners SET company = $1, phone = $2, email = $3, website = $4, about = $5, areas = $6, fleet = $7 WHERE id = $8', [
       company, phone, email, website || null,
       v.about === undefined ? p.about : s(v.about, 1500) || null,
@@ -187,7 +198,7 @@ export class Market {
       'SELECT rating, comment, author, created_at FROM partner_reviews WHERE partner_id = $1 ORDER BY created_at DESC LIMIT 30', [p.id]);
     return {
       id: p.id, kind: p.kind, company: p.company, phone: p.phone, email: p.email, website: p.website, about: p.about, areas: p.areas, fleet: p.fleet,
-      logoUrl: p.logo ? `/api/partners/${p.id}/logo?v=${p.logo.length}` : null, memberSince: p.created_at,
+      logoUrl: p.logo ? `/api/partners/${p.id}/logo?v=${p.logo.length}` : null, memberSince: p.created_at, basePostcode: p.base_postcode, basedIn: p.base_postcode ? outward(p.base_postcode) : null,
       rating: agg?.avg ? Math.round(Number(agg.avg) * 10) / 10 : null, reviewCount: Number(agg?.n ?? 0), jobsWon: Number(done?.n ?? 0), reviews,
       ...(own ? { status: p.status } : {}),
     };
@@ -322,6 +333,33 @@ export class Market {
     const m = /^data:(image\/[a-z]+);base64,(.+)$/.exec(r?.data ?? '');
     if (!m) throw new AppError('not_found', 'Not found');
     return { type: m[1]!, data: Buffer.from(m[2]!, 'base64') };
+  }
+
+  /**
+   * Companies of the right kind, closest to where the job starts. Shown to the customer
+   * while they wait for offers, so they can look around and call one if they like.
+   */
+  async nearbyPartners(customerId: string, jobId: string, f?: typeof fetch) {
+    const j = await this.ownJob(customerId, jobId);
+    const from = JSON.parse(j.from_addr) as Addr;
+    const ps = await this.db.all<Partner>("SELECT * FROM partners WHERE kind = $1 AND status = 'active' LIMIT 300", [j.kind]);
+    const here = from.country === 'GB' ? await outcodeCoords(outward(from.postcode), f) : null;
+    const area = (pc: string) => (/^[A-Z]+/.exec(pc.toUpperCase()) ?? [''])[0];
+    const scored = await Promise.all(ps.map(async (p) => {
+      const pc = p.base_postcode ?? '';
+      const there = here && pc ? await outcodeCoords(outward(pc), f) : null;
+      const miles = here && there ? Math.round(haversineMiles(here, there)) : null;
+      const rank = miles !== null ? miles : !pc ? 9e6 : outward(pc) === outward(from.postcode) ? 0 : area(pc) === area(from.postcode) ? 15
+        : (p.areas ?? '').toLowerCase().includes(from.city.toLowerCase()) ? 30 : 5e6;
+      return { p, miles, rank };
+    }));
+    scored.sort((a, b) => a.rank - b.rank);
+    const out = [];
+    for (const { p, miles } of scored.slice(0, 20)) {
+      const prof = await this.profile(p.id);
+      out.push({ ...prof, reviews: prof.reviews.slice(0, 3), milesAway: miles });
+    }
+    return { near: j.from_area, partners: out };
   }
 
   /* ---------------- partner: find work, send offers ---------------- */

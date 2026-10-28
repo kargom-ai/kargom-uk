@@ -30,7 +30,8 @@ function authView() {
         ${join ? `<div class="tiles sm">${Object.entries(KIND).map(([k, l]) => `<button type="button" class="tile" data-kind="${k}" aria-pressed="${S.kind === k}"><b>${l}</b><span>${k === 'removals' ? 'Home and office moves' : 'FTL, LTL and pallets'}</span></button>`).join('')}</div>
         <label class="fld">Company name<input class="inp" name="company" autocomplete="organization" required></label>
         <label class="fld">Your name<input class="inp" name="name" autocomplete="name" required></label>
-        <label class="fld">Phone customers can call<input class="inp" name="phone" type="tel" autocomplete="tel" required></label>` : ''}
+        <div class="grid2"><label class="fld">Phone customers can call<input class="inp" name="phone" type="tel" autocomplete="tel" required></label>
+        <label class="fld">Where you are based<input class="inp up" name="basePostcode" placeholder="Postcode, e.g. M1 1AE" autocomplete="postal-code"></label></div>` : ''}
         <label class="fld">Email<input class="inp" name="email" type="email" autocomplete="email" required></label>
         <label class="fld">Password<input class="inp" name="password" type="password" autocomplete="${join ? 'new-password' : 'current-password'}" required minlength="10"></label>
         ${join ? '<span class="hint">At least 10 characters.</span>' : ''}
@@ -77,6 +78,7 @@ function profileForm() {
         <label class="fld">Phone customers call<input class="inp" name="phone" type="tel" value="${esc(p.phone)}"></label>
         <label class="fld">Email for enquiries<input class="inp" name="email" type="email" value="${esc(p.email)}"></label>
         <label class="fld">Website <em>(optional)</em><input class="inp" name="website" value="${esc(p.website || '')}" placeholder="www.example.co.uk"></label>
+        <label class="fld">Base postcode <em>(customers nearby see you first)</em><input class="inp up" name="basePostcode" value="${esc(p.basePostcode || '')}" placeholder="e.g. M1 1AE"></label>
       </div>
       <label class="fld">Areas you cover<input class="inp" name="areas" value="${esc(p.areas || '')}" placeholder="Greater Manchester, Cheshire, nationwide on request"></label>
       <label class="fld">Vehicles<input class="inp" name="fleet" value="${esc(p.fleet || '')}" placeholder="${p.kind === 'removals' ? '3 Luton vans, 1 7.5t lorry' : '2 x 18t curtainsiders with tail lift, 1 artic'}"></label>

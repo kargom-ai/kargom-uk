@@ -38,6 +38,30 @@ function offerCard(o, j, best) {
   </article>`;
 }
 
+/* No offers yet: say so plainly, and list companies based near the start of the job. */
+function noOffersHtml(j) {
+  const who = j.kind === 'removals' ? 'removal companies' : 'hauliers';
+  const near = S.near;
+  const list = !near ? '<p class="muted" style="margin:0">Finding companies near you…</p>'
+    : !near.partners.length ? `<p class="muted" style="margin:0">No ${who} have joined near ${esc(j.fromArea)} yet. Your request is still open to every ${j.kind === 'removals' ? 'removal company' : 'haulier'} on Kargom.</p>`
+    : near.partners.map((p) => `<article class="offer">
+        <div class="offer-top"><div class="co">${logoHtml(p)}<div class="co-t"><b>${esc(p.company)}</b><span>${ratingHtml(p)}</span>
+          <span class="muted" style="font-size:13px">${p.basedIn ? `Based in ${esc(p.basedIn)}` : 'UK'}${p.milesAway !== null && p.milesAway !== undefined ? ` · ${p.milesAway} miles from you` : ''}${p.jobsWon ? ` · ${p.jobsWon} job${p.jobsWon > 1 ? 's' : ''} won` : ''}</span></div></div></div>
+        ${p.areas ? `<span class="muted" style="font-size:14px">Covers: ${esc(p.areas)}</span>` : ''}
+        <div class="acts"><a class="btn ghost" href="tel:${esc(p.phone.replace(/[^\d+]/g, ''))}">📞 ${esc(p.phone)}</a><button type="button" class="btn ghost" data-near="${esc(p.id)}">Profile and reviews</button></div>
+      </article>`).join('');
+  return `<div class="noff"><b>No offers yet</b><span>Your request has gone to ${who} on Kargom. Each offer appears here and in your email.</span></div>
+    <h3 style="margin:8px 0 0;font-size:18px">${j.kind === 'removals' ? 'Removal companies' : 'Hauliers'} near ${esc(j.fromArea)}</h3>
+    ${list}`;
+}
+async function loadNear() {
+  if (S.near || S.nearBusy) return;
+  S.nearBusy = true;
+  try { S.near = await api(`/api/jobs/${S.job.id}/partners`); } catch { S.near = { near: S.job.fromArea, partners: [] }; }
+  S.nearBusy = false;
+  if (S.tab === 'offers') jobView();
+}
+
 function jobView() {
   const j = S.job;
   const won = j.offers.find((o) => o.status === 'accepted');
@@ -50,11 +74,11 @@ function jobView() {
     ${new URLSearchParams(location.search).get('new') ? `<div class="ok">Request sent. Companies are being told now. We email you as each offer arrives, usually within a few hours.</div>` : ''}
     ${won ? `<div class="ok">You booked <b>${esc(won.partner.company)}</b> for ${gbp(won.pricePence)}. They now have your phone number and addresses and will call you to confirm. You can call them on <a href="tel:${esc(won.partner.phone.replace(/[^\d+]/g, ''))}">${esc(won.partner.phone)}</a>. Pay them directly as you agree.</div>` : ''}
     <div class="tabs" role="tablist">
-      <button type="button" role="tab" data-tab="offers" aria-selected="${S.tab === 'offers'}">Offers <span class="n">${j.offers.length}</span></button>
       <button type="button" role="tab" data-tab="details" aria-selected="${S.tab === 'details'}">Request details</button>
+      <button type="button" role="tab" data-tab="offers" aria-selected="${S.tab === 'offers'}">Offers <span class="n">${j.offers.length}</span></button>
     </div>
     ${S.tab === 'offers' ? `<div class="list">${j.offers.length ? j.offers.map((o) => offerCard(o, j, o.id === best)).join('')
-      : j.status === 'open' ? `<div class="empty-box"><span class="spin" aria-hidden="true"></span><b style="font-size:18px">Waiting for offers</b><span>Your request is with ${j.kind === 'removals' ? 'removal companies' : 'hauliers'} now. Offers appear here and in your email. This page updates by itself.</span></div>`
+      : j.status === 'open' ? noOffersHtml(j)
       : '<div class="empty-box">No offers.</div>'}</div>` : `
       <section class="card" style="display:flex;flex-direction:column;gap:14px">
         ${detailsHtml(j)}
@@ -82,10 +106,11 @@ function jobView() {
 }
 
 root.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-tab],[data-profile],[data-accept],[data-cancel],[data-star],[data-review]');
+  const t = e.target.closest('[data-tab],[data-profile],[data-near],[data-accept],[data-cancel],[data-star],[data-review]');
   if (!t || S.busy) return;
   const j = S.job;
-  if (t.dataset.tab) { S.tab = t.dataset.tab; jobView(); return; }
+  if (t.dataset.tab) { S.tab = t.dataset.tab; jobView(); if (S.tab === 'offers' && !S.job.offers.length) loadNear(); return; }
+  if (t.dataset.near) { const p = S.near?.partners.find((x) => x.id === t.dataset.near); if (p) profileDrawer(p); return; }
   if (t.dataset.profile) { const o = j.offers.find((x) => x.id === t.dataset.profile); if (o) profileDrawer(o.partner); return; }
   if (t.dataset.star) { S.rating = Number(t.dataset.star); const txt = document.getElementById('rv')?.value; jobView(); if (txt) document.getElementById('rv').value = txt; return; }
   try {
@@ -116,7 +141,7 @@ const confirmBox = (msg) => window.confirm(msg);
   try { const sh = await mountShell(id ? 'req' : 'req'); me = sh.me; sh.main.append(root); } catch { location.href = `/login?next=${encodeURIComponent(location.pathname)}`; return; }
   if (!id) { document.title = 'Moving & freight requests — Kargom.co.uk'; listView((await api('/api/jobs')).jobs); return; }
   try { S.job = await api(`/api/jobs/${id}`); } catch (e) { root.innerHTML = `<div class="card center"><h1>Request not found</h1><a class="btn" href="/app/requests">All requests</a></div>`; return; }
-  S.tab = S.job.offers.length || S.job.status !== 'open' ? 'offers' : 'offers';
+  S.tab = new URLSearchParams(location.search).get('tab') === 'offers' ? 'offers' : 'details';
   document.title = `Request #${S.job.ref} — Kargom.co.uk`;
   jobView();
   // New offers arrive while the customer waits: check every 30 seconds while the page is open.

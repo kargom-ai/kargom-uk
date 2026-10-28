@@ -168,3 +168,5 @@ textarea.inp { min-height: 96px; padding: 10px 12px; resize: vertical; line-heig
 /* Inside the signed-in app frame (dashboard menu on the left). */
 .m-main > #root { width: 100%; max-width: 1180px; margin: 0; padding: 0; }
 @media (max-width: 760px) { body[data-page="quote"] .m-side > a.m-quote { display: none !important; } .m-main > #root { padding: 0 !important; } }
+.noff { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; border-radius: 14px; background: #FFFFFF; border: 1px dashed #C9D6EA; color: #3E4A5C; font-size: 14px; }
+.noff b { font: 600 18px 'Outfit', sans-serif; color: #1F2A3C; }
