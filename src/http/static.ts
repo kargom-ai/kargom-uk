@@ -3,6 +3,8 @@ import { join, normalize, extname } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const ROOT = new URL('../../public/', import.meta.url).pathname;
+/** Changes on every deploy, so phones never keep yesterday's CSS/JS after an update. */
+const BUILD = Date.now().toString(36);
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -50,10 +52,22 @@ export async function serveStatic(req: IncomingMessage, res: ServerResponse, pat
   try {
     const st = await stat(file);
     if (!st.isFile()) return false;
-    const body = await readFile(file);
+    const ext = extname(file);
+    const code = ext === '.css' || ext === '.js';
+    // Scripts and styles: always re-check with the server (cheap 304 when unchanged).
+    const etag = `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
+    if (!page && code && req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { ETag: etag, 'Cache-Control': 'no-cache' });
+      res.end();
+      return true;
+    }
+    let body: Buffer | string = await readFile(file);
+    // Pages point at versioned asset URLs, so a new deploy is picked up straight away.
+    if (page) body = body.toString('utf8').replace(/(\/assets\/[\w/.-]+\.(?:css|js))(?=["'])/g, `$1?v=${BUILD}`);
     res.writeHead(200, {
-      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-      'Cache-Control': page ? 'no-cache' : 'public, max-age=3600',
+      'Content-Type': TYPES[ext] ?? 'application/octet-stream',
+      'Cache-Control': page || code ? 'no-cache' : 'public, max-age=86400',
+      ...(!page && code ? { ETag: etag } : {}),
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'X-Frame-Options': 'DENY',
