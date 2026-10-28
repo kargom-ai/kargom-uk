@@ -76,7 +76,7 @@ const CSP = [
   "script-src 'self' https://js.stripe.com https://*.js.stripe.com https://cdnjs.cloudflare.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
   "font-src https://fonts.gstatic.com",
-  "img-src 'self' data: https://*.stripe.com https://tile.openstreetmap.org https://cdnjs.cloudflare.com",
+  "img-src 'self' data: blob: https://*.stripe.com https://tile.openstreetmap.org https://cdnjs.cloudflare.com",
   "connect-src 'self' https://api.stripe.com https://*.stripe.com",
   "media-src 'self' https:",
   "frame-src 'self' https://www.google.com https://www.youtube-nocookie.com https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://*.stripe.com",

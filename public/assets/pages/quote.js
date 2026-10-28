@@ -10,13 +10,11 @@ const root = document.getElementById('root');
 const qs = new URLSearchParams(location.search);
 const todayIso = new Date().toISOString().slice(0, 10);
 const blankAddr = () => ({ line1: '', line2: '', city: '', postcode: '', country: 'GB' });
-const ITEMS = ['Sofa', 'Armchair', 'Double bed', 'Single bed', 'Wardrobe', 'Chest of drawers', 'Dining table', 'Chairs', 'Desk', 'Bookcase', 'TV', 'Fridge freezer',
-  'Washing machine', 'Tumble dryer', 'Dishwasher', 'Piano', 'Bike', 'Garden furniture', 'Boxes (up to 10)', 'Boxes (10 to 30)', 'Boxes (30+)'];
 
 const S = {
   me: null, type: ['removals', 'freight'].includes(qs.get('type')) ? qs.get('type') : null, step: 1, busy: false, err: '',
   d: {
-    moveType: 'home', size: ['studio', '1', '2', '3', '4', '5'].includes(qs.get('size')) ? qs.get('size') : '', items: [], packing: false, dismantling: false, storage: false,
+    moveType: 'home', itemsText: '', size: ['studio', '1', '2', '3', '4', '5'].includes(qs.get('size')) ? qs.get('size') : '', items: [], packing: false, dismantling: false, storage: false,
     fromPlace: { floor: 'ground', lift: false, parking: 'easy' }, toPlace: { floor: 'ground', lift: false, parking: 'easy' }, dateFlex: 'exact',
     load: 'ftl', vehicle: '', pallets: '', palletType: 'uk', goods: '', weightKg: '', stackable: false, adr: false, tempControlled: false,
     tailLiftCollection: false, tailLiftDelivery: false, collectWindow: 'any', deliverBy: '', notes: '',
@@ -74,15 +72,14 @@ function photosField() {
 
 const removalSteps = () => [
   {
-    t: 'What are you moving?', sum: () => [L.moveType[S.d.moveType], S.d.size && L.size[S.d.size], S.d.items.length && `${S.d.items.length} item${S.d.items.length > 1 ? 's' : ''}`].filter(Boolean).join(' · '),
+    t: 'What are you moving?', sum: () => [L.moveType[S.d.moveType], S.d.size && L.size[S.d.size], S.d.moveType === 'items' && S.d.itemsText].filter(Boolean).join(' · '),
     body: () => `<div class="tiles sm">${Object.entries({ home: 'Flat or house', office: 'Desks, files, IT', items: 'Furniture or a few boxes' }).map(([v, sub]) =>
       `<button type="button" class="tile" data-set="d.moveType" data-v="${v}" aria-pressed="${S.d.moveType === v}"><b>${L.moveType[v]}</b><span>${sub}</span></button>`).join('')}</div>
       ${S.d.moveType === 'home' ? `<div><span class="lbl">Size of the home</span>${chips('d.size', [['studio', 'Studio'], ['1', '1 bed'], ['2', '2 bed'], ['3', '3 bed'], ['4', '4 bed'], ['5', '5+ bed']], S.d.size)}</div>` : ''}
       ${S.d.moveType === 'office' ? `<div><span class="lbl">Size of the office</span>${chips('d.size', [['small', 'Up to 10 desks'], ['medium', '10 to 30 desks'], ['large', '30+ desks']], S.d.size)}</div>` : ''}
-      <div><span class="lbl">${S.d.moveType === 'items' ? 'What needs moving? Choose all that apply' : 'Any large or heavy items? (optional)'}</span>
-        <div class="chips">${ITEMS.map((i) => `<button type="button" class="chip" data-tog="${esc(i)}" aria-pressed="${S.d.items.includes(i)}">${esc(i)}</button>`).join('')}</div></div>
+      ${S.d.moveType === 'items' ? `<label class="fld">What needs moving? <i>*</i><input class="inp" data-k="d.itemsText" value="${esc(S.d.itemsText)}" placeholder="e.g. sofa, double bed, washing machine and 10 boxes"></label>` : ''}
       <div><span class="lbl">Extra help</span><div class="toggles" style="margin-top:8px">${sw('d.packing', 'Pack my things', S.d.packing)}${sw('d.dismantling', 'Take apart and rebuild furniture', S.d.dismantling)}${sw('d.storage', 'I need storage', S.d.storage)}</div></div>`,
-    check: () => (S.d.moveType !== 'items' && !S.d.size ? 'Choose the size' : S.d.moveType === 'items' && !S.d.items.length ? 'Choose at least one item' : ''),
+    check: () => (S.d.moveType !== 'items' && !S.d.size ? 'Choose the size' : S.d.moveType === 'items' && String(S.d.itemsText).trim().length < 3 ? 'Tell us what needs moving' : ''),
   },
   { t: 'Moving from', sum: () => addrSum('from'), body: () => `${addressFields('from')}${placeFields('from')}`, check: () => addrCheck('from', 'moving from') },
   { t: 'Moving to', sum: () => addrSum('to'), body: () => `${addressFields('to')}${placeFields('to')}`, check: () => addrCheck('to', 'moving to') },
@@ -187,14 +184,54 @@ function render() {
     <div class="route"><span class="pin a">A</span><span>${esc(addrSum('from') || (S.from.postcode ? S.from.postcode : 'Where from?'))}</span></div>
     <div class="route-line"></div>
     <div class="route"><span class="pin b">B</span><span>${esc(addrSum('to') || (S.to.postcode ? S.to.postcode : 'Where to?'))}</span></div>
-    <div class="mapbox" id="map"><div class="empty">Add both addresses to see the route.</div></div>
-    <div id="miles">${routeChips(S.route)}</div>
+    ${bothAddresses() ? `<div class="mapbox" id="map"><div class="empty">Loading the map…</div></div><div id="miles">${routeChips(S.route)}</div>` : tipsHtml()}
     ${S.date ? `<div class="kv"><span class="muted">${S.type === 'removals' ? 'Moving date' : 'Collection'}</span><b>${esc(niceDate(S.date))}</b></div>` : ''}
   </div></aside>`);
   refreshMap();
 }
 
+/** Map only once both addresses are filled in; until then, tips on getting a good price. */
+const bothAddresses = () => !addrCheck('from', '') && !addrCheck('to', '');
+const TI = {
+  home: '<path d="M3 11l9-7 9 7v9H3z"></path>', pin: '<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"></path><circle cx="12" cy="10" r="2.5"></circle>',
+  stairs: '<path d="M3 20h5v-5h5v-5h5V5h3"></path>', cal: '<rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path>',
+  box: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"></path><path d="M3 7l9 4 9-4M12 11v10"></path>', truck: '<path d="M2 6h12v10H2zM14 9h4l4 4v3h-8"></path><circle cx="6" cy="17.5" r="2"></circle><circle cx="17" cy="17.5" r="2"></circle>',
+  scale: '<path d="M12 3v18M5 7h14M5 7l-3 7h6zM19 7l-3 7h6z"></path>', lift: '<path d="M4 20h16M6 20V8h8l4 4v8M10 12h4"></path>', warn: '<path d="M12 3l10 18H2z"></path><path d="M12 10v5M12 18h.01"></path>',
+};
+const ico = (k) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TI[k]}</svg>`;
+function tipsHtml() {
+  const rem = S.type === 'removals';
+  const rows = rem ? [
+    ['home', 'Size of your home', 'The biggest factor: how many rooms and how much furniture fills the van.'],
+    ['pin', 'Distance', 'Miles between the two addresses and time on the road.'],
+    ['stairs', 'Access at both ends', 'Stairs, lifts and parking change how long loading takes.'],
+    ['cal', 'The date', 'Midweek and mid-month moves are often cheaper than Fridays and month-end.'],
+    ['box', 'Extra help', 'Packing, taking furniture apart and storage are priced on top.'],
+  ] : [
+    ['truck', 'Space on the lorry', 'A full vehicle, or how many pallet spaces you use.'],
+    ['scale', 'Weight', 'Heavier loads may need a bigger vehicle.'],
+    ['pin', 'Distance and route', 'Miles, tolls and ferry crossings for Europe.'],
+    ['lift', 'Loading and unloading', 'Tail lift, forklift on site and booked time slots.'],
+    ['warn', 'Special goods', 'Hazardous (ADR) or temperature-controlled loads cost more.'],
+  ];
+  return `<div class="tips">
+    <div class="tips-art" aria-hidden="true"><svg viewBox="0 0 220 110" width="100%" height="110">
+      <rect x="0" y="96" width="220" height="3" rx="1.5" fill="#C9D6EA"></rect>
+      <rect x="18" y="34" width="112" height="58" rx="8" fill="#2463DB"></rect><rect x="30" y="46" width="42" height="8" rx="4" fill="#BFD6FB"></rect><rect x="30" y="60" width="28" height="6" rx="3" fill="#BFD6FB"></rect>
+      <path d="M130 50h34l20 20v22h-54z" fill="#1F4FB8"></path><path d="M138 56h22l14 14h-36z" fill="#BFD6FB"></path>
+      <circle cx="48" cy="94" r="11" fill="#1F2A3C"></circle><circle cx="48" cy="94" r="4" fill="#C9D6EA"></circle><circle cx="160" cy="94" r="11" fill="#1F2A3C"></circle><circle cx="160" cy="94" r="4" fill="#C9D6EA"></circle>
+      <rect x="150" y="10" width="30" height="26" rx="3" fill="#E8B26A"></rect><path d="M150 18h30" stroke="#C98F45" stroke-width="2"></path><rect x="184" y="20" width="24" height="16" rx="3" fill="#F0C48A"></rect>
+    </svg></div>
+    <b class="tips-h">${rem ? 'How removal companies price your move' : 'How hauliers price your load'}</b>
+    <ul class="tips-l">${rows.map(([k, t, d]) => `<li><span class="tips-i">${ico(k)}</span><span><b>${t}</b>${d}</span></li>`).join('')}</ul>
+    <div class="tips-photo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h4l2-3h6l2 3h4v11H3z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>
+      <span><b>Add a few photos</b>${rem ? 'Photos of your rooms and any big items help companies give you an accurate price first time, with no surprises on the day.' : 'Photos of the goods and the loading area help hauliers send the right vehicle and a firm price.'}</span></div>
+    <span class="hint">Fill in both addresses to see your route on the map.</span>
+  </div>`;
+}
+
 async function refreshMap() {
+  if (!bothAddresses()) return;
   const a = S.from, b = S.to;
   const okA = a.country === 'GB' ? UK_PC.test(a.postcode.trim()) : a.postcode.trim().length >= 3;
   const okB = b.country === 'GB' ? UK_PC.test(b.postcode.trim()) : b.postcode.trim().length >= 3;
@@ -228,14 +265,15 @@ async function next() {
   if (S.step < list.length) { S.step += 1; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   S.busy = true; render();
   try {
-    const d = { ...S.d, pallets: Number(S.d.pallets) || 0, weightKg: Number(S.d.weightKg) || 0, deliverBy: S.d.deliverBy || null };
+    const items = S.d.moveType === 'items' ? String(S.d.itemsText).split(/[,\n]+| and /).map((x) => x.trim()).filter(Boolean) : [];
+    const d = { ...S.d, items, pallets: Number(S.d.pallets) || 0, weightKg: Number(S.d.weightKg) || 0, deliverBy: S.d.deliverBy || null };
     const job = await api('/api/jobs', { method: 'POST', body: { kind: S.type, from: S.from, to: S.to, date: S.date, phone: S.phone, photos: S.photos, details: d, distanceMiles: S.route?.miles } });
     location.href = `/app/requests/${job.id}?new=1`;
   } catch (err) { S.busy = false; S.err = err.message; render(); }
 }
 
 root.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-set],[data-tog],[data-act],[data-go]');
+  const t = e.target.closest('[data-set],[data-act],[data-go]');
   if (!t) return;
   if (t.dataset.set) {
     const v = t.dataset.v;
@@ -243,7 +281,6 @@ root.addEventListener('click', (e) => {
     if (t.dataset.set === 'd.moveType') { S.d.size = ''; }
     render(); return;
   }
-  if (t.dataset.tog) { const i = t.dataset.tog; S.d.items = S.d.items.includes(i) ? S.d.items.filter((x) => x !== i) : [...S.d.items, i]; render(); return; }
   if (t.dataset.go) { S.step = Number(t.dataset.go); S.err = ''; render(); return; }
   const [act, arg] = t.dataset.act.split(':');
   if (act === 'next') next();
@@ -268,7 +305,7 @@ root.addEventListener('change', async (e) => {
     for (const f of files) { try { S.photos.push(await resizeImage(f)); } catch (err) { toast(err.message); } }
     render();
   }
-  if (['from.postcode', 'to.postcode'].includes(t.dataset.k)) refreshMap();
+  if (/^(from|to)\.(line1|city|postcode)$/.test(t.dataset.k || '')) { const had = !!document.getElementById('map'); if (bothAddresses() !== had) render(); else refreshMap(); }
 });
 root.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.dataset.enter) { e.preventDefault(); const [, who] = e.target.dataset.enter.split(':'); S.lk[who].pc = e.target.value; find(who); }
