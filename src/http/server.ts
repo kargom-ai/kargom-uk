@@ -90,11 +90,21 @@ let videoCache: { at: number; file: string | null } = { at: 0, file: null };
 function videoFile(): string | null {
   if (Date.now() - videoCache.at < 60_000) return videoCache.file;
   let file: string | null = null;
+  // Look in public/assets/video/ (any capitalisation), then in public/assets/ itself. mp4 first.
+  const assets = new URL('../../public/assets/', import.meta.url);
+  const isVid = (n: string) => /\.(mp4|webm|mov|m4v)$/i.test(n);
+  const order = (a: string, b: string) => Number(!/\.mp4$/i.test(a)) - Number(!/\.mp4$/i.test(b)) || a.localeCompare(b);
   try {
-    const dir = new URL('../../public/assets/video/', import.meta.url);
-    const names = readdirSync(dir).filter((n) => /\.(mp4|webm|mov|m4v)$/i.test(n)).sort((a, b) => Number(!/\.mp4$/i.test(a)) - Number(!/\.mp4$/i.test(b)) || a.localeCompare(b));
-    if (names[0]) file = `/assets/video/${encodeURIComponent(names[0])}`;
-  } catch { /* no folder */ }
+    const entries = readdirSync(assets, { withFileTypes: true });
+    for (const d of entries.filter((e) => e.isDirectory() && e.name.toLowerCase() === 'video')) {
+      const names = readdirSync(new URL(`${d.name}/`, assets)).filter(isVid).sort(order);
+      if (names[0]) { file = `/assets/${d.name}/${encodeURIComponent(names[0])}`; break; }
+    }
+    if (!file) {
+      const names = entries.filter((e) => e.isFile() && isVid(e.name)).map((e) => e.name).sort(order);
+      if (names[0]) file = `/assets/${encodeURIComponent(names[0])}`;
+    }
+  } catch { /* no assets folder */ }
   videoCache = { at: Date.now(), file };
   return file;
 }
