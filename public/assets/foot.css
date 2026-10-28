@@ -1,0 +1,12 @@
+/* Site-wide footer with links to the guide pages (server-rendered, crawlable). */
+.foot{font-family:'Plus Jakarta Sans',system-ui,sans-serif;line-height:1.5}
+.foot .in{max-width:1120px;margin:0 auto;padding:0 24px}
+.foot{background:#1F2A3C;color:#AEB9C9;font-size:14px;margin-top:0}
+.foot .in{padding-top:36px;padding-bottom:28px;display:flex;flex-direction:column;gap:28px}
+.foot .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px}
+.foot .cols div{display:flex;flex-direction:column;gap:6px}
+.foot b{color:#FFFFFF;font-size:15px;margin-bottom:4px}
+.foot a{color:#AEB9C9;text-decoration:none}.foot a:hover{color:#FFFFFF}
+.foot .legal{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #2E3B52;padding-top:20px;font-size:13px}
+.foot .legal img{height:22px;width:auto}
+@media (max-width:760px){.foot .in{padding-left:16px;padding-right:16px}.foot .cols{grid-template-columns:repeat(2,minmax(0,1fr))}}

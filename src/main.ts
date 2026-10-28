@@ -1,6 +1,9 @@
 import { SqliteDb } from './db/sqlite.ts';
 import { createApp } from './app.ts';
 import { startServer, warmPreviewCache } from './http/server.ts';
+import { seoPricesFor } from './seo/prices.ts';
+import { sitemap } from './seo/render.ts';
+import { pingIndexNow } from './seo/routes.ts';
 import { FakeGateway, StripeGateway } from './payments/stripe.ts';
 import { MockProvider } from './providers/mock.ts';
 import { ShipEngineProvider } from './providers/shipengine.ts';
@@ -95,5 +98,20 @@ if (stripeKey) console.log(`[stripe] ${stripeKey.startsWith('sk_live_') ? 'LIVE'
   const warm = () => warmPreviewCache(app).then((n) => console.log(`[quotes] homepage prices warmed (${n} searches)`)).catch(() => {});
   setTimeout(warm, 3000);
   setInterval(warm, Math.max(60_000, Number(process.env.PREVIEW_CACHE_HOURS ?? 6) * 3600_000 - 5 * 60_000)).unref();
+}
+// Live prices for the public guide pages (couriers, countries, price tables), refreshed every 6 hours.
+{
+  const seo = seoPricesFor(app);
+  const refresh = () => seo.refresh().then((n) => console.log(`[seo] guide page prices refreshed (${n} searches)`)).catch(() => {});
+  seo.load().then((n) => { if (n) console.log(`[seo] ${n} saved price snapshots loaded`); }).catch(() => {});
+  setTimeout(refresh, Number(process.env.SEO_REFRESH_DELAY_MS ?? 20_000));
+  setInterval(refresh, 6 * 3600_000).unref();
+  // Tell Bing/Yandex about the pages once per start (Google reads /sitemap.xml).
+  if (process.env.INDEXNOW_KEY && process.env.PUBLIC_URL) {
+    setTimeout(() => {
+      const urls = [...sitemap(seo).matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]!);
+      pingIndexNow(urls).then((ok) => console.log(`[seo] IndexNow ${ok ? 'notified' : 'refused'} (${urls.length} pages)`)).catch(() => {});
+    }, 60_000).unref();
+  }
 }
 console.log(`Kargom API listening on :${port}${stripeKey ? '' : ' (fake payments: set STRIPE_SECRET_KEY for real ones)'}`);

@@ -2,6 +2,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { join, normalize, extname } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { footer, headTags } from '../seo/render.ts';
 
 const ROOT = new URL('../../public/', import.meta.url).pathname;
 /** Changes on every deploy, so phones never keep yesterday's CSS/JS after an update. */
@@ -14,6 +15,8 @@ const TYPES: Record<string, string> = {
   '.json': 'application/json',
   '.png': 'image/png',
   '.webp': 'image/webp',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   '.mov': 'video/quicktime',
@@ -22,6 +25,33 @@ const TYPES: Record<string, string> = {
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
 };
+
+/** What search engines see for the app pages. Pages not listed here are private (noindex). */
+const SEO: Record<string, { title: string; description: string; path: string; footer?: boolean; ld?: boolean }> = {
+  'index.html': { title: 'Cheap Parcel Delivery UK: Compare Couriers and Save | Kargom', path: '/', footer: true, ld: true,
+    description: 'Compare live prices from Royal Mail, Evri, DPD, InPost, Yodel, Parcelforce, UPS and DHL. Book in a minute, print your label and track it. No account needed.' },
+  'login.html': { title: 'Sign In or Create an Account | Kargom', path: '/login', footer: true,
+    description: 'Sign in to Kargom or create a free account to save addresses, top up a wallet and manage all your parcels in one place.' },
+};
+const PRIVATE = new Set(['app.html', 'admin.html', 'checkout.html', 'label.html', 'send.html', 'quotes.html']);
+const SITE_LD = () => {
+  const base = (process.env.PUBLIC_URL || 'https://kargom.co.uk').replace(/\/+$/, '');
+  return `<script type="application/ld+json">${JSON.stringify([
+    { '@context': 'https://schema.org', '@type': 'Organization', name: 'Kargom', url: `${base}/`, logo: `${base}/assets/logo.png` },
+    { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Kargom', url: `${base}/` },
+  ])}</script>`;
+};
+
+function decorate(file: string, html: string): string {
+  const meta = SEO[file];
+  if (meta) {
+    html = html.replace(/<title>[^<]*<\/title>/, headTags(meta) + (meta.ld ? SITE_LD() : ''));
+    if (meta.footer) html = html.replace('</head>', '<link rel="stylesheet" href="/assets/foot.css">\n</head>').replace(/<\/body>/, `${footer()}\n</body>`);
+  } else if (PRIVATE.has(file)) {
+    html = html.replace('</head>', '<meta name="robots" content="noindex, nofollow">\n</head>');
+  }
+  return html;
+}
 
 /** Page routes → HTML file. Everything under /app and /admin is a single-page app. */
 function pageFor(pathname: string): string | null {
@@ -95,7 +125,7 @@ export async function serveStatic(req: IncomingMessage, res: ServerResponse, pat
     }
     let body: Buffer | string = await readFile(file);
     // Pages point at versioned asset URLs, so a new deploy is picked up straight away.
-    if (page) body = body.toString('utf8').replace(/(\/assets\/[\w/.-]+\.(?:css|js))(?=["'])/g, `$1?v=${BUILD}`);
+    if (page) body = decorate(page, body.toString('utf8')).replace(/(\/assets\/[\w/.-]+\.(?:css|js))(?=["'])/g, `$1?v=${BUILD}`);
     res.writeHead(200, {
       'Content-Type': TYPES[ext] ?? 'application/octet-stream',
       'Cache-Control': page || code ? 'no-cache' : 'public, max-age=86400',
@@ -104,6 +134,7 @@ export async function serveStatic(req: IncomingMessage, res: ServerResponse, pat
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'X-Frame-Options': 'DENY',
       ...(page ? { 'Content-Security-Policy': CSP } : {}),
+      ...(page && PRIVATE.has(page) ? { 'X-Robots-Tag': 'noindex, nofollow' } : {}),
     });
     res.end(req.method === 'HEAD' ? undefined : body);
     return true;

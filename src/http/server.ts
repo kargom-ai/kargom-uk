@@ -9,6 +9,8 @@ import { CATEGORIES, type Category, type TicketStatus } from '../support/tickets
 import type { ShipmentRequest } from '../providers/types.ts';
 import { parseGbp } from '../core/money.ts';
 import { serveStatic } from './static.ts';
+import { serveSeo } from '../seo/routes.ts';
+import { seoPricesFor } from '../seo/prices.ts';
 import { FakeGateway } from '../payments/stripe.ts';
 import { AddressLookup } from '../address/lookup.ts';
 import { GuestCheckout } from '../guest/guest.ts';
@@ -485,6 +487,9 @@ export function buildRouter(app: App) {
       }
       const route = routes.find((r) => r.method === req.method && r.pattern.test(url.pathname));
       if (!route) {
+        let path = url.pathname;
+        try { path = decodeURIComponent(url.pathname); } catch { /* leave as is */ }
+        if (serveSeo(req, res, path, seoPricesFor(app))) return;
         if (await serveStatic(req, res, url.pathname)) return;
         throw new AppError('not_found', 'Not found');
       }

@@ -25,6 +25,12 @@ class Component extends DCLogic {
 
   getQuotes(e) {
     const st = this.state;
+    if (st.mode === 'track') {
+      e.preventDefault();
+      const n = String(field('Tracking number') ?? '').trim();
+      location.href = n ? `/track?n=${encodeURIComponent(n)}` : '/track';
+      return;
+    }
     if (st.mode !== 'uk' && st.mode !== 'intl') return;
     e.preventDefault();
     const kg = Number(String(field('Parcel weight')).replace(',', '.'));
@@ -59,11 +65,18 @@ class Component extends DCLogic {
         { ...b, label: 'Number of pallets', isInput: true, placeholder: 'e.g. 1', mode: 'numeric', flex: '1 1 140px' }],
       track: [{ ...b, label: 'Tracking number', isInput: true, placeholder: 'Enter your tracking number', flex: '999 1 400px' }],
     };
-    const CTA = { uk: ['Get quotes', '/quotes'], intl: ['Get quotes', '/quotes'], pallet: ['Get a pallet quote', '/app?view=help'], track: ['Track', 'https://kargoradari.com'] };
-    const LINKS = { uk: ['Need same-day delivery?', 'Parcel larger than 1m?', 'Send multiple parcels'], intl: ['Customs and duties explained', 'Sending to Turkey'], pallet: ['Pallet sizes guide'], track: ['Where is my tracking number?'] };
+    const CTA = { uk: ['Get quotes', '/quotes'], intl: ['Get quotes', '/quotes'], pallet: ['Get a pallet quote', '/app?view=help'], track: ['Track', '/track'] };
+    const L = (t, href) => ({ t, href });
+    const LINKS = {
+      uk: [L('Cheapest way to send a parcel', '/guides/cheapest-way-to-send-a-parcel-uk'), L('Volumetric weight calculator', '/tools/volumetric-weight-calculator'), L('UK prices by weight', '/parcel-prices')],
+      intl: [L('Customs and duties explained', '/guides/sending-a-parcel-abroad-customs'), L('Sending to Turkey', '/send-parcel-to/turkey'), L('All destinations', '/send-parcel-to')],
+      pallet: [L('Help with pallets', '/app?view=help')],
+      track: [L('Where is my tracking number?', '/track'), L('Royal Mail tracking', '/track/royal-mail'), L('Evri tracking', '/track/evri')],
+    };
+    const SLUG = { 'Royal Mail': 'royal-mail', Evri: 'evri', DPD: 'dpd', InPost: 'inpost', Yodel: 'yodel', Parcelforce: 'parcelforce', UPS: 'ups', DHL: 'dhl', FedEx: 'fedex' };
     const couriers = [['Royal Mail', 'Tracked 24 / 48'], ['Evri', 'Drop-off & collection'], ['DPD', 'Next day, 1-hour window'], ['InPost', '24/7 lockers'],
       ['Yodel', 'Drop-off'], ['Parcelforce', 'Heavy parcels'], ['UPS', 'UK & worldwide'], ['DHL', 'UK & worldwide'], ['FedEx', 'Worldwide express']]
-      .map(([name, note]) => ({ name, note, logo: LOGOS[name] ? `/assets/carriers/${LOGOS[name]}.png` : '', hasLogo: !!LOGOS[name], noLogo: !LOGOS[name] }));
+      .map(([name, note]) => ({ name, note, href: `/couriers/${SLUG[name]}`, logo: LOGOS[name] ? `/assets/carriers/${LOGOS[name]}.png` : '', hasLogo: !!LOGOS[name], noLogo: !LOGOS[name] }));
     const steps = [
       { n: '1', t: 'Compare quotes', d: 'Enter the weight, see every courier and service side by side, sorted by price or speed.' },
       { n: '2', t: 'Book and print', d: 'Pay securely, then print your label at home or show a QR code at the drop-off point.' },

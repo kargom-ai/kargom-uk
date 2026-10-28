@@ -31,9 +31,9 @@ input:focus,select:focus{outline:none}
       <a href="/" aria-label="Kargom.co.uk home"><img src="/assets/logo-white.png" alt="Kargom.co.uk" style="height: 28px; width: auto; display: block"></a>
       <nav aria-label="Main menu" class="m-topnav" style="display: flex; flex-wrap: wrap; align-items: center; gap: 22px; font-size: 14px; font-weight: 600">
         <a href="/app/send" style="color: #8FD3F7; text-decoration: none">Send a parcel</a>
-        <a href="#" class="m-hide" style="color: #DCE4F2; text-decoration: none">Tracking</a>
-        <a href="#" class="m-hide" style="color: #DCE4F2; text-decoration: none">Couriers</a>
-        <a href="#" class="m-hide" style="color: #DCE4F2; text-decoration: none">Business</a>
+        <a href="/track" class="m-hide" style="color: #DCE4F2; text-decoration: none">Tracking</a>
+        <a href="/couriers" class="m-hide" style="color: #DCE4F2; text-decoration: none">Couriers</a>
+        <a href="/login?mode=register" class="m-hide" style="color: #DCE4F2; text-decoration: none">Business</a>
         <a href="/app?view=help" class="m-hide" style="color: #DCE4F2; text-decoration: none">Help</a>
         <a href="{{nav1.href}}" style="color: #FFFFFF; background: #2463DB; text-decoration: none; padding: 10px 16px; border-radius: 8px">{{nav1.label}}</a>
         <a href="{{nav2.href}}" style="color: #DCE4F2; text-decoration: none">{{nav2.label}}</a>
@@ -114,7 +114,7 @@ input:focus,select:focus{outline:none}
       </div>
       <div style="display: flex; flex-wrap: wrap; margin-top: 14px; font-size: 14px">
         <sc-for list="{{links}}" as="k" hint-placeholder-count="3">
-          <a href="#" style="color: #3E4A5C; text-decoration: none; padding: 2px 12px 2px 0; margin-right: 12px; border-right: 1px solid #D8DEE8">{{k}}</a>
+          <a href="{{k.href}}" style="color: #3E4A5C; text-decoration: none; padding: 2px 12px 2px 0; margin-right: 12px; border-right: 1px solid #D8DEE8">{{k.t}}</a>
         </sc-for>
       </div>
     </div>
@@ -124,7 +124,7 @@ input:focus,select:focus{outline:none}
     <h2 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 30px; font-weight: 400; text-align: center">Send your parcel with trusted UK couriers</h2>
     <div style="width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px">
       <sc-for list="{{couriers}}" as="c" hint-placeholder-count="9">
-        <a href="#" style="height: 110px; background: #F4F6FA; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-decoration: none; color: #1F2A3C">
+        <a href="{{c.href}}" style="height: 110px; background: #F4F6FA; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-decoration: none; color: #1F2A3C">
           <sc-if value="{{c.hasLogo}}" hint-placeholder-val="{{ true }}">
             <img src="{{c.logo}}" alt="{{c.name}}" style="max-height: 46px; max-width: 80%; object-fit: contain">
           </sc-if>
@@ -135,7 +135,7 @@ input:focus,select:focus{outline:none}
         </a>
       </sc-for>
     </div>
-    <a href="#" style="font-weight: 600; font-size: 15px; color: #1F2A3C">Browse all couriers</a>
+    <a href="/couriers" style="font-weight: 600; font-size: 15px; color: #1F2A3C">Browse all couriers</a>
   </section>
 
   <section style="max-width: 1080px; margin: 0 auto; padding: 56px 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 32px">
@@ -219,12 +219,6 @@ input:focus,select:focus{outline:none}
     </div>
   </section>
 
-  <footer style="background: #1F2A3C">
-    <div style="max-width: 1080px; margin: 0 auto; padding: 28px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; color: #AEB9C9">
-      <img src="/assets/logo-white.png" alt="Kargom.co.uk" style="height: 22px; width: auto">
-      <span>© 2026 Kargom.co.uk · All prices include VAT</span>
-    </div>
-  </footer>
 
   <sc-if value="{{video}}" hint-placeholder-val="{{ false }}">
     <div role="dialog" aria-modal="true" aria-label="Kargom video" style="position: fixed; inset: 0; background: rgba(8,14,28,.8); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 10">

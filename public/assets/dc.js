@@ -197,6 +197,6 @@ export const CARRIER_NAME = { royal_mail: 'Royal Mail', evri: 'Evri', dpd: 'DPD'
 export const SAMPLE_POSTCODE = {
   'United Kingdom': ['GB', 'M1 1AE'], 'Northern Ireland': ['GB', 'BT1 1AA'], 'Channel Islands': ['JE', 'JE2 3AB'], 'Scottish Highlands & Islands': ['GB', 'IV1 1AA'],
   'United States': ['US', '10001'], Germany: ['DE', '10115'], France: ['FR', '75001'], Ireland: ['IE', 'D02 X285'], Netherlands: ['NL', '1012 AB'],
-  Spain: ['ES', '28001'], Italy: ['IT', '00184'], Australia: ['AU', '2000'], Canada: ['CA', 'M5V 2T6'], Turkey: ['TR', '34000'],
+  Spain: ['ES', '28001'], Italy: ['IT', '00184'], Australia: ['AU', '2000'], Canada: ['CA', 'M5V 2T6'], Turkey: ['TR', '34000'], Poland: ['PL', '00-001'], Belgium: ['BE', '1000'],
 };
-export const COUNTRY_CODE = { 'United Kingdom': 'GB', 'United States': 'US', Germany: 'DE', France: 'FR', Ireland: 'IE', Netherlands: 'NL', Spain: 'ES', Italy: 'IT', Australia: 'AU', Canada: 'CA', Turkey: 'TR' };
+export const COUNTRY_CODE = { 'United Kingdom': 'GB', 'United States': 'US', Germany: 'DE', France: 'FR', Ireland: 'IE', Netherlands: 'NL', Spain: 'ES', Italy: 'IT', Australia: 'AU', Canada: 'CA', Turkey: 'TR', Poland: 'PL', Belgium: 'BE' };
