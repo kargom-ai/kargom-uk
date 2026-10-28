@@ -29,6 +29,12 @@ function toast(text) {
   setTimeout(() => t.remove(), 4000);
 }
 
+/** Put a value into a form box and keep it through re-renders. */
+function setField(label, value) {
+  const el = document.querySelector(`[aria-label="${label}"]`);
+  if (el) { el.value = value || ''; el.dataset.dirty = '1'; }
+}
+
 const pending = (() => { try { return JSON.parse(sessionStorage.getItem('kg_pending') || 'null'); } catch { return null; } })();
 sessionStorage.removeItem('kg_pending');
 
@@ -42,6 +48,7 @@ class Component extends DCLogic {
       newParcel: false, newAddr: false, newItem: false, done: null, pay: 'wallet',
       me: null, bal: 0, history: [], parcels: [...custom, ...store.get('kg_parcels', []), ...PRESET_PARCELS],
       mySenders: store.get('kg_senders', []), myRecips: store.get('kg_recips', []), savedItems: store.get('kg_items', []),
+      lk: { sa: { items: [], msg: '', bad: false, busy: false }, ra: { items: [], msg: '', bad: false, busy: false } },
       quotes: null, quoteError: '', busy: false, preferService: pending?.serviceName || '',
     };
     this.key = uid();
@@ -206,6 +213,37 @@ class Component extends DCLogic {
       store.set('kg_parcels', mine);
       this.setState({ parcels: [p, ...st.parcels.filter((x) => x.id !== p.id)], parcel: p.id, newParcel: false, quotes: null });
     };
+    const lookup = (px) => {
+      const L = st.lk[px];
+      const set = (patch) => this.setState({ lk: { ...this.state.lk, [px]: { ...this.state.lk[px], ...patch } } });
+      const find = async () => {
+        const pc = String(field(`${px}_find`) || '').trim();
+        if (!pc) { set({ msg: 'Type a postcode first.', bad: true }); return; }
+        set({ busy: true, msg: 'Looking up addresses…', bad: false, items: [] });
+        try {
+          const r = await api(`/api/address/lookup?postcode=${encodeURIComponent(pc)}`);
+          setField(`${px}_postcode`, r.postcode);
+          if (r.town) setField(`${px}_city`, r.town);
+          if (r.addresses.length) set({ busy: false, items: r.addresses, msg: '', bad: false });
+          else if (r.suggestions?.length) set({ busy: false, items: [], msg: `Postcode not found. Did you mean ${r.suggestions.slice(0, 3).join(', ')}?`, bad: true });
+          else if (!r.fullList && r.town) set({ busy: false, items: [], msg: `Postcode found in ${r.town}. Type the street address below.`, bad: false });
+          else set({ busy: false, items: [], msg: 'We could not find that postcode. Check it, or type the address below.', bad: true });
+        } catch (e) { set({ busy: false, msg: e.message, bad: true }); }
+      };
+      return {
+        key: (e) => { if (e.key === 'Enter') { e.preventDefault(); find(); } },
+        find, btn: L.busy ? 'Searching…' : 'Find address', has: L.items.length > 0,
+        count: `${L.items.length} address${L.items.length === 1 ? '' : 'es'} found: choose one`,
+        items: L.items.map((a, i) => ({ i: String(i), label: a.label })),
+        msg: L.msg || (L.items.length ? '' : 'Or type the address in the boxes below.'), msgFg: L.bad ? '#B42318' : '#586579',
+        pick: (e) => {
+          const a = L.items[Number(e.target.value)];
+          if (!a || e.target.value === '') return;
+          setField(`${px}_line1`, a.line1); setField(`${px}_line2`, a.line2); setField(`${px}_city`, a.city); setField(`${px}_postcode`, a.postcode);
+          if (a.company && !String(field(`${px}_name`) || '').trim()) setField(`${px}_name`, a.company);
+        },
+      };
+    };
     const saveSender = () => {
       if (!need([['sa_name', 'the name'], ['sa_line1', 'the address'], ['sa_city', 'the town'], ['sa_postcode', 'the postcode']])) return;
       const a = { name: field('sa_name'), phone: field('sa_phone'), line1: field('sa_line1'), line2: field('sa_line2'), city: field('sa_city'), postcode: String(field('sa_postcode')).toUpperCase(), country: 'GB' };
@@ -240,6 +278,7 @@ class Component extends DCLogic {
       parcels, senders, recips, items, quotes, sorts,
       quoteCount: st.quotes === null ? 'Comparing' : st.quoteError ? 'No' : Q.length,
       newParcel: st.newParcel, toggleNewParcel: () => this.setState({ newParcel: !st.newParcel }), saveParcel,
+      lk: { sa: lookup('sa'), ra: lookup('ra') }, ukRecip: !intl,
       newAddr: st.newAddr, toggleNewAddr: () => this.setState({ newAddr: !st.newAddr }), saveSender, saveRecip,
       newItem: st.newItem, toggleNewItem: () => this.setState({ newItem: !st.newItem }), saveItem,
       itemsNote: st.savedItems.length ? `${st.savedItems.length} saved item${st.savedItems.length > 1 ? 's' : ''}` : 'Add your first item with New item',

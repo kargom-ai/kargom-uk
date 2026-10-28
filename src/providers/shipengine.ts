@@ -147,7 +147,9 @@ export class ShipEngineProvider implements ShippingProvider {
   async listCarriers(signal?: AbortSignal): Promise<Array<{ id: string; code: string; name: string }>> {
     const out = await this.call<{ carriers?: Array<{ carrier_id: string; carrier_code: string; friendly_name: string; nickname?: string }> }>('GET', '/carriers', undefined, signal);
     // friendly_name is the carrier ("Royal Mail"); nickname can be a billing label, so it is not used.
-    return (out.carriers ?? []).map((c) => ({ id: c.carrier_id, code: c.carrier_code, name: c.friendly_name || c.carrier_code }));
+    const list = (out.carriers ?? []).map((c) => ({ id: c.carrier_id, code: c.carrier_code, name: c.friendly_name || c.carrier_code }));
+    this.carrierCache = list.map((c) => c.id);
+    return list;
   }
 
   private async carrierIds(signal: AbortSignal): Promise<string[]> {
@@ -156,7 +158,26 @@ export class ShipEngineProvider implements ShippingProvider {
     return this.carrierCache;
   }
 
+  /** Same route + parcel asked again within a few minutes: answer from memory instead of a 3-6 s carrier round trip. */
+  private rateCache = new Map<string, { at: number; rates: ProviderRate[] }>();
+  private static readonly RATE_CACHE_MS = 5 * 60_000;
+
   async getRates(req: ShipmentRequest, signal: AbortSignal): Promise<ProviderRate[]> {
+    // Full request in the key: a rate id belongs to one exact shipment (addresses included).
+    const key = JSON.stringify(req);
+    const hit = this.rateCache.get(key);
+    if (hit && Date.now() - hit.at < ShipEngineProvider.RATE_CACHE_MS) return hit.rates;
+    const started = Date.now();
+    const rates = await this.fetchRates(req, signal);
+    console.log(`[${this.id}] rates ${req.from.postcode} → ${req.to.postcode} ${req.parcel.weightGrams} g: ${rates.length} in ${Date.now() - started} ms`);
+    if (rates.length) {
+      this.rateCache.set(key, { at: Date.now(), rates });
+      if (this.rateCache.size > 500) this.rateCache.delete(this.rateCache.keys().next().value!);
+    }
+    return rates;
+  }
+
+  private async fetchRates(req: ShipmentRequest, signal: AbortSignal): Promise<ProviderRate[]> {
     const carrierIds = await this.carrierIds(signal);
     if (!carrierIds.length) return [];
     const out = await this.call<{ rate_response?: { rates?: SeRate[]; invalid_rates?: SeRate[]; errors?: Array<{ message?: string }> } }>(
@@ -192,6 +213,8 @@ export class ShipEngineProvider implements ShippingProvider {
   }
 
   async buyLabel(rate: ProviderRate, _req: ShipmentRequest, _idempotencyKey: string): Promise<Label> {
+    // A rate id is used up once a label is bought from it, so never hand it out again.
+    for (const [k, v] of this.rateCache) if (v.rates.some((x) => x.providerRateId === rate.providerRateId)) this.rateCache.delete(k);
     const out = await this.call<{
       label_id: string;
       tracking_number: string;

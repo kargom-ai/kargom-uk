@@ -9,6 +9,7 @@ import type { ShipmentRequest } from '../providers/types.ts';
 import { parseGbp } from '../core/money.ts';
 import { serveStatic } from './static.ts';
 import { FakeGateway } from '../payments/stripe.ts';
+import { AddressLookup } from '../address/lookup.ts';
 
 type Ctx = {
   req: IncomingMessage;
@@ -84,6 +85,8 @@ export function buildRouter(app: App) {
   const on = (method: string, path: string, access: Access, handler: Handler) => routes.push({ method, ...compile(path), access, handler });
   const loginLimiter = new RateLimiter(10, 60_000);
   const quoteLimiter = new RateLimiter(60, 60_000);
+  const addressLimiter = new RateLimiter(30, 60_000);
+  const addresses = new AddressLookup(process.env.IDEAL_POSTCODES_API_KEY);
   const ip = (c: Ctx) => (c.req.socket.remoteAddress ?? 'unknown');
   const me = (c: Ctx) => c.user!.customerId;
 
@@ -123,6 +126,11 @@ export function buildRouter(app: App) {
     const u = await app.db.get<Record<string, unknown>>(
       'SELECT id, email, name, company, phone, account_type, role, bookings_paused, default_payment_method IS NOT NULL AS has_card FROM customers WHERE id = $1', [me(c)]);
     return { ...u, demoPayments: app.payments instanceof FakeGateway };
+  });
+  /** UK postcode → delivery addresses. Signed-in only, so strangers cannot spend our lookup credits. */
+  on('GET', '/api/address/lookup', 'customer', async (c) => {
+    addressLimiter.check(me(c));
+    return { ...(await addresses.byPostcode(c.query.get('postcode') ?? '')), fullList: addresses.hasAddressList };
   });
   on('PUT', '/api/me', 'customer', async (c) => {
     const sets: string[] = []; const vals: (string | null)[] = [];
