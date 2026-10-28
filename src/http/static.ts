@@ -53,7 +53,11 @@ const CSP = [
 export async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<boolean> {
   if (req.method !== 'GET' && req.method !== 'HEAD') return false;
   const page = pageFor(pathname);
-  const rel = page ?? (pathname.startsWith('/assets/') || pathname === '/favicon.ico' || pathname === '/robots.txt' ? pathname.slice(1) : null);
+  // File names may contain spaces or Turkish letters (arrive as %20, %C3%BC ...).
+  let path = pathname;
+  try { path = decodeURIComponent(pathname); } catch { return false; }
+  if (path.includes('\0')) return false;
+  const rel = page ?? (path.startsWith('/assets/') || path === '/favicon.ico' || path === '/robots.txt' ? path.slice(1) : null);
   if (!rel) return false;
   const file = normalize(join(ROOT, rel));
   if (!file.startsWith(ROOT)) return false; // no ../ escapes
