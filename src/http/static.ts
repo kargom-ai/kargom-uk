@@ -30,10 +30,12 @@ const TYPES: Record<string, string> = {
 const SEO: Record<string, { title: string; description: string; path: string; footer?: boolean; ld?: boolean }> = {
   'index.html': { title: 'Cheap Parcel Delivery UK: Compare Couriers and Save | Kargom', path: '/', footer: true, ld: true,
     description: 'Compare live prices from Royal Mail, Evri, DPD, InPost, Yodel, Parcelforce, UPS and DHL. Book in a minute, print your label and track it. No account needed.' },
+  'partner.html': { title: 'Removal and Freight Companies: Join Kargom as a Partner', path: '/partner', footer: true,
+    description: 'Removal companies and road hauliers: see moving and freight jobs posted by customers across the UK and send your own price. Free to join.' },
   'login.html': { title: 'Sign In or Create an Account | Kargom', path: '/login', footer: true,
     description: 'Sign in to Kargom or create a free account to save addresses, top up a wallet and manage all your parcels in one place.' },
 };
-const PRIVATE = new Set(['app.html', 'admin.html', 'checkout.html', 'label.html', 'send.html', 'quotes.html']);
+const PRIVATE = new Set(['app.html', 'admin.html', 'checkout.html', 'label.html', 'send.html', 'quotes.html', 'quote.html', 'request.html']);
 const SITE_LD = () => {
   const base = (process.env.PUBLIC_URL || 'https://kargom.co.uk').replace(/\/+$/, '');
   return `<script type="application/ld+json">${JSON.stringify([
@@ -59,6 +61,9 @@ function pageFor(pathname: string): string | null {
   if (pathname === '/login' || pathname === '/register') return 'login.html';
   if (pathname === '/quotes') return 'quotes.html';
   if (pathname === '/app/send') return 'send.html';
+  if (pathname === '/app/quote') return 'quote.html';
+  if (pathname === '/app/requests' || pathname.startsWith('/app/requests/')) return 'request.html';
+  if (pathname === '/partner' || pathname.startsWith('/partner/')) return 'partner.html';
   if (pathname === '/checkout') return 'checkout.html';
   if (pathname.startsWith('/l/')) return 'label.html';
   if (pathname === '/app' || pathname.startsWith('/app/')) return 'app.html';
@@ -68,13 +73,13 @@ function pageFor(pathname: string): string | null {
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' https://js.stripe.com https://*.js.stripe.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "script-src 'self' https://js.stripe.com https://*.js.stripe.com https://cdnjs.cloudflare.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
   "font-src https://fonts.gstatic.com",
-  "img-src 'self' data: https://*.stripe.com",
+  "img-src 'self' data: https://*.stripe.com https://tile.openstreetmap.org https://cdnjs.cloudflare.com",
   "connect-src 'self' https://api.stripe.com https://*.stripe.com",
   "media-src 'self' https:",
-  "frame-src 'self' https://www.youtube-nocookie.com https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://*.stripe.com",
+  "frame-src 'self' https://www.google.com https://www.youtube-nocookie.com https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://*.stripe.com",
   "base-uri 'self'",
   "form-action 'self'",
 ].join('; ');

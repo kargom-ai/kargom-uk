@@ -47,7 +47,7 @@ f.addEventListener('submit', async (e) => {
       } });
     }
     const r = await api('/api/auth/login', { method: 'POST', body: { email: fd.get('email'), password: fd.get('password') } });
-    location.href = next || (r.role === 'admin' ? '/admin' : '/app');
+    location.href = next || (r.role === 'admin' ? '/admin' : r.partner ? '/partner' : '/app');
   } catch (err) {
     const d = document.createElement('div');
     d.className = 'err';

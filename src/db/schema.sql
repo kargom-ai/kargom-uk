@@ -169,3 +169,87 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at  TEXT NOT NULL,
   UNIQUE (shipment_id, channel, kind)
 );
+
+-- ---------------------------------------------------------------------------
+-- Moving & freight marketplace: customers post a request, partner companies
+-- (removal firms and road hauliers) send offers, the customer picks one.
+-- Payment columns are ready for the next step (paying the chosen offer by card
+-- through Kargom); until then the customer and partner settle between themselves.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS partners (
+  id          TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL UNIQUE REFERENCES customers(id),   -- the login behind the company
+  kind        TEXT NOT NULL,                  -- removals | freight
+  company     TEXT NOT NULL,
+  phone       TEXT NOT NULL,
+  email       TEXT NOT NULL,
+  website     TEXT,
+  about       TEXT,
+  areas       TEXT,                           -- free text: where they work
+  fleet       TEXT,                           -- free text: vans / lorries
+  logo        TEXT,                           -- small image as a data URL
+  status      TEXT NOT NULL DEFAULT 'active', -- active | suspended
+  created_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS jobs (
+  id                TEXT PRIMARY KEY,
+  ref               INTEGER NOT NULL UNIQUE,  -- shown as #1042
+  customer_id       TEXT NOT NULL REFERENCES customers(id),
+  kind              TEXT NOT NULL,            -- removals | freight
+  status            TEXT NOT NULL,            -- open | booked | cancelled | completed
+  title             TEXT NOT NULL,            -- "2 bedroom home move", "FTL · 26t rigid"
+  details           TEXT NOT NULL,            -- JSON: everything the customer filled in
+  from_addr         TEXT NOT NULL,            -- JSON address
+  to_addr           TEXT NOT NULL,
+  from_area         TEXT NOT NULL,            -- "Manchester M1" (what partners see before booking)
+  to_area           TEXT NOT NULL,
+  distance_miles    REAL,
+  move_date         TEXT,                     -- YYYY-MM-DD
+  contact_phone     TEXT NOT NULL,
+  accepted_offer_id TEXT,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS jobs_customer ON jobs(customer_id, created_at);
+CREATE INDEX IF NOT EXISTS jobs_open ON jobs(kind, status, created_at);
+
+CREATE TABLE IF NOT EXISTS job_photos (
+  id         TEXT PRIMARY KEY,
+  job_id     TEXT NOT NULL REFERENCES jobs(id),
+  data       TEXT NOT NULL,                   -- JPEG data URL, resized in the browser
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS job_photos_job ON job_photos(job_id);
+
+CREATE TABLE IF NOT EXISTS job_offers (
+  id             TEXT PRIMARY KEY,
+  job_id         TEXT NOT NULL REFERENCES jobs(id),
+  partner_id     TEXT NOT NULL REFERENCES partners(id),
+  price_pence    INTEGER NOT NULL,            -- total the customer pays, inc VAT
+  message        TEXT,
+  vehicle        TEXT,
+  available_date TEXT,
+  valid_until    TEXT,
+  status         TEXT NOT NULL,               -- pending | accepted | declined | withdrawn
+  -- marketplace payments (not live yet)
+  platform_fee_pence INTEGER,
+  payment_status     TEXT,                    -- null | requires_payment | paid | refunded
+  payment_ref        TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  UNIQUE (job_id, partner_id)
+);
+CREATE INDEX IF NOT EXISTS job_offers_partner ON job_offers(partner_id, created_at);
+
+CREATE TABLE IF NOT EXISTS partner_reviews (
+  id          TEXT PRIMARY KEY,
+  partner_id  TEXT NOT NULL REFERENCES partners(id),
+  job_id      TEXT NOT NULL UNIQUE REFERENCES jobs(id),
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  rating      INTEGER NOT NULL,               -- 1..5
+  comment     TEXT,
+  author      TEXT NOT NULL,                  -- "Sarah M."
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS partner_reviews_partner ON partner_reviews(partner_id, created_at);

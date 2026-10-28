@@ -14,6 +14,7 @@ import { seoPricesFor } from '../seo/prices.ts';
 import { FakeGateway } from '../payments/stripe.ts';
 import { AddressLookup } from '../address/lookup.ts';
 import { GuestCheckout } from '../guest/guest.ts';
+import { routeInfo } from '../market/route.ts';
 
 type Ctx = {
   req: IncomingMessage;
@@ -28,7 +29,7 @@ type Handler = (ctx: Ctx) => Promise<unknown>;
 type Access = 'public' | 'customer' | 'admin' | 'webhook';
 type Route = { method: string; pattern: RegExp; keys: string[]; access: Access; handler: Handler };
 
-const MAX_BODY = 1_000_000;
+const MAX_BODY = 2_000_000; // request photos are sent inline (resized in the browser)
 
 function compile(path: string) {
   const keys: string[] = [];
@@ -204,7 +205,8 @@ export function buildRouter(app: App) {
     loginLimiter.check(ip(c));
     const { token, principal } = await app.auth.login(str(c.body.email, 'Email'), str(c.body.password, 'Password'));
     c.res.setHeader('Set-Cookie', `kg_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 86400}`);
-    return { token, role: principal.role };
+    const partner = await app.market.partnerOf(principal.customerId);
+    return { token, role: principal.role, partner: Boolean(partner) };
   });
   on('POST', '/api/auth/logout', 'customer', async (c) => {
     const t = tokenFrom(c.req);
@@ -267,8 +269,55 @@ export function buildRouter(app: App) {
       'SELECT id, email, name, company, phone, account_type, role, bookings_paused, default_payment_method IS NOT NULL AS has_card FROM customers WHERE id = $1', [me(c)]);
     const demo = app.payments instanceof FakeGateway;
     // The publishable key is public by design; the card form on our pages needs it.
-    return { ...u, demoPayments: demo, stripePk: demo ? null : process.env.STRIPE_PUBLISHABLE_KEY ?? null, notify: app.notifier.enabled };
+    const partner = await app.market.partnerOf(me(c));
+    return { ...u, partner: partner ? { id: partner.id, kind: partner.kind, company: partner.company } : null, demoPayments: demo, stripePk: demo ? null : process.env.STRIPE_PUBLISHABLE_KEY ?? null, notify: app.notifier.enabled };
   });
+
+  /* ---------- moving & freight requests ---------- */
+  const marketLimiter = new RateLimiter(20, 60_000);
+  const image = (c: Ctx, img: { type: string; data: Buffer }, cache: string) => {
+    c.res.writeHead(200, { 'Content-Type': img.type, 'Content-Length': String(img.data.length), 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' });
+    c.res.end(img.data);
+    return null;
+  };
+  on('GET', '/api/market/config', 'public', async () => ({
+    mapsEmbedKey: process.env.GOOGLE_MAPS_EMBED_KEY ?? null, addressList: addresses.hasAddressList,
+  }));
+  on('GET', '/api/route', 'customer', async (c) => {
+    marketLimiter.check(me(c));
+    const q = c.query;
+    return routeInfo({ postcode: str(q.get('from'), 'From', 12), country: (q.get('fc') ?? 'GB').toUpperCase() }, { postcode: str(q.get('to'), 'To', 12), country: (q.get('tc') ?? 'GB').toUpperCase() });
+  });
+  on('POST', '/api/jobs', 'customer', async (c) => { marketLimiter.check(me(c)); return app.market.createJob(me(c), c.body); });
+  on('GET', '/api/jobs', 'customer', async (c) => ({ jobs: await app.market.listJobs(me(c)) }));
+  on('GET', '/api/jobs/:id', 'customer', async (c) => app.market.customerJob(me(c), c.params.id!));
+  on('POST', '/api/jobs/:id/cancel', 'customer', async (c) => app.market.cancelJob(me(c), c.params.id!));
+  on('POST', '/api/jobs/:id/offers/:offer/accept', 'customer', async (c) => app.market.acceptOffer(me(c), c.params.id!, c.params.offer!));
+  on('POST', '/api/jobs/:id/review', 'customer', async (c) => app.market.review(me(c), c.params.id!, c.body.rating, c.body.comment));
+  on('GET', '/api/jobs/:id/photos/:photo', 'customer', async (c) => image(c, await app.market.photo(me(c), c.params.id!, c.params.photo!), 'private, max-age=86400'));
+  on('GET', '/api/partners/:id', 'public', async (c) => app.market.profile(c.params.id!));
+  on('GET', '/api/partners/:id/logo', 'public', async (c) => image(c, await app.market.logo(c.params.id!), 'public, max-age=86400'));
+  on('POST', '/api/partner/register', 'public', async (c) => {
+    loginLimiter.check(ip(c));
+    const b = c.body;
+    await app.market.registerPartner({ email: str(b.email, 'Email', 200), password: str(b.password, 'Password', 200), name: str(b.name, 'Your name', 120),
+      company: str(b.company, 'Company name', 120), phone: str(b.phone, 'Phone', 40), kind: str(b.kind, 'Type', 20) });
+    const { token } = await app.auth.login(str(b.email, 'Email'), str(b.password, 'Password'));
+    c.res.setHeader('Set-Cookie', `kg_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 86400}`);
+    return { ok: true };
+  });
+  on('GET', '/api/partner/me', 'customer', async (c) => {
+    const p = await app.market.requirePartner(me(c));
+    return { profile: await app.market.profile(p.id, true), stats: await app.market.partnerStats(me(c)) };
+  });
+  on('PUT', '/api/partner/profile', 'customer', async (c) => app.market.updateProfile(me(c), c.body));
+  on('PUT', '/api/partner/logo', 'customer', async (c) => app.market.setLogo(me(c), c.body.logo ?? null));
+  on('GET', '/api/partner/requests', 'customer', async (c) => ({ requests: await app.market.partnerFeed(me(c), c.query.get('filter') ?? 'open') }));
+  on('GET', '/api/partner/requests/:id', 'customer', async (c) => app.market.partnerJob(me(c), c.params.id!));
+  on('POST', '/api/partner/requests/:id/offer', 'customer', async (c) => app.market.makeOffer(me(c), c.params.id!, c.body));
+  on('POST', '/api/partner/requests/:id/withdraw', 'customer', async (c) => app.market.withdrawOffer(me(c), c.params.id!));
+  on('GET', '/api/admin/partners', 'admin', async () => ({ partners: await app.market.adminPartners() }));
+  on('POST', '/api/admin/partners/:id/status', 'admin', async (c) => app.market.adminSetPartnerStatus(c.params.id!, c.body.status));
   /** UK postcode → delivery addresses. Signed-in only, so strangers cannot spend our lookup credits. */
   on('GET', '/api/address/lookup', 'customer', async (c) => {
     addressLimiter.check(me(c));

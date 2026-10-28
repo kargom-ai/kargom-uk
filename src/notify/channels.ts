@@ -130,4 +130,21 @@ export class ResendEmail implements Channel {
     if (!res.ok) throw new AppError('provider_failed', `Email: ${j.message ?? j.name ?? res.status}`);
     return j.id ?? 'sent';
   }
+  /** A plain notice email (marketplace: new request, new offer, offer accepted). */
+  async sendNotice(to: string, subject: string, heading: string, lines: string[], link?: { href: string; text: string }): Promise<string> {
+    const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#1F2A3C;max-width:520px;margin:0 auto">
+      <div style="background:#1F2A3C;padding:16px 20px;border-radius:12px 12px 0 0"><b style="color:#fff;font-size:20px">Kargom<span style="color:#33AEEF">.co.uk</span></b></div>
+      <div style="border:1px solid #E1E7EF;border-top:0;border-radius:0 0 12px 12px;padding:22px 20px">
+        <h1 style="font-size:22px;margin:0 0 10px">${esc(heading)}</h1>
+        ${lines.map((l) => `<p style="margin:0 0 12px;line-height:1.5">${esc(l)}</p>`).join('')}
+        ${link ? `<a href="${esc(link.href)}" style="display:inline-block;margin-top:6px;background:#2463DB;color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:10px">${esc(link.text)}</a>` : ''}
+      </div></div>`;
+    const res = await (this.cfg.fetchImpl ?? fetch)('https://api.resend.com/emails', {
+      method: 'POST', headers: { Authorization: `Bearer ${this.cfg.apiKey}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(20_000),
+      body: JSON.stringify({ from: this.cfg.from, to: [to], subject, html, text: [heading, ...lines, link ? `${link.text}: ${link.href}` : ''].join('\n\n') }),
+    });
+    const j = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
+    if (!res.ok) throw new AppError('provider_failed', `Email: ${j.message ?? res.status}`);
+    return j.id ?? 'sent';
+  }
 }

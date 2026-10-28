@@ -28,6 +28,13 @@ export class Notifier {
     if (instantPolicy) this.instantPolicy = instantPolicy;
   }
 
+  /** Send a plain notice by email, if an email channel is set up. Silently does nothing otherwise. */
+  async emailNotice(to: string, subject: string, heading: string, lines: string[], link?: { href: string; text: string }) {
+    const ch = this.channels.find((c) => c.id === 'email') as unknown as { sendNotice?: (...a: unknown[]) => Promise<string> } | undefined;
+    if (!ch?.sendNotice || !to) return null;
+    return ch.sendNotice(to, subject, heading, lines, link);
+  }
+
   get enabled() { return { whatsapp: this.channels.some((c) => c.id === 'whatsapp'), sms: this.channels.some((c) => c.id === 'sms'), email: this.channels.some((c) => c.id === 'email') }; }
 
   async labelReady(shipmentId: string, opts: { instant?: boolean } = {}): Promise<Array<{ channel: string; status: string; detail?: string }>> {

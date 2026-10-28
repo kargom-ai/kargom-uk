@@ -103,6 +103,7 @@ div[style*="overflow-x: auto"] { position: relative; }
     font-size: 14px !important; white-space: nowrap; box-shadow: 0 4px 12px rgba(36,99,219,.3) !important;
   }
   .m-side > a svg { width: 16px; height: 16px; }
+  .m-side > a.m-quote { box-shadow: none !important; margin-top: 0 !important; }
   /* Already on the send screen: no need for the button. */
   body[data-page="send"] .m-side > a { display: none !important; }
   .m-main { padding: 16px 14px 32px !important; gap: 16px !important; }

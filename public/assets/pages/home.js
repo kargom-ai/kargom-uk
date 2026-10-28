@@ -13,6 +13,8 @@ function toast(text) {
   setTimeout(() => t.remove(), 3500);
 }
 
+const HOME_SIZE = { 'Studio flat': 'studio', '1 bedroom': '1', '2 bedrooms': '2', '3 bedrooms': '3', '4 bedrooms': '4', '5+ bedrooms': '5' };
+
 class Component extends DCLogic {
   constructor(p) { super(p); this.state = { mode: 'uk', dims: false, video: false, me: null }; }
   mounted() {
@@ -29,6 +31,15 @@ class Component extends DCLogic {
       e.preventDefault();
       const n = String(field('Tracking number') ?? '').trim();
       location.href = n ? `/track?n=${encodeURIComponent(n)}` : '/track';
+      return;
+    }
+    if (st.mode === 'move') {
+      e.preventDefault();
+      const q = new URLSearchParams({ type: 'removals' });
+      const a = String(field('Moving from (postcode)') ?? '').trim(), b = String(field('Moving to (postcode)') ?? '').trim();
+      if (a) q.set('from', a); if (b) q.set('to', b);
+      const size = HOME_SIZE[field('Home size')]; if (size) q.set('size', size);
+      location.href = `/app/quote?${q}`;
       return;
     }
     if (st.mode !== 'uk' && st.mode !== 'intl') return;
@@ -50,7 +61,7 @@ class Component extends DCLogic {
 
   renderVals() {
     const st = this.state;
-    const MODES = [['uk', 'UK to UK'], ['intl', 'International'], ['pallet', 'Pallets'], ['track', 'Tracking']];
+    const MODES = [['uk', 'UK to UK'], ['intl', 'International'], ['move', 'Removals'], ['track', 'Tracking']];
     const modes = MODES.map(([id, label], i) => ({ label, on: st.mode === id ? 'true' : 'false',
       bg: st.mode === id ? '#FFFFFF' : '#1F2A3C', fg: st.mode === id ? '#1F2A3C' : '#FFFFFF',
       radius: i === 0 ? '6px 0 0 0' : i === MODES.length - 1 ? '0 6px 0 0' : '0',
@@ -61,16 +72,16 @@ class Component extends DCLogic {
     const F = {
       uk: [{ ...b, label: 'Collect from', isSelect: true, options: UK_AREAS }, { ...b, label: 'Delivering to', isSelect: true, options: UK_AREAS }, weight, dims],
       intl: [{ ...b, label: 'Collect from', isLocked: true, value: 'United Kingdom', flex: '1 1 170px', bg: '#F7F9FC' }, { ...b, label: 'Delivering to', isSelect: true, options: COUNTRIES }, weight, dims],
-      pallet: [{ ...b, label: 'Collection postcode', isInput: true, placeholder: 'e.g. M1 1AE' }, { ...b, label: 'Delivery postcode', isInput: true, placeholder: 'e.g. B1 1AA' },
-        { ...b, label: 'Number of pallets', isInput: true, placeholder: 'e.g. 1', mode: 'numeric', flex: '1 1 140px' }],
+      move: [{ ...b, label: 'Moving from (postcode)', isInput: true, placeholder: 'e.g. M1 1AE' }, { ...b, label: 'Moving to (postcode)', isInput: true, placeholder: 'e.g. LS1 5HD' },
+        { ...b, label: 'Home size', isSelect: true, options: Object.keys(HOME_SIZE), flex: '1 1 150px' }],
       track: [{ ...b, label: 'Tracking number', isInput: true, placeholder: 'Enter your tracking number', flex: '999 1 400px' }],
     };
-    const CTA = { uk: ['Get quotes', '/quotes'], intl: ['Get quotes', '/quotes'], pallet: ['Get a pallet quote', '/app?view=help'], track: ['Track', '/track'] };
+    const CTA = { uk: ['Get quotes', '/quotes'], intl: ['Get quotes', '/quotes'], move: ['Get moving quotes', '/app/quote?type=removals'], track: ['Track', '/track'] };
     const L = (t, href) => ({ t, href });
     const LINKS = {
       uk: [L('Cheapest way to send a parcel', '/guides/cheapest-way-to-send-a-parcel-uk'), L('Volumetric weight calculator', '/tools/volumetric-weight-calculator'), L('UK prices by weight', '/parcel-prices')],
       intl: [L('Customs and duties explained', '/guides/sending-a-parcel-abroad-customs'), L('Sending to Turkey', '/send-parcel-to/turkey'), L('All destinations', '/send-parcel-to')],
-      pallet: [L('Help with pallets', '/app?view=help')],
+      move: [L('Road freight: FTL / LTL', '/app/quote?type=freight'), L('Removal or freight company? Join as a partner', '/partner')],
       track: [L('Where is my tracking number?', '/track'), L('Royal Mail tracking', '/track/royal-mail'), L('Evri tracking', '/track/evri')],
     };
     const SLUG = { 'Royal Mail': 'royal-mail', Evri: 'evri', DPD: 'dpd', InPost: 'inpost', Yodel: 'yodel', Parcelforce: 'parcelforce', UPS: 'ups', DHL: 'dhl', FedEx: 'fedex' };

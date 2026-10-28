@@ -1,3 +1,4 @@
+import { Market } from './market/market.ts';
 import type { Db } from './db/db.ts';
 import { migrate } from './db/migrate.ts';
 import { systemClock, type Clock } from './core/clock.ts';
@@ -43,6 +44,9 @@ export async function createApp(db: Db, config: AppConfig, payments: PaymentGate
   const webhooks = new WebhookHandlers({ db, clock, bookings, wallet, adjustments });
   const admin = new AdminQueries(db, ledger, clock);
   const notifier = new Notifier(db, clock);
+  const market = new Market(db, clock, auth);
+  market.notice = (...a) => notifier.emailNotice(...a);
+  market.publicUrl = (process.env.PUBLIC_URL ?? '').replace(/\/+$/, '');
   /**
    * Label messages: WhatsApp from env; SMS from the admin screen (NetGSM saved encrypted) or env.
    * Called at start and whenever the admin saves the NetGSM connection.
@@ -68,7 +72,7 @@ export async function createApp(db: Db, config: AppConfig, payments: PaymentGate
     return channels.map((c) => c.id);
   };
   bookings.onLabelReady = (id, instant) => { notifier.labelReady(id, { instant }).catch((e) => console.warn(`[notify] ${id}: ${(e as Error).message}`)); };
-  return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments, notifier, refreshNotifier };
+  return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments, notifier, refreshNotifier, market };
 }
 
 export type App = Awaited<ReturnType<typeof createApp>>;
