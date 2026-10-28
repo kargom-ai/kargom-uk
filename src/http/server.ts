@@ -16,7 +16,7 @@ import { AddressLookup } from '../address/lookup.ts';
 import { GuestCheckout } from '../guest/guest.ts';
 import { routeInfo } from '../market/route.ts';
 import { placeLogo } from '../market/places.ts';
-import { freightRates, parseFreightQuery } from '../freight/freightos.ts';
+import { freightRates, parseFreightQuery } from '../freight/rates.ts';
 
 type Ctx = {
   req: IncomingMessage;

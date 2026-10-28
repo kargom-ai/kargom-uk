@@ -5,7 +5,7 @@ import { AMAZON, TIKTOK } from '../warehouses.js';
 /**
  * Compare freight rates: air, sea (LCL / FCL) and road price ranges for stock moving between
  * countries, e.g. a TikTok or Amazon seller bringing goods from China into an FBA warehouse.
- * Estimates come from Freightos (credited on the page); UK pallets also get our own road estimate.
+ * Estimates are our own, from published market indices (Drewry WCI, Freightos Air Index) plus typical charges.
  * Kept short on purpose: where from, where to, what and how heavy.
  */
 
@@ -120,7 +120,6 @@ function resultsHtml() {
     <div class="tip"><span class="ic">${IC.truck}</span><span><b>Duties and VAT</b>Goods coming into the UK pay import VAT (20%) and sometimes duty. These are not in the estimates.</span></div></section>`;
   const days = (x) => (x.daysMin ? `${x.daysMin}${x.daysMax && x.daysMax !== x.daysMin ? `–${x.daysMax}` : ''} days` : '');
   const money = (p, c) => (c === 'GBP' ? gbp(p).replace('.00', '') : `${(p / 100).toLocaleString('en-GB', { style: 'currency', currency: c, maximumFractionDigits: 0 })}`);
-  const fx = r.rates.some((x) => x.source === 'freightos');
   return `<section class="fr-res">
     <div class="g-head"><h2 style="margin:0;font-size:22px">Freight rates</h2><span class="muted" style="font-size:13px">${esc(S.from)} → ${esc(destination().text)}</span></div>
     ${r.note ? `<p class="hint" style="margin:0">${esc(r.note)}</p>` : ''}
@@ -130,7 +129,7 @@ function resultsHtml() {
       <div class="acts"><a class="btn ghost sm" href="${quoteHref(x.mode)}">Get firm quotes</a></div>
     </article>`).join('')}</div>
     ${r.rates.length ? '' : `<div class="empty-box"><b>Get prices from freight companies</b><span>Tell us about the shipment and freight forwarders and hauliers send you their prices.</span><a class="btn" href="${quoteHref(S.load === 'container' ? 'FCL' : 'air')}">Get firm quotes</a></div>`}
-    <p class="muted" style="font-size:12.5px;margin:0">Estimates exclude import duty and VAT. ${fx ? 'Air and sea estimates by <a href="https://ship.freightos.com" target="_blank" rel="noopener">Freightos</a>.' : ''}${r.rates.some((x) => x.source === 'kargom') ? ' Road estimates by Kargom from typical UK haulage rates.' : ''}</p>
+    <p class="muted" style="font-size:12.5px;margin:0">Estimates by Kargom, based on ${esc(r.basis || 'current market rates')}. Door to door, excluding import duty and VAT. Real quotes can be higher or lower.</p>
   </section>`;
 }
 
