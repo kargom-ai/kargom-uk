@@ -115,3 +115,21 @@ test('Stripe signatures: wrong secret and old events are rejected', async () => 
   assert.throws(() => verifyStripeSignature(raw, stripeSign(raw, now - 1000), 'whsec_test_secret', now), /too old/);
   assert.throws(() => verifyStripeSignature(raw + ' ', stripeSign(raw, now), 'whsec_test_secret', now), /does not match/);
 });
+
+test('card booking via Stripe Checkout: hosted page, then the webhook books it and stores the real PaymentIntent', async () => {
+  const { app } = await makeApp();
+  const c = await makeCustomer(app);
+  const q = (await app.quotes.quote(c, ukReq())).quotes[0]!;
+  const r = await app.bookings.book({ customerId: c, quoteToken: q.token, payWith: 'card', idempotencyKey: 'cs1', returnBase: 'https://kargom.eu' });
+  assert.equal(r.kind, 'payment_required');
+  assert.ok(r.kind === 'payment_required' && r.checkoutUrl?.startsWith(`https://kargom.eu/app/send?paid=${r.shipment.id}`));
+  assert.match(r.shipment.payment_ref ?? '', /^cs_/);
+  const stripeId = await app.db.get<{ stripe_customer_id: string }>('SELECT stripe_customer_id FROM customers WHERE id = $1', [c]);
+  assert.ok(stripeId?.stripe_customer_id);
+  await app.webhooks.stripe({ id: 'evt_cs', type: 'payment_intent.succeeded',
+    data: { object: { id: 'pi_from_checkout', amount_received: q.price, customer: stripeId!.stripe_customer_id, payment_method: 'pm_1', metadata: { purpose: 'booking', shipment_id: r.shipment.id, customer_id: c } } } });
+  const s = await app.bookings.get(r.shipment.id);
+  assert.equal(s.status, 'booked');
+  assert.equal(s.payment_ref, 'pi_from_checkout');
+  assert.equal(await app.ledger.trialBalance(), 0);
+});

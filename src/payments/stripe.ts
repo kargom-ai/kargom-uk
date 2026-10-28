@@ -14,7 +14,17 @@ export interface PaymentGateway {
   /** Charge a saved card without the customer present (weight adjustments). */
   chargeOffSession(input: { amount: Pence; customerStripeId: string; paymentMethodId: string; metadata: Record<string, string>; idempotencyKey: string }): Promise<{ id: string; status: 'succeeded' | 'failed'; error?: string }>;
   refund(input: { paymentIntentId: string; amount?: Pence; idempotencyKey: string }): Promise<{ id: string }>;
+  /**
+   * Stripe-hosted payment page (cards, Apple Pay, Google Pay). The metadata goes on the
+   * PaymentIntent, so the existing payment_intent.succeeded webhook completes the order.
+   */
+  createCheckout(input: CheckoutInput): Promise<{ id: string; url: string }>;
 }
+
+export type CheckoutInput = {
+  amount: Pence; customerStripeId: string | null; description: string; metadata: Record<string, string>;
+  successUrl: string; cancelUrl: string; idempotencyKey: string; saveCard: boolean;
+};
 
 export class StripeGateway implements PaymentGateway {
   private readonly secretKey: string;
@@ -75,6 +85,28 @@ export class StripeGateway implements PaymentGateway {
     }
   }
 
+  async createCheckout(i: CheckoutInput) {
+    const form: Record<string, string> = {
+      mode: 'payment',
+      'line_items[0][quantity]': '1',
+      'line_items[0][price_data][currency]': 'gbp',
+      'line_items[0][price_data][unit_amount]': String(i.amount),
+      'line_items[0][price_data][product_data][name]': i.description.slice(0, 200),
+      success_url: i.successUrl,
+      cancel_url: i.cancelUrl,
+      // Our 15-minute quotes: the payment page should not outlive them by much.
+      expires_at: String(Math.floor(Date.now() / 1000) + 30 * 60),
+    };
+    if (i.customerStripeId) form.customer = i.customerStripeId;
+    if (i.saveCard) form['payment_intent_data[setup_future_usage]'] = 'off_session';
+    for (const [k, v] of Object.entries(i.metadata)) {
+      form[`payment_intent_data[metadata][${k}]`] = v;
+      form[`metadata[${k}]`] = v;
+    }
+    const s = await this.post<{ id: string; url: string }>('/checkout/sessions', form, i.idempotencyKey);
+    return { id: s.id, url: s.url };
+  }
+
   async refund(i: Parameters<PaymentGateway['refund']>[0]) {
     const form: Record<string, string> = { payment_intent: i.paymentIntentId };
     if (i.amount) form.amount = String(i.amount);
@@ -122,6 +154,12 @@ export class FakeGateway implements PaymentGateway {
     const id = `pi_fake_${++this.seq}`;
     this.intents.set(id, { amount: i.amount, metadata: i.metadata });
     return { id, status: 'succeeded' as const };
+  }
+  checkouts: Array<CheckoutInput & { id: string }> = [];
+  async createCheckout(i: CheckoutInput) {
+    const id = `cs_fake_${++this.seq}`;
+    this.checkouts.push({ ...i, id });
+    return { id, url: i.successUrl };
   }
   async refund(i: Parameters<PaymentGateway['refund']>[0]) {
     this.refunds.push({ paymentIntentId: i.paymentIntentId, ...(i.amount ? { amount: i.amount } : {}) });

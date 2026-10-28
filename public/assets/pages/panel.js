@@ -35,6 +35,20 @@ class Component extends DCLogic {
       return;
     }
     await this.reload();
+    const back = new URLSearchParams(location.search).get('topup');
+    if (back) {
+      history.replaceState(null, '', '/app?view=wallet');
+      if (back === 'cancelled') { this.say('Top-up cancelled. No money was taken.'); return; }
+      // The webhook usually lands within seconds; watch the balance until it moves.
+      const before = this.state.bal;
+      this.say('Payment received. Adding it to your wallet…');
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        await this.reload();
+        if (this.state.bal > before) { this.say(`Wallet topped up. New balance ${gbp(this.state.bal)}`); return; }
+      }
+      this.say('Payment received. It can take a minute to show in your wallet.');
+    }
   }
 
   async reload() {
@@ -156,11 +170,19 @@ class Component extends DCLogic {
     ];
     const amounts = [10, 20, 50, 100, 250, 500].map((a) => ({ label: '£' + a, note: a === 50 ? 'Most popular' : '≈ ' + Math.floor(a / 2.39) + ' parcels',
       on: st.amt === a ? 'true' : 'false', border: st.amt === a ? '#2463DB' : '#E1E7EF', bg: st.amt === a ? '#EAF2FE' : '#FFFFFF', pick: () => this.setState({ amt: a }) }));
-    const methods = [['card', me.has_card ? 'Saved card' : 'Card', me.demoPayments ? 'Test mode' : 'Visa, Mastercard'], ['apple', 'Apple Pay', ''], ['bank', 'Pay by bank', 'Coming soon']].map(([id, label, note]) => ({ label, note,
+    const methods = [['card', me.has_card ? 'Saved card' : 'Card', me.demoPayments ? 'Test mode' : 'Visa, Mastercard, Amex'], ['apple', 'Apple Pay / Google Pay', me.demoPayments ? '' : 'On the secure Stripe page'], ['bank', 'Pay by bank', 'Coming soon']].map(([id, label, note]) => ({ label, note,
       on: st.method === id ? 'true' : 'false', border: st.method === id ? '#2463DB' : '#E1E7EF', ring: st.method === id ? '#2463DB' : '#9FB0C8', dot: st.method === id ? '#2463DB' : 'transparent',
       pick: () => this.setState({ method: id }) }));
     const pay = async () => {
-      if (!me.demoPayments) { this.say('Card top-ups open as soon as Stripe is connected.'); return; }
+      if (st.method === 'bank') { this.say('Pay by bank is coming soon. Please use a card.'); return; }
+      if (!me.demoPayments) {
+        // Real money: Stripe's own secure page takes the card, then sends the customer back here.
+        try {
+          const r = await api('/api/wallet/checkout', { method: 'POST', body: { amountPence: st.amt * 100 }, idempotencyKey: uid() });
+          location.href = r.url;
+        } catch (e) { this.say(e.message); }
+        return;
+      }
       try {
         await api('/api/dev/topup', { method: 'POST', body: { amountPence: st.amt * 100 } });
         this.setState({ topup: false });

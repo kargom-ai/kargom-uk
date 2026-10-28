@@ -61,6 +61,14 @@ const str = (v: unknown, name: string, max = 500): string => {
 };
 
 /** Very small per-IP limiter for login and quote endpoints. */
+/** Public address of the site for Stripe's return links (PUBLIC_URL wins, e.g. https://kargom.eu). */
+function siteBase(req: IncomingMessage): string {
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
+  const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? 'localhost');
+  const proto = String(req.headers['x-forwarded-proto'] ?? (host.startsWith('localhost') ? 'http' : 'https')).split(',')[0];
+  return `${proto}://${host}`;
+}
+
 class RateLimiter {
   private hits = new Map<string, { n: number; reset: number }>();
   private readonly limit: number;
@@ -161,7 +169,7 @@ export function buildRouter(app: App) {
   on('POST', '/api/bookings', 'customer', async (c) => {
     const payWith = c.body.payWith === 'card' ? 'card' : 'wallet';
     const key = String(c.req.headers['idempotency-key'] ?? '');
-    return app.bookings.book({ customerId: me(c), quoteToken: str(c.body.quoteToken, 'quoteToken', 20_000), payWith, idempotencyKey: key });
+    return app.bookings.book({ customerId: me(c), quoteToken: str(c.body.quoteToken, 'quoteToken', 20_000), payWith, idempotencyKey: key, returnBase: siteBase(c.req) });
   });
   on('GET', '/api/shipments', 'customer', async (c) => ({ shipments: await app.bookings.listForCustomer(me(c)) }));
   on('GET', '/api/shipments/:id', 'customer', async (c) => {
@@ -173,6 +181,24 @@ export function buildRouter(app: App) {
 
   // ---------- wallet
   on('GET', '/api/wallet', 'customer', async (c) => ({ balancePence: await app.wallet.balance(me(c)), statement: await app.wallet.statement(me(c)) }));
+  /** Wallet top-up on Stripe's hosted payment page. */
+  on('POST', '/api/wallet/checkout', 'customer', async (c) => {
+    const amount = Number(c.body.amountPence);
+    if (!Number.isSafeInteger(amount) || amount < 500 || amount > 500_000) throw new AppError('bad_request', 'Top up between £5 and £5,000');
+    const cust = await app.db.get<{ stripe_customer_id: string | null; email: string; name: string }>('SELECT stripe_customer_id, email, name FROM customers WHERE id = $1', [me(c)]);
+    let stripeId = cust?.stripe_customer_id ?? null;
+    if (!stripeId && cust) {
+      stripeId = (await app.payments.createCustomer({ email: cust.email, name: cust.name, idempotencyKey: `cus:${me(c)}` })).id;
+      await app.db.run('UPDATE customers SET stripe_customer_id = $1 WHERE id = $2', [stripeId, me(c)]);
+    }
+    const key = String(c.req.headers['idempotency-key'] ?? `${Date.now()}`).slice(0, 100);
+    const base = siteBase(c.req);
+    const cs = await app.payments.createCheckout({
+      amount, customerStripeId: stripeId, description: 'Kargom wallet top-up', metadata: { purpose: 'topup', customer_id: me(c) },
+      successUrl: `${base}/app?view=wallet&topup=paid`, cancelUrl: `${base}/app?view=wallet&topup=cancelled`, idempotencyKey: `cstop:${me(c)}:${key}`, saveCard: true,
+    });
+    return { url: cs.url };
+  });
   on('POST', '/api/wallet/topups', 'customer', async (c) => {
     const amount = typeof c.body.amountPence === 'number' ? c.body.amountPence : parseGbp(String(c.body.amount ?? ''));
     if (!Number.isSafeInteger(amount) || amount < 500 || amount > 500_000) throw new AppError('bad_request', 'Top up between £5 and £5,000');

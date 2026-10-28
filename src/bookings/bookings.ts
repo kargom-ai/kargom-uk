@@ -40,7 +40,7 @@ export type ShipmentRow = {
 
 export type BookResult =
   | { kind: 'booked'; shipment: ShipmentRow }
-  | { kind: 'payment_required'; shipment: ShipmentRow; clientSecret: string }
+  | { kind: 'payment_required'; shipment: ShipmentRow; clientSecret: string; checkoutUrl?: string }
   | { kind: 'failed'; shipment: ShipmentRow; reason: string };
 
 /**
@@ -87,7 +87,7 @@ export class BookingService {
     return s;
   }
 
-  async book(input: { customerId: string; quoteToken: string; payWith: PayWith; idempotencyKey: string }): Promise<BookResult> {
+  async book(input: { customerId: string; quoteToken: string; payWith: PayWith; idempotencyKey: string; returnBase?: string }): Promise<BookResult> {
     const quote = this.signer.verify(input.quoteToken, this.clock.now());
     if (quote.customerId !== input.customerId) throw new AppError('quote_invalid', 'This quote belongs to another account');
     if (!input.idempotencyKey || input.idempotencyKey.length > 100) throw new AppError('bad_request', 'Idempotency-Key header is required');
@@ -96,8 +96,8 @@ export class BookingService {
     const prior = await this.db.get<ShipmentRow>('SELECT * FROM shipments WHERE idempotency_key = $1', [idemKey]);
     if (prior) return this.resultFor(prior);
 
-    const customer = await this.db.get<{ bookings_paused: number; stripe_customer_id: string | null }>(
-      'SELECT bookings_paused, stripe_customer_id FROM customers WHERE id = $1', [input.customerId]);
+    const customer = await this.db.get<{ bookings_paused: number; stripe_customer_id: string | null; email: string; name: string }>(
+      'SELECT bookings_paused, stripe_customer_id, email, name FROM customers WHERE id = $1', [input.customerId]);
     if (!customer) throw new AppError('not_found', 'Customer not found');
     if (customer.bookings_paused) throw new AppError('bookings_paused', 'Bookings are paused on this account. Please settle the unpaid balance in Help.');
 
@@ -114,6 +114,22 @@ export class BookingService {
       throw e;
     }
 
+    if (input.payWith === 'card' && input.returnBase) {
+      // Stripe Checkout: the customer pays on Stripe's page and comes back to /app/send.
+      let stripeId = customer.stripe_customer_id;
+      if (!stripeId) {
+        stripeId = (await this.payments.createCustomer({ email: customer.email, name: customer.name, idempotencyKey: `cus:${input.customerId}` })).id;
+        await this.db.run('UPDATE customers SET stripe_customer_id = $1 WHERE id = $2', [stripeId, input.customerId]);
+      }
+      const cs = await this.payments.createCheckout({
+        amount: quote.price, customerStripeId: stripeId, description: `${quote.rate.carrierName} ${quote.rate.serviceName} · ${shipment.ref}`,
+        metadata: { purpose: 'booking', shipment_id: id, customer_id: input.customerId },
+        successUrl: `${input.returnBase}/app/send?paid=${id}`, cancelUrl: `${input.returnBase}/app/send?cancelled=${id}`,
+        idempotencyKey: `cs:${id}`, saveCard: true,
+      });
+      await this.db.run('UPDATE shipments SET payment_ref = $1, updated_at = $2 WHERE id = $3', [cs.id, this.now(), id]);
+      return { kind: 'payment_required', shipment: await this.get(id), clientSecret: '', checkoutUrl: cs.url };
+    }
     if (input.payWith === 'card') {
       const pi = await this.payments.createPaymentIntent({
         amount: quote.price,
@@ -166,7 +182,7 @@ export class BookingService {
           lines: [{ account: acct.cashStripe, amount }, { account: acct.hold(s.customer_id), amount: -amount }],
         }, tx);
       }
-      await tx.run('UPDATE shipments SET status = $1, updated_at = $2 WHERE id = $3 AND status = $4', ['pending', this.now(), shipmentId, 'awaiting_payment']);
+      await tx.run('UPDATE shipments SET status = $1, payment_ref = $2, updated_at = $3 WHERE id = $4 AND status = $5', ['pending', paymentIntentId, this.now(), shipmentId, 'awaiting_payment']);
     });
     const req = { from: JSON.parse(s.from_json), to: JSON.parse(s.to_json), parcel: JSON.parse(s.parcel_json) };
     return this.purchase(shipmentId, req);

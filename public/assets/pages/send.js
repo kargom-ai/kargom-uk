@@ -61,6 +61,30 @@ class Component extends DCLogic {
       this.setState({ me, bal: w.balancePence, history: s.shipments });
     } catch {
       location.href = `/login?next=${encodeURIComponent('/app/send')}`;
+      return;
+    }
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('cancelled')) { history.replaceState(null, '', '/app/send'); toast('Payment cancelled. Nothing was charged.'); }
+    const paid = qs.get('paid');
+    if (paid) {
+      history.replaceState(null, '', '/app/send');
+      this.setState({ busy: true });
+      toast('Payment received. Creating your label…');
+      // Stripe's webhook books the label; wait for it (normally a few seconds).
+      for (let i = 0; i < 30; i++) {
+        try {
+          const { shipment } = await api(`/api/shipments/${encodeURIComponent(paid)}`);
+          if (shipment.status === 'failed') { toast('The courier could not create this label. Your card payment has been refunded.'); break; }
+          if (!['awaiting_payment', 'pending', 'purchasing'].includes(shipment.status)) {
+            this.setState({ done: { shipment, quote: { dropOff: /drop|shop|locker|post office/i.test(shipment.service_name) } }, busy: false });
+            window.scrollTo(0, 0);
+            return;
+          }
+        } catch { break; }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      this.setState({ busy: false });
+      if (this.state.done === null) toast('Your payment is being confirmed. The label will appear under Shipments shortly.');
     }
   }
 
@@ -119,6 +143,9 @@ class Component extends DCLogic {
         this.key = uid();
         toast(`The courier could not create this label (${r.reason}). Your money has been returned.`);
         this.setState({ busy: false });
+      } else if (r.checkoutUrl) {
+        // Card / Apple Pay / Google Pay on Stripe's secure page; it returns to /app/send?paid=…
+        location.href = r.checkoutUrl;
       } else {
         this.key = uid();
         toast('Card payment is not connected yet. Please pay from your wallet.');
