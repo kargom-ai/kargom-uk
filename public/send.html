@@ -71,11 +71,14 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
       <a href="/app/send" aria-current="page" style="display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; border-radius: 11px; background: #2463DB; color: #FFFFFF; font-weight: 700; text-decoration: none; box-shadow: 0 0 0 3px #BFD6FB">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Send a parcel
       </a>
+      <a href="/app/quote" class="m-quote" style="display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border-radius: 11px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font-weight: 700; font-size: 14px; text-decoration: none; margin-top: 4px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"></path><circle cx="7" cy="17.5" r="1.8"></circle><circle cx="17" cy="17.5" r="1.8"></circle></svg>Get a quote
+      </a>
       <span style="height: 12px"></span>
       <nav style="display: flex; flex-direction: column; gap: 2px">
         <sc-for list="{{nav}}" as="n" hint-placeholder-count="8">
-          <a href="/app" class="nav" style="display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 0 12px; border-radius: 10px; color: #3E4A5C; font: 600 14px 'Plus Jakarta Sans', sans-serif; text-decoration: none">
-            <span style="width: 8px; height: 8px; border-radius: 50%; background: #C9D6EA"></span>{{n}}
+          <a href="{{n.href}}" class="nav" style="display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 0 12px; border-radius: 10px; color: #3E4A5C; font: 600 14px 'Plus Jakarta Sans', sans-serif; text-decoration: none">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #C9D6EA"></span>{{n.label}}
           </a>
         </sc-for>
       </nav>

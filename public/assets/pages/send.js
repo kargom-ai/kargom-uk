@@ -1,5 +1,6 @@
 import { DCLogic, mount, field, api, uid, CARRIER_LOGO, CARRIER_NAME } from '../dc.js';
 import { openPaySheet } from '../pay.js';
+import { NAV } from '../shell.js';
 
 /** Send a parcel: the approved 5-step design, booking real labels through the API. */
 
@@ -337,7 +338,7 @@ class Component extends DCLogic {
     const doneTo = D ? JSON.parse(D.shipment.to_json) : null;
     return {
       signOut: async () => { try { await api('/api/auth/logout', { method: 'POST' }); } catch { /* already out */ } location.href = '/'; },
-      nav: ['Dashboard', 'Shipments', 'Wallet', 'Invoices', 'Address book', 'Integrations', 'Settings', 'Help'],
+      nav: NAV.map(([, label, href]) => ({ label, href })),
       modes, intl, flow: !D, done: !!D,
       s1: step(1), s2: step(2), s3: step(3), s4: step(4), s5: step(5),
       parcels, senders, recips, items, quotes, sorts,

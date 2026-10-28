@@ -1,3 +1,4 @@
+import { mountShell } from '../shell.js';
 import { api, esc, wrapLabels, toast, resizeImage, drawMap, routeChips, getRoute, niceDate, L, UK_PC, COUNTRIES, cname, marketConfig } from '../market-ui.js';
 
 /**
@@ -317,9 +318,8 @@ root.addEventListener('click', (e) => {
 });
 
 (async () => {
-  try { S.me = await api('/api/me'); } catch { location.href = `/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}`; return; }
+  try { const sh = await mountShell('quote'); S.me = sh.me; sh.main.append(root); } catch { location.href = `/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}`; return; }
   S.phone = S.me.phone || '';
-  document.getElementById('top').insertAdjacentHTML('beforeend', `<span class="who">${esc(S.me.name || '')}</span><a class="toplink" href="/app">My account</a>`);
   document.title = 'Get a quote — Kargom.co.uk';
   marketConfig();
   render();

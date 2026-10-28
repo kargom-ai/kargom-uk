@@ -164,3 +164,7 @@ textarea.inp { min-height: 96px; padding: 10px 12px; resize: vertical; line-heig
 .tips-photo { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: #FFF8EC; border: 1px solid #F6DDB0; color: #9A5B00; font-size: 13px; line-height: 1.45; }
 .tips-photo svg { flex: none; margin-top: 2px; }
 .tips-photo b { display: block; font-size: 14px; color: #7A4700; }
+
+/* Inside the signed-in app frame (dashboard menu on the left). */
+.m-main > #root { width: 100%; max-width: 1180px; margin: 0; padding: 0; }
+@media (max-width: 760px) { body[data-page="quote"] .m-side > a.m-quote { display: none !important; } .m-main > #root { padding: 0 !important; } }

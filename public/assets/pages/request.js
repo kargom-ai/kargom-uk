@@ -1,3 +1,4 @@
+import { mountShell } from '../shell.js';
 import { api, esc, gbp, toast, drawMap, routeChips, niceDate, ago, stars, ratingHtml, logoHtml, profileDrawer, detailsHtml, fullAddr, STATUS } from '../market-ui.js';
 
 /** The customer's moving & freight requests: the list, and one request with its offers. */
@@ -112,8 +113,7 @@ const confirmBox = (msg) => window.confirm(msg);
 
 (async () => {
   let me;
-  try { me = await api('/api/me'); } catch { location.href = `/login?next=${encodeURIComponent(location.pathname)}`; return; }
-  document.getElementById('top').insertAdjacentHTML('beforeend', `<span class="who">${esc(me.name || '')}</span><a class="toplink" href="/app">My account</a>`);
+  try { const sh = await mountShell(id ? 'req' : 'req'); me = sh.me; sh.main.append(root); } catch { location.href = `/login?next=${encodeURIComponent(location.pathname)}`; return; }
   if (!id) { document.title = 'Moving & freight requests — Kargom.co.uk'; listView((await api('/api/jobs')).jobs); return; }
   try { S.job = await api(`/api/jobs/${id}`); } catch (e) { root.innerHTML = `<div class="card center"><h1>Request not found</h1><a class="btn" href="/app/requests">All requests</a></div>`; return; }
   S.tab = S.job.offers.length || S.job.status !== 'open' ? 'offers' : 'offers';
