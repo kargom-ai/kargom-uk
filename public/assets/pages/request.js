@@ -51,7 +51,7 @@ function noOffersHtml(j) {
         <div class="acts"><a class="btn ghost" href="tel:${esc(p.phone.replace(/[^\d+]/g, ''))}">📞 ${esc(p.phone)}</a><button type="button" class="btn ghost" data-near="${esc(p.id)}">Profile and reviews</button></div>
       </article>`).join('');
   const g = S.google;
-  const gHtml = !g || !g.enabled || !g.places.length ? '' : `<div class="g-head"><h3 style="margin:0;font-size:18px">Other companies near you</h3><span class="g-attr">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></span></div>
+  const gHtml = g && g.enabled && g.error ? `<p class="hint" style="margin:8px 0 0">Google listings could not load: ${esc(g.error)}</p>` : !g || !g.enabled || !g.places.length ? '' : `<div class="g-head"><h3 style="margin:0;font-size:18px">Other companies near you</h3><span class="g-attr">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></span></div>
     <p class="muted" style="margin:0;font-size:14px">These companies are not on Kargom yet, so they cannot send you an offer here. You can call them directly.</p>
     ${g.places.map((p) => `<article class="offer gplace">
       <div class="offer-top"><div class="co">${logoHtml({ company: p.name })}<div class="co-t"><b>${esc(p.name)}</b>

@@ -372,10 +372,11 @@ export class Market {
     const c = oc ? await outcodeCoords(oc, f) : null;
     const label = oc ? `${from.city} ${oc}` : `${from.city} ${from.postcode}`;
     let places: Awaited<ReturnType<typeof nearbyOnGoogle>> = [];
-    try { places = await nearbyOnGoogle(j.kind, c ? { label, lat: c.lat, lng: c.lng } : { label }, f); } catch (e) { console.warn(`[places] ${(e as Error).message}`); }
+    let error: string | null = null;
+    try { places = await nearbyOnGoogle(j.kind, c ? { label, lat: c.lat, lng: c.lng } : { label }, f); } catch (e) { error = (e as Error).message; console.warn(`[places] ${error}`); }
     const ours = new Set((await this.db.all<{ company: string }>('SELECT company FROM partners')).map((p) => p.company.toLowerCase().replace(/\W+/g, '')));
     const invited = (await this.db.all<{ place_id: string }>('SELECT place_id FROM partner_invites WHERE job_id = $1', [j.id])).map((r) => r.place_id);
-    return { enabled: true, places: places.filter((p) => !ours.has(p.name.toLowerCase().replace(/\W+/g, ''))), invited };
+    return { enabled: true, error, searched: label, found: places.length, places: places.filter((p) => !ours.has(p.name.toLowerCase().replace(/\W+/g, ''))), invited };
   }
 
   /** The customer asks us to invite a company they saw on Google. We record it and tell the Kargom team. */
