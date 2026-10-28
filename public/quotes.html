@@ -15,8 +15,9 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
 </style>
 <style>.kg-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1F2A3C;color:#fff;padding:12px 18px;border-radius:12px;font:600 14px 'Plus Jakarta Sans',sans-serif;z-index:60;box-shadow:0 12px 30px rgba(8,14,28,.3)}</style>
 <script type="module" src="/assets/pages/quotes.js"></script>
+<link rel="stylesheet" href="/assets/mobile.css">
 </head>
-<body>
+<body data-page="quotes">
 <div id="root"></div>
 <script type="text/x-template" id="tpl">
 <div style="font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #1F2A3C; background: #F4F6FA; width: 100%; min-height: 100vh">
@@ -33,7 +34,8 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
   </header>
 
   <main style="max-width: 1180px; margin: 0 auto; padding: 24px; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
-    <aside aria-label="Filters" style="flex: 1 1 250px; max-width: 290px; display: flex; flex-direction: column; gap: 12px">
+    <button type="button" class="m-only m-filterbtn" onClick="{{toggleFilters}}" aria-expanded="{{filtersOpen}}">{{filterBtn}}</button>
+    <aside aria-label="Filters" class="m-filters" data-open="{{filtersOpen}}" style="flex: 1 1 250px; max-width: 290px; display: flex; flex-direction: column; gap: 12px">
       <div style="background: #FFFFFF; border: 1px solid #DCE2EB; border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 8px">
         <b style="font-size: 15px">How it starts its journey</b>
         <sc-for list="{{typeFilters}}" as="t" hint-placeholder-count="3">
@@ -67,7 +69,7 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
         <span style="font-size: 13px; color: #586579">Sample prices · all prices include VAT</span>
       </div>
 
-      <div role="tablist" aria-label="Sort" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: #FFFFFF; border: 1px solid #DCE2EB; border-radius: 8px; overflow: hidden">
+      <div role="tablist" aria-label="Sort" class="m-sort" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: #FFFFFF; border: 1px solid #DCE2EB; border-radius: 8px; overflow: hidden">
         <sc-for list="{{sorts}}" as="s" hint-placeholder-count="3">
           <button type="button" role="tab" aria-selected="{{s.on}}" onClick="{{s.pick}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 16px; border: 0; border-bottom: 3px solid {{s.bar}}; background: {{s.bg}}; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; min-height: 70px">
             <span style="font-size: 14px; font-weight: 700; color: #1F2A3C">{{s.label}}</span>

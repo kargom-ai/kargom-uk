@@ -320,7 +320,7 @@ class Component extends DCLogic {
       signOut: async () => { try { await api('/api/auth/logout', { method: 'POST' }); } catch { /* already out */ } location.href = '/'; },
       nav, isDash: st.nav === 'dash', isWallet: st.nav === 'wallet',
       isShip: st.nav === 'ship', isInv: st.nav === 'inv', isAddr: st.nav === 'addr', isRet: false, isInt: st.nav === 'int', isSet: st.nav === 'set',
-      shipRows, shipTabs, hasSel: selCount > 0, selCount, clearSel: () => this.setState({ shipSel: {} }), shipShown: shipRows.length ? `1–${shipRows.length}` : '0', pages: [],
+      shipRows, shipTabs, hasSel: selCount > 0, selCount, clearSel: () => this.setState({ shipSel: {} }), shipShown: shipRows.length ? `1–${shipRows.length}` : '0', shipTotal: String(st.shipments.length), pages: [],
       invoices, invStats, billing, addrs, abTabs, returns: [], payers: [], retSvcs: [], apps,
       copyTxt: 'Copy link', copyLink: () => {}, apiKey: 'Available on request', keyBtn: 'Request', toggleKey: () => this.say('Ask us in Help for API access.'),
       setTabs, fields, setForm: st.setTab === 'profile' || st.setTab === 'company', setPrefs: st.setTab === 'prefs', setNotif: st.setTab === 'notif', setSec: st.setTab === 'sec', setTeam: st.setTab === 'team',

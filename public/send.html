@@ -19,17 +19,18 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
 </style>
 <style>.kg-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1F2A3C;color:#fff;padding:12px 18px;border-radius:12px;font:600 14px 'Plus Jakarta Sans',sans-serif;z-index:60;box-shadow:0 12px 30px rgba(8,14,28,.3)}</style>
 <script type="module" src="/assets/pages/send.js"></script>
+<link rel="stylesheet" href="/assets/mobile.css">
 </head>
-<body>
+<body data-page="send">
 <div id="root"></div>
 <script type="text/x-template" id="tpl">
 <div style="font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #1F2A3C; background: #F4F6FA; width: 100%; min-height: 100vh; display: flex; flex-direction: column">
 
-  <header style="background: #1F2A3C; color: #FFFFFF">
+  <header class="m-apphead" style="background: #1F2A3C; color: #FFFFFF">
     <div style="padding: 12px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px">
       <a href="/" aria-label="Kargom.co.uk home"><img src="/assets/logo-white.png" alt="Kargom.co.uk" style="height: 28px; width: auto; display: block"></a>
       <div style="margin-left: auto; display: flex; align-items: center; gap: 14px">
-        <button type="button" aria-label="Notifications" style="position: relative; width: 42px; height: 42px; border-radius: 10px; border: 0; background: transparent; color: #DCE4F2; display: grid; place-items: center; cursor: pointer">
+        <button type="button" class="m-hide" aria-label="Notifications" style="position: relative; width: 42px; height: 42px; border-radius: 10px; border: 0; background: transparent; color: #DCE4F2; display: grid; place-items: center; cursor: pointer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"></path></svg>
           <span style="position: absolute; top: 9px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: #E5484D; box-shadow: 0 0 0 2px #1F2A3C"></span>
         </button>
@@ -41,15 +42,15 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
         </a>
         <span style="display: flex; align-items: center; gap: 10px">
           <span style="width: 38px; height: 38px; border-radius: 50%; background: #FFFFFF; color: #1F2A3C; display: grid; place-items: center; font: 700 14px 'Outfit', sans-serif">{{meIni}}</span>
-          <span style="display: flex; flex-direction: column; line-height: 1.25"><b style="font-size: 14px">{{meName}}</b><span style="font-size: 12px; color: #9FB0C8">{{meType}}</span></span>
-          <button type="button" onClick="{{signOut}}" style="margin-left: 6px; min-height: 36px; padding: 0 12px; border-radius: 9px; border: 1px solid #3B4A63; background: transparent; color: #DCE4F2; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Sign out</button>
+          <span class="m-hide" style="display: flex; flex-direction: column; line-height: 1.25"><b style="font-size: 14px">{{meName}}</b><span style="font-size: 12px; color: #9FB0C8">{{meType}}</span></span>
+          <button type="button" class="m-hide" onClick="{{signOut}}" style="margin-left: 6px; min-height: 36px; padding: 0 12px; border-radius: 9px; border: 1px solid #3B4A63; background: transparent; color: #DCE4F2; font: 700 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">Sign out</button>
         </span>
       </div>
     </div>
   </header>
 
   <div style="flex: 1; display: flex; flex-wrap: wrap; align-items: stretch">
-    <aside aria-label="Account menu" style="flex: 1 1 230px; max-width: 250px; background: #FFFFFF; border-right: 1px solid #E1E7EF; padding: 20px 14px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box">
+    <aside aria-label="Account menu" class="m-side" style="flex: 1 1 230px; max-width: 250px; background: #FFFFFF; border-right: 1px solid #E1E7EF; padding: 20px 14px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box">
       <a href="/app/send" aria-current="page" style="display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; border-radius: 11px; background: #2463DB; color: #FFFFFF; font-weight: 700; text-decoration: none; box-shadow: 0 0 0 3px #BFD6FB">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Send a parcel
       </a>
@@ -61,9 +62,10 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
           </a>
         </sc-for>
       </nav>
+      <button type="button" class="m-signout" onClick="{{signOut}}" style="margin-top: 10px; display: flex; align-items: center; min-height: 42px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: #B42318; font: 600 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer; text-align: left">Sign out</button>
     </aside>
 
-    <main style="flex: 999 1 640px; min-width: 0; padding: 28px 28px 0; display: flex; flex-direction: column; gap: 22px; box-sizing: border-box">
+    <main class="m-main" style="flex: 999 1 640px; min-width: 0; padding: 28px 28px 0; display: flex; flex-direction: column; gap: 22px; box-sizing: border-box">
       <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px">
         <div>
           <h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 32px; font-weight: 600; letter-spacing: -0.015em">Send a parcel</h1>
@@ -124,7 +126,7 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
               </div>
               <sc-if value="{{s1.open}}" hint-placeholder-val="{{ true }}">
                 <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
-                  <svg width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
+                  <svg class="m-hide" width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
                     <circle cx="100" cy="88" r="76" fill="#EAF2FE"></circle>
                     <rect x="30" y="136" width="140" height="10" rx="3" fill="#33AEEF"></rect><rect x="24" y="144" width="152" height="18" rx="5" fill="#1F2A3C"></rect><rect x="82" y="149" width="36" height="8" rx="2" fill="#8FD3F7"></rect>
                     <rect x="54" y="70" width="92" height="66" rx="4" fill="#C99A5B"></rect><rect x="54" y="70" width="92" height="15" fill="#B88648"></rect><rect x="90" y="70" width="20" height="66" fill="#E2C08A"></rect>
@@ -181,7 +183,7 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
               </div>
               <sc-if value="{{s2.open}}" hint-placeholder-val="{{ false }}">
                 <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
-                  <svg width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
+                  <svg class="m-hide" width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
                     <circle cx="100" cy="90" r="76" fill="#EAF2FE"></circle>
                     <path d="M40 150V92l40-30 40 30v58z" fill="#FFFFFF" stroke="#1F2A3C" stroke-width="3" stroke-linejoin="round"></path>
                     <path d="M32 98l48-38 48 38" fill="none" stroke="#2463DB" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></path>
@@ -239,7 +241,7 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
               </div>
               <sc-if value="{{s3.open}}" hint-placeholder-val="{{ false }}">
                 <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
-                  <svg width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
+                  <svg class="m-hide" width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
                     <circle cx="100" cy="90" r="76" fill="#EAF2FE"></circle>
                     <circle cx="40" cy="128" r="11" fill="#2463DB"></circle><circle cx="40" cy="128" r="4" fill="#FFFFFF"></circle>
                     <path d="M52 128 H 92 V 80 H 140" stroke="#33AEEF" stroke-width="5" stroke-dasharray="2 10" stroke-linecap="round" fill="none"></path>
@@ -296,7 +298,7 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
               </div>
               <sc-if value="{{s4.open}}" hint-placeholder-val="{{ false }}">
                 <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
-                  <svg width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
+                  <svg class="m-hide" width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
                     <circle cx="100" cy="88" r="76" fill="#EAF2FE"></circle>
                     <rect x="56" y="38" width="30" height="46" rx="3" fill="#2463DB" transform="rotate(-10 71 61)"></rect><rect x="62" y="44" width="18" height="4" rx="2" fill="#BFD6FB" transform="rotate(-10 71 61)"></rect>
                     <path d="M98 40 h26 v34 a13 13 0 0 1 -26 0z" fill="#33AEEF"></path><path d="M124 48 h8 a8 8 0 0 1 0 16 h-8" fill="none" stroke="#33AEEF" stroke-width="5"></path>
@@ -362,7 +364,7 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
               </div>
               <sc-if value="{{s5.open}}" hint-placeholder-val="{{ false }}">
                 <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
-                  <svg width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
+                  <svg class="m-hide" width="200" height="170" viewBox="0 0 200 170" aria-hidden="true" style="flex: none">
                     <circle cx="100" cy="88" r="76" fill="#EAF2FE"></circle>
                     <rect x="22" y="76" width="102" height="58" rx="8" fill="#2463DB"></rect><rect x="34" y="92" width="48" height="8" rx="4" fill="#FFFFFF" opacity=".9"></rect><rect x="34" y="106" width="30" height="6" rx="3" fill="#8FD3F7"></rect>
                     <path d="M124 88 h22 l20 22 v24 h-42 z" fill="#1F4FB8"></path><path d="M130 94 h14 l14 16 h-28 z" fill="#BFD6FB"></path>
@@ -422,7 +424,7 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
           </li>
         </ol>
 
-        <div style="position: sticky; bottom: 0; padding: 12px 0 20px; background: linear-gradient(rgba(244,246,250,0), #F4F6FA 30%); z-index: 5">
+        <div class="m-bar" style="position: sticky; bottom: 0; padding: 12px 0 20px; background: linear-gradient(rgba(244,246,250,0), #F4F6FA 30%); z-index: 5">
           <div style="background: #1F2A3C; color: #FFFFFF; border-radius: 16px; padding: 12px 12px 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; box-shadow: 0 12px 32px rgba(8,14,28,.25)">
             <b style="font-size: 14px; padding-right: 18px; border-right: 1px solid #3B4A63">{{modeLabel}}</b>
             <span style="display: flex; align-items: center; gap: 8px; font-size: 14px">

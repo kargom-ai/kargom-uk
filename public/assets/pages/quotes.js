@@ -22,7 +22,7 @@ function request() {
 const T = { drop: 'Drop-off at a shop', coll: 'Collected from your door', locker: 'Drop-off at a locker' };
 
 class Component extends DCLogic {
-  constructor(p) { super(p); this.state = { sort: 'cheap', speed: 'all', toff: {}, coff: {}, data: null, error: '' }; }
+  constructor(p) { super(p); this.state = { sort: 'cheap', speed: 'all', toff: {}, coff: {}, data: null, error: '', filters: false }; }
   async mounted() {
     try {
       const { quotes } = await api('/api/quotes/preview', { method: 'POST', body: request() });
@@ -73,6 +73,7 @@ class Component extends DCLogic {
     const courierFilters = names.map((n) => ({ name: n, on: !st.coff[n], toggle: () => this.setState({ coff: { ...st.coff, [n]: !st.coff[n] } }) }));
     const loading = st.data === null;
     return {
+      filtersOpen: st.filters ? 'true' : 'false', filterBtn: st.filters ? 'Hide filters' : 'Filter results', toggleFilters: () => this.setState({ filters: !st.filters }),
       sorts, results, typeFilters, speedFilters, courierFilters,
       count: loading ? 'Finding' : results.length, empty: !loading && results.length === 0,
       emptyTxt: st.error || (DATA.length ? 'No services match these filters. Try widening them.' : 'No courier could quote for this parcel. Try a different weight or size.'),

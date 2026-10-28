@@ -28,12 +28,13 @@ input:focus{outline:none;border-color:#2463DB;box-shadow:inset 0 0 0 1px #2463DB
 .tick{flex:none;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.16);display:grid;place-items:center;font-weight:800}
 </style>
 <script type="module" src="/assets/pages/login.js"></script>
+<link rel="stylesheet" href="/assets/mobile.css">
 </head>
-<body>
+<body data-page="login">
 <header style="background:#1F2A3C">
   <div style="max-width:1080px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:14px">
     <a href="/" aria-label="Kargom.co.uk home"><img src="/assets/logo-white.png" alt="Kargom.co.uk" style="height:28px;width:auto;display:block"></a>
-    <nav aria-label="Main menu" style="display:flex;gap:22px;font-size:14px;font-weight:600">
+    <nav aria-label="Main menu" class="m-loginnav" style="display:flex;gap:22px;font-size:14px;font-weight:600">
       <a href="/" style="color:#DCE4F2;text-decoration:none">Compare prices</a>
       <a href="/app?view=help" style="color:#DCE4F2;text-decoration:none">Help</a>
     </nav>

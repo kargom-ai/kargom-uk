@@ -19,8 +19,9 @@ input:focus,select:focus{outline:none}
 </style>
 <style>.kg-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1F2A3C;color:#fff;padding:12px 18px;border-radius:12px;font:600 14px 'Plus Jakarta Sans',sans-serif;z-index:60;box-shadow:0 12px 30px rgba(8,14,28,.3)}</style>
 <script type="module" src="/assets/pages/home.js"></script>
+<link rel="stylesheet" href="/assets/mobile.css">
 </head>
-<body>
+<body data-page="home">
 <div id="root"></div>
 <script type="text/x-template" id="tpl">
 <div style="font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #1F2A3C; background: #FFFFFF; width: 100%; min-height: 100vh">
@@ -28,12 +29,12 @@ input:focus,select:focus{outline:none}
   <header style="background: #1F2A3C">
     <div style="max-width: 1080px; margin: 0 auto; padding: 14px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px">
       <a href="/" aria-label="Kargom.co.uk home"><img src="/assets/logo-white.png" alt="Kargom.co.uk" style="height: 28px; width: auto; display: block"></a>
-      <nav aria-label="Main menu" style="display: flex; flex-wrap: wrap; align-items: center; gap: 22px; font-size: 14px; font-weight: 600">
+      <nav aria-label="Main menu" class="m-topnav" style="display: flex; flex-wrap: wrap; align-items: center; gap: 22px; font-size: 14px; font-weight: 600">
         <a href="/app/send" style="color: #8FD3F7; text-decoration: none">Send a parcel</a>
-        <a href="#" style="color: #DCE4F2; text-decoration: none">Tracking</a>
-        <a href="#" style="color: #DCE4F2; text-decoration: none">Couriers</a>
-        <a href="#" style="color: #DCE4F2; text-decoration: none">Business</a>
-        <a href="/app?view=help" style="color: #DCE4F2; text-decoration: none">Help</a>
+        <a href="#" class="m-hide" style="color: #DCE4F2; text-decoration: none">Tracking</a>
+        <a href="#" class="m-hide" style="color: #DCE4F2; text-decoration: none">Couriers</a>
+        <a href="#" class="m-hide" style="color: #DCE4F2; text-decoration: none">Business</a>
+        <a href="/app?view=help" class="m-hide" style="color: #DCE4F2; text-decoration: none">Help</a>
         <a href="{{nav1.href}}" style="color: #FFFFFF; background: #2463DB; text-decoration: none; padding: 10px 16px; border-radius: 8px">{{nav1.label}}</a>
         <a href="{{nav2.href}}" style="color: #DCE4F2; text-decoration: none">{{nav2.label}}</a>
       </nav>
@@ -61,7 +62,7 @@ input:focus,select:focus{outline:none}
         <img src="/assets/cat-parcels.webp" alt="Kargom mascot, a kitten in a Kargom cap leaning on parcels addressed to Berlin, Dubai and New York" style="flex: none; width: 420px; max-width: 100%; height: auto; display: block; margin-bottom: -2px">
       </div>
 
-      <div role="tablist" aria-label="Delivery type" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+      <div role="tablist" aria-label="Delivery type" class="m-modes" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
         <sc-for list="{{modes}}" as="m" hint-placeholder-count="4">
           <button type="button" role="tab" class="tab" aria-selected="{{m.on}}" onClick="{{m.pick}}" style="min-height: 50px; border: 0; border-radius: {{m.radius}}; background: {{m.bg}}; color: {{m.fg}}; font: 600 17px 'Outfit', sans-serif; cursor: pointer; padding: 0 8px">{{m.label}}</button>
         </sc-for>
