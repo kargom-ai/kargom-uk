@@ -1,4 +1,5 @@
 import { DCLogic, mount, field, api, gbp as gbpP, shortDate, dateTime, CARRIER_LOGO, CARRIER_NAME, uid } from '../dc.js';
+import { openPaySheet } from '../pay.js';
 
 /** Customer account: same screens as the approved design, filled from the live API. */
 
@@ -39,16 +40,20 @@ class Component extends DCLogic {
     if (back) {
       history.replaceState(null, '', '/app?view=wallet');
       if (back === 'cancelled') { this.say('Top-up cancelled. No money was taken.'); return; }
-      // The webhook usually lands within seconds; watch the balance until it moves.
-      const before = this.state.bal;
-      this.say('Payment received. Adding it to your wallet…');
-      for (let i = 0; i < 15; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
-        await this.reload();
-        if (this.state.bal > before) { this.say(`Wallet topped up. New balance ${gbp(this.state.bal)}`); return; }
-      }
-      this.say('Payment received. It can take a minute to show in your wallet.');
+      await this.waitForTopup();
     }
+  }
+
+  /** Stripe's webhook adds the money; watch the balance until it moves (normally a few seconds). */
+  async waitForTopup() {
+    const before = this.state.bal;
+    this.say('Payment received. Adding it to your wallet…');
+    for (let i = 0; i < 15; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      await this.reload();
+      if (this.state.bal > before) { this.say(`Wallet topped up. New balance ${gbp(this.state.bal)}`); return; }
+    }
+    this.say('Payment received. It can take a minute to show in your wallet.');
   }
 
   async reload() {
@@ -175,8 +180,20 @@ class Component extends DCLogic {
       pick: () => this.setState({ method: id }) }));
     const pay = async () => {
       if (st.method === 'bank') { this.say('Pay by bank is coming soon. Please use a card.'); return; }
+      if (!me.demoPayments && me.stripePk) {
+        // Card form on our own page (Stripe's secure fields), no redirect.
+        try {
+          const r = await api('/api/wallet/topups', { method: 'POST', body: { amountPence: st.amt * 100 }, idempotencyKey: uid() });
+          this.setState({ topup: false });
+          const res = await openPaySheet({ publishableKey: me.stripePk, clientSecret: r.clientSecret, amountTxt: gbp(st.amt), title: 'Top up your wallet',
+            subtitle: 'Card, Apple Pay or Google Pay', summary: 'Amount to add', payLabel: `Add ${gbp(st.amt)} to wallet`, returnUrl: `${location.origin}/app?view=wallet&topup=paid` });
+          if (res === 'cancelled') { this.say('Top-up cancelled. No money was taken.'); return; }
+          await this.waitForTopup();
+        } catch (e) { this.say(e.message); }
+        return;
+      }
       if (!me.demoPayments) {
-        // Real money: Stripe's own secure page takes the card, then sends the customer back here.
+        // No publishable key yet: fall back to Stripe's hosted page.
         try {
           const r = await api('/api/wallet/checkout', { method: 'POST', body: { amountPence: st.amt * 100 }, idempotencyKey: uid() });
           location.href = r.url;

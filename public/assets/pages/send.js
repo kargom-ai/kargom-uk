@@ -1,4 +1,5 @@
 import { DCLogic, mount, field, api, uid, CARRIER_LOGO, CARRIER_NAME } from '../dc.js';
+import { openPaySheet } from '../pay.js';
 
 /** Send a parcel: the approved 5-step design, booking real labels through the API. */
 
@@ -68,24 +69,28 @@ class Component extends DCLogic {
     const paid = qs.get('paid');
     if (paid) {
       history.replaceState(null, '', '/app/send');
-      this.setState({ busy: true });
-      toast('Payment received. Creating your label…');
-      // Stripe's webhook books the label; wait for it (normally a few seconds).
-      for (let i = 0; i < 30; i++) {
-        try {
-          const { shipment } = await api(`/api/shipments/${encodeURIComponent(paid)}`);
-          if (shipment.status === 'failed') { toast('The courier could not create this label. Your card payment has been refunded.'); break; }
-          if (!['awaiting_payment', 'pending', 'purchasing'].includes(shipment.status)) {
-            this.setState({ done: { shipment, quote: { dropOff: /drop|shop|locker|post office/i.test(shipment.service_name) } }, busy: false });
-            window.scrollTo(0, 0);
-            return;
-          }
-        } catch { break; }
-        await new Promise((r) => setTimeout(r, 2000));
-      }
-      this.setState({ busy: false });
-      if (this.state.done === null) toast('Your payment is being confirmed. The label will appear under Shipments shortly.');
+      await this.waitForPaid(paid);
     }
+  }
+
+  /** Stripe's webhook books the label after the card payment; wait for it (normally a few seconds). */
+  async waitForPaid(shipmentId) {
+    this.setState({ busy: true });
+    toast('Payment received. Creating your label…');
+    for (let i = 0; i < 30; i++) {
+      try {
+        const { shipment } = await api(`/api/shipments/${encodeURIComponent(shipmentId)}`);
+        if (shipment.status === 'failed') { toast('The courier could not create this label. Your card payment has been refunded.'); break; }
+        if (!['awaiting_payment', 'pending', 'purchasing'].includes(shipment.status)) {
+          this.setState({ done: { shipment, quote: { dropOff: /drop|shop|locker|post office/i.test(shipment.service_name) } }, busy: false });
+          window.scrollTo(0, 0);
+          return;
+        }
+      } catch { break; }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    this.setState({ busy: false });
+    if (this.state.done === null) toast('Your payment is being confirmed. The label will appear under Shipments shortly.');
   }
 
   senders() {
@@ -135,7 +140,8 @@ class Component extends DCLogic {
     if (!q) return;
     this.setState({ busy: true });
     try {
-      const r = await api('/api/bookings', { method: 'POST', body: { quoteToken: q.token, payWith: st.pay === 'wallet' ? 'wallet' : 'card' }, idempotencyKey: this.key });
+      const me = st.me || {};
+      const r = await api('/api/bookings', { method: 'POST', body: { quoteToken: q.token, payWith: st.pay === 'wallet' ? 'wallet' : 'card', flow: me.stripePk ? 'embedded' : 'hosted' }, idempotencyKey: this.key });
       if (r.kind === 'booked') {
         this.setState({ done: { shipment: r.shipment, quote: q }, busy: false, bal: st.pay === 'wallet' ? st.bal - q.price : st.bal });
         window.scrollTo(0, 0);
@@ -143,6 +149,14 @@ class Component extends DCLogic {
         this.key = uid();
         toast(`The courier could not create this label (${r.reason}). Your money has been returned.`);
         this.setState({ busy: false });
+      } else if (r.clientSecret && me.stripePk) {
+        // Card form on our page: the customer never leaves Kargom.
+        const res = await openPaySheet({ publishableKey: me.stripePk, clientSecret: r.clientSecret, amountTxt: gbp(r.shipment.price_pence),
+          title: 'Pay and book', subtitle: `${r.shipment.service_name} · ${r.shipment.ref}`, payLabel: `Pay ${gbp(r.shipment.price_pence)} and book`,
+          returnUrl: `${location.origin}/app/send?paid=${r.shipment.id}` });
+        this.key = uid();
+        if (res === 'cancelled') { toast('Payment cancelled. Nothing was charged.'); this.setState({ busy: false }); return; }
+        await this.waitForPaid(r.shipment.id);
       } else if (r.checkoutUrl) {
         // Card / Apple Pay / Google Pay on Stripe's secure page; it returns to /app/send?paid=…
         location.href = r.checkoutUrl;

@@ -133,7 +133,9 @@ export function buildRouter(app: App) {
   on('GET', '/api/me', 'customer', async (c) => {
     const u = await app.db.get<Record<string, unknown>>(
       'SELECT id, email, name, company, phone, account_type, role, bookings_paused, default_payment_method IS NOT NULL AS has_card FROM customers WHERE id = $1', [me(c)]);
-    return { ...u, demoPayments: app.payments instanceof FakeGateway };
+    const demo = app.payments instanceof FakeGateway;
+    // The publishable key is public by design; the card form on our pages needs it.
+    return { ...u, demoPayments: demo, stripePk: demo ? null : process.env.STRIPE_PUBLISHABLE_KEY ?? null };
   });
   /** UK postcode → delivery addresses. Signed-in only, so strangers cannot spend our lookup credits. */
   on('GET', '/api/address/lookup', 'customer', async (c) => {
@@ -169,7 +171,9 @@ export function buildRouter(app: App) {
   on('POST', '/api/bookings', 'customer', async (c) => {
     const payWith = c.body.payWith === 'card' ? 'card' : 'wallet';
     const key = String(c.req.headers['idempotency-key'] ?? '');
-    return app.bookings.book({ customerId: me(c), quoteToken: str(c.body.quoteToken, 'quoteToken', 20_000), payWith, idempotencyKey: key, returnBase: siteBase(c.req) });
+    return app.bookings.book({ customerId: me(c), quoteToken: str(c.body.quoteToken, 'quoteToken', 20_000), payWith, idempotencyKey: key,
+      // 'hosted' = Stripe's own page; default is the card form on our page.
+      ...(c.body.flow === 'hosted' ? { returnBase: siteBase(c.req) } : {}) });
   });
   on('GET', '/api/shipments', 'customer', async (c) => ({ shipments: await app.bookings.listForCustomer(me(c)) }));
   on('GET', '/api/shipments/:id', 'customer', async (c) => {

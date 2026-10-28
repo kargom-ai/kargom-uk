@@ -31,12 +31,12 @@ function pageFor(pathname: string): string | null {
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' https://js.stripe.com",
+  "script-src 'self' https://js.stripe.com https://*.js.stripe.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src https://fonts.gstatic.com",
-  "img-src 'self' data:",
-  "connect-src 'self' https://api.stripe.com",
-  "frame-src https://js.stripe.com https://hooks.stripe.com",
+  "img-src 'self' data: https://*.stripe.com",
+  "connect-src 'self' https://api.stripe.com https://*.stripe.com",
+  "frame-src https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://*.stripe.com",
   "base-uri 'self'",
   "form-action 'self'",
 ].join('; ');

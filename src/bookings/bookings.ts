@@ -114,13 +114,14 @@ export class BookingService {
       throw e;
     }
 
+    // Cards are saved on the Stripe customer, so weight adjustments can be charged later.
+    let stripeId = customer.stripe_customer_id;
+    if (input.payWith === 'card' && !stripeId) {
+      stripeId = (await this.payments.createCustomer({ email: customer.email, name: customer.name, idempotencyKey: `cus:${input.customerId}` })).id;
+      await this.db.run('UPDATE customers SET stripe_customer_id = $1 WHERE id = $2', [stripeId, input.customerId]);
+    }
     if (input.payWith === 'card' && input.returnBase) {
       // Stripe Checkout: the customer pays on Stripe's page and comes back to /app/send.
-      let stripeId = customer.stripe_customer_id;
-      if (!stripeId) {
-        stripeId = (await this.payments.createCustomer({ email: customer.email, name: customer.name, idempotencyKey: `cus:${input.customerId}` })).id;
-        await this.db.run('UPDATE customers SET stripe_customer_id = $1 WHERE id = $2', [stripeId, input.customerId]);
-      }
       const cs = await this.payments.createCheckout({
         amount: quote.price, customerStripeId: stripeId, description: `${quote.rate.carrierName} ${quote.rate.serviceName} · ${shipment.ref}`,
         metadata: { purpose: 'booking', shipment_id: id, customer_id: input.customerId },
@@ -131,9 +132,10 @@ export class BookingService {
       return { kind: 'payment_required', shipment: await this.get(id), clientSecret: '', checkoutUrl: cs.url };
     }
     if (input.payWith === 'card') {
+      // Card form on our own page (Stripe Payment Element) confirms this PaymentIntent.
       const pi = await this.payments.createPaymentIntent({
         amount: quote.price,
-        customerStripeId: customer.stripe_customer_id,
+        customerStripeId: stripeId,
         metadata: { purpose: 'booking', shipment_id: id, customer_id: input.customerId },
         idempotencyKey: `pi:${id}`,
         saveCard: true,
@@ -248,6 +250,7 @@ export class BookingService {
   }
 
   async listForCustomer(customerId: string, limit = 500) {
-    return this.db.all<ShipmentRow>('SELECT * FROM shipments WHERE customer_id = $1 ORDER BY created_at DESC LIMIT $2', [customerId, limit]);
+    // A card payment the customer abandoned is not a shipment yet, so it stays out of their list.
+    return this.db.all<ShipmentRow>("SELECT * FROM shipments WHERE customer_id = $1 AND status <> 'awaiting_payment' ORDER BY created_at DESC LIMIT $2", [customerId, limit]);
   }
 }
