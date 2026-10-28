@@ -1,0 +1,1 @@
+export const CARRIER_LABEL: Record<string, string> = { royal_mail: 'Royal Mail', evri: 'Evri', dpd: 'DPD', inpost: 'InPost', yodel: 'Yodel', parcelforce: 'Parcelforce', ups: 'UPS', dhl: 'DHL', fedex: 'FedEx' };

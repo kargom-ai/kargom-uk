@@ -26,6 +26,8 @@ export const PROVIDER_CATALOG = {
     fields: ['apiKey', 'sell'],
     baseUrl: { live: 'https://api.packlink.com/v1', test: 'https://api.packlink.com/v1' },
   },
+  smsworks: { kind: 'sms', name: 'The SMS Works', fields: ['token', 'sender'], baseUrl: null },
+  netgsm: { kind: 'sms', name: 'NetGSM SMS', fields: ['usercode', 'password', 'header'], baseUrl: null },
   stripe: { kind: 'payment', name: 'Stripe', fields: ['secretKey', 'publishableKey', 'webhookSecret'], baseUrl: null },
 } as const;
 export type ProviderId = keyof typeof PROVIDER_CATALOG;
@@ -96,6 +98,12 @@ export class ProviderRegistry {
       [id, cat.kind, input.mode, input.enabled ? 1 : 0, this.box.seal(merged), this.clock.now().toISOString()],
     );
     await this.load();
+  }
+
+  /** Decrypted settings of an enabled connection (server side only, never sent to the browser). */
+  async secretsFor(id: string): Promise<Record<string, string> | null> {
+    const r = await this.db.get<ConfigRow>('SELECT * FROM provider_configs WHERE id = $1 AND enabled = 1', [id]);
+    return r?.secrets_enc ? this.box.open(r.secrets_enc) : null;
   }
 
   /** Safe summary for the admin screen: which fields are set, masked. */

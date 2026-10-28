@@ -70,6 +70,9 @@ if (process.env.PACKLINK_API_KEY) {
   }
 }
 
+// "Your label is ready" on WhatsApp (env) and by SMS (admin screen or env).
+app.refreshNotifier().then((ch) => { if (ch.length) console.log(`[notify] label messages on: ${ch.join(' + ')}${process.env.PUBLIC_URL ? '' : ' (set PUBLIC_URL so links work)'}`); });
+
 // Labels that arrive later (Packlink): check every 2 minutes, in case a webhook was missed.
 setInterval(async () => {
   try {

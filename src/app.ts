@@ -12,6 +12,8 @@ import { AuthService, SecretBox } from './auth/auth.ts';
 import { ProviderRegistry } from './providers/registry.ts';
 import { WebhookHandlers } from './webhooks.ts';
 import { AdminQueries } from './admin.ts';
+import { Notifier } from './notify/notify.ts';
+import { NetgsmSms, SmsWorks, WhatsAppCloud, type Channel } from './notify/channels.ts';
 import type { PaymentGateway } from './payments/stripe.ts';
 
 export type AppConfig = {
@@ -40,7 +42,30 @@ export async function createApp(db: Db, config: AppConfig, payments: PaymentGate
   const auth = new AuthService(db, clock);
   const webhooks = new WebhookHandlers({ db, clock, bookings, wallet, adjustments });
   const admin = new AdminQueries(db, ledger, clock);
-  return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments };
+  const notifier = new Notifier(db, clock);
+  /**
+   * Label messages: WhatsApp from env; SMS from the admin screen (NetGSM saved encrypted) or env.
+   * Called at start and whenever the admin saves the NetGSM connection.
+   */
+  const refreshNotifier = async () => {
+    const channels: Channel[] = [];
+    const env = process.env;
+    if (env.WHATSAPP_TOKEN && env.WHATSAPP_PHONE_NUMBER_ID) {
+      channels.push(new WhatsAppCloud({ token: env.WHATSAPP_TOKEN, phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID, template: env.WHATSAPP_TEMPLATE ?? 'label_ready', lang: env.WHATSAPP_TEMPLATE_LANG ?? 'en_GB' }));
+    }
+    // SMS: The SMS Works (UK) first; NetGSM only if that is not set up.
+    const sw = (await registry.secretsFor('smsworks')) ?? {};
+    const swToken = sw.token || env.SMSWORKS_TOKEN, swSender = sw.sender || env.SMSWORKS_SENDER || 'Kargom';
+    const ng = (await registry.secretsFor('netgsm')) ?? {};
+    const usercode = ng.usercode || env.NETGSM_USERCODE, password = ng.password || env.NETGSM_PASSWORD, header = ng.header || env.NETGSM_HEADER;
+    if (swToken) channels.push(new SmsWorks({ token: swToken, sender: swSender }));
+    else if (usercode && password && header) channels.push(new NetgsmSms({ usercode, password, header }));
+    const policy = (['all', 'guests', 'none'] as const).find((p) => p === env.NOTIFY_INSTANT_LABELS) ?? 'guests';
+    notifier.configure(channels, env.PUBLIC_URL ?? '', policy);
+    return channels.map((c) => c.id);
+  };
+  bookings.onLabelReady = (id, instant) => { notifier.labelReady(id, { instant }).catch((e) => console.warn(`[notify] ${id}: ${(e as Error).message}`)); };
+  return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments, notifier, refreshNotifier };
 }
 
 export type App = Awaited<ReturnType<typeof createApp>>;

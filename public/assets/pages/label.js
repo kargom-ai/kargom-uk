@@ -6,9 +6,10 @@ const gbp = (p) => `£${(p / 100).toFixed(2)}`;
 const WAITING = ['awaiting_payment', 'pending', 'purchasing', 'awaiting_label'];
 
 class Component extends DCLogic {
-  constructor(p) { super(p); this.state = { s: null, error: '', tries: 0, toast: '', copied: false }; }
+  constructor(p) { super(p); this.state = { s: null, error: '', tries: 0, toast: '', copied: false, notify: null }; }
 
   async mounted() {
+    api('/api/guest/config').then((c) => this.setState({ notify: c.notify }), () => {});
     // Fast checks while the payment and label go through; slower while a courier issues a label later.
     for (let i = 0; i < 600; i++) {
       try {
@@ -36,7 +37,7 @@ class Component extends DCLogic {
       loading: !failed && waiting && st.error !== 'notfound',
       waitTitle: s?.status === 'awaiting_payment' ? 'Confirming your payment…' : s?.status === 'awaiting_label' ? 'Paid. Your label is on its way' : 'Creating your label…',
       waitTxt: s?.status === 'awaiting_label'
-        ? `${s.service} (${s.ref}). The courier issues this label shortly, usually within an hour. Bookmark this page or send the link to yourself: the label appears here by itself.`
+        ? `${s.service} (${s.ref}). The courier issues this label shortly, usually within an hour. ${st.notify?.whatsapp || st.notify?.sms ? `We will send it to your mobile${st.notify.whatsapp ? ' on WhatsApp' : ''}${st.notify.whatsapp && st.notify.sms ? ' and' : ''}${st.notify.sms ? ' by SMS' : ''} as soon as it is ready, so you can close this page.` : 'Bookmark this page or send the link to yourself: the label appears here by itself.'}`
         : st.tries > 20 ? 'This is taking longer than usual. Keep this page open; it updates by itself.' : 'This usually takes a few seconds.',
       failed, failTitle: st.error === 'notfound' ? 'Label not found' : 'We could not create this label',
       failTxt: st.error === 'notfound' ? 'Check that you opened the full link. If you paid and lost the page, contact us with the email you used and we will send it again.' : 'The courier did not accept this booking. Your card payment has been refunded in full. It can take 5–10 days to show on your statement.',

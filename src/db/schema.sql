@@ -156,3 +156,16 @@ CREATE TABLE IF NOT EXISTS guest_links (
   created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS guest_links_shipment ON guest_links(shipment_id);
+
+-- One row per message we send about a shipment, so each customer gets each message once.
+CREATE TABLE IF NOT EXISTS notifications (
+  id          TEXT PRIMARY KEY,
+  shipment_id TEXT NOT NULL REFERENCES shipments(id),
+  channel     TEXT NOT NULL,               -- whatsapp | sms
+  kind        TEXT NOT NULL,               -- label_ready
+  to_number   TEXT NOT NULL,
+  status      TEXT NOT NULL,               -- sending | sent | failed
+  detail      TEXT,
+  created_at  TEXT NOT NULL,
+  UNIQUE (shipment_id, channel, kind)
+);

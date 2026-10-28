@@ -182,7 +182,7 @@ export function buildRouter(app: App) {
   /** Payment settings the guest page needs (the publishable key is public by design). */
   on('GET', '/api/guest/config', 'public', async () => {
     const demo = app.payments instanceof FakeGateway;
-    return { demoPayments: demo, stripePk: demo ? null : process.env.STRIPE_PUBLISHABLE_KEY ?? null, addressList: addresses.hasAddressList };
+    return { demoPayments: demo, stripePk: demo ? null : process.env.STRIPE_PUBLISHABLE_KEY ?? null, addressList: addresses.hasAddressList, notify: app.notifier.enabled };
   });
   on('POST', '/api/guest/book', 'public', async (c) => {
     guestLimiter.check(ip(c));
@@ -226,7 +226,7 @@ export function buildRouter(app: App) {
       'SELECT id, email, name, company, phone, account_type, role, bookings_paused, default_payment_method IS NOT NULL AS has_card FROM customers WHERE id = $1', [me(c)]);
     const demo = app.payments instanceof FakeGateway;
     // The publishable key is public by design; the card form on our pages needs it.
-    return { ...u, demoPayments: demo, stripePk: demo ? null : process.env.STRIPE_PUBLISHABLE_KEY ?? null };
+    return { ...u, demoPayments: demo, stripePk: demo ? null : process.env.STRIPE_PUBLISHABLE_KEY ?? null, notify: app.notifier.enabled };
   });
   /** UK postcode → delivery addresses. Signed-in only, so strangers cannot spend our lookup credits. */
   on('GET', '/api/address/lookup', 'customer', async (c) => {
@@ -361,6 +361,15 @@ export function buildRouter(app: App) {
     return { ok: true };
   });
   on('GET', '/api/admin/finance', 'admin', async () => app.admin.finance());
+  on('GET', '/api/admin/notifications', 'admin', async () => ({
+    enabled: app.notifier.enabled,
+    items: await app.db.all(`SELECT n.channel, n.status, n.detail, n.to_number, n.created_at, s.ref, s.id AS shipment_id FROM notifications n JOIN shipments s ON s.id = n.shipment_id ORDER BY n.created_at DESC LIMIT 100`),
+  }));
+  on('POST', '/api/admin/notify/test', 'admin', async (c) => {
+    try { return { ok: true, message: await app.notifier.testSms(str(c.body.phone, 'Phone', 30)) }; }
+    catch (e) { throw new AppError('bad_request', (e as Error).message); }
+  });
+  on('POST', '/api/admin/shipments/:id/notify', 'admin', async (c) => ({ results: await app.notifier.resend(c.params.id!) }));
   on('GET', '/api/admin/ledger', 'admin', async () => ({ entries: await app.admin.ledgerEntries(100) }));
   /** Live provider costs for a typical 2 kg UK parcel, so the pricing screen shows real margins. */
   on('GET', '/api/admin/pricing/preview', 'admin', async () => {
@@ -375,6 +384,7 @@ export function buildRouter(app: App) {
   on('GET', '/api/admin/providers', 'admin', async () => ({ providers: await app.registry.describe(), live: app.registry.all().map((p) => p.id), demoPayments: app.payments instanceof FakeGateway }));
   on('PUT', '/api/admin/providers/:id', 'admin', async (c) => {
     await app.registry.save(c.params.id!, { mode: c.body.mode === 'live' ? 'live' : 'test', enabled: Boolean(c.body.enabled), secrets: c.body.secrets ?? {} });
+    if (c.params.id === 'netgsm' || c.params.id === 'smsworks') await app.refreshNotifier();
     return { providers: await app.registry.describe() };
   });
   on('POST', '/api/admin/providers/:id/test', 'admin', async (c) => {

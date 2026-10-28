@@ -58,6 +58,10 @@ const PROV = [
     events: ['tracker.updated', 'shipment.invoice.created', 'refund.successful'] },
   { g: 'ship', id: 'shippo', name: 'Shippo', ini: 'SH', color: '#33AEEF', desc: 'Backup provider.', chips: ['Evri', 'DPD', 'UPS', 'DHL'],
     fields: [['token', 'API token', 'password', 'Settings › API › Tokens']], events: ['track_updated', 'transaction_updated'] },
+  { g: 'msg', id: 'smsworks', name: 'The SMS Works', ini: 'SW', color: '#2463DB', backend: true, desc: 'UK SMS: "your label is ready" with a link to print. Pay as you go, about 3–4p per text, credits never expire.',
+    chips: ['Label ready SMS', 'UK numbers', 'Sender: Kargom'],
+    fields: [['token', 'API token (JWT)', 'password', 'The SMS Works › API Key › Generate: copy the long token'], ['sender', 'Sender name', 'text', '4–11 letters/digits, no spaces, e.g. Kargom']],
+    events: ['label_ready'] },
   { g: 'pay', id: 'stripe', name: 'Stripe', ini: 'St', color: '#635BFF', backend: true, desc: 'Cards, Apple Pay and Google Pay: wallet top-ups, card checkout and off-session charges for adjustments.',
     chips: ['Cards', 'Apple Pay', 'Google Pay', 'Saved cards'],
     fields: [['publishableKey', 'Publishable key', 'text', 'Safe to use in the browser'], ['secretKey', 'Secret key', 'password', 'Server only. Use a restricted key if you can'],
@@ -83,7 +87,7 @@ class Component extends DCLogic {
     this.state = {
       view: VIEWS.includes(startView) ? startView : 'over', period: '30d', stage: 'all', ledTab: 'all', custTab: 'all', custQ: '', prof: '', profile: null, pTab: 'ship', from: 'cust',
       open: 'shipstation', modeSel: {}, tested: {}, sup: '', qTab: 'waiting_us', rMode: 'reply', nextSt: 'waiting_customer', thread: null, toast: '',
-      me: null, ov: null, shipments: [], adjustments: [], tickets: [], customers: [], providers: [], live: [], demoPayments: true, fin: null, ledger: [], pricing: null, pricingErr: '',
+      me: null, ov: null, notif: { enabled: {}, items: [] }, shipments: [], adjustments: [], tickets: [], customers: [], providers: [], live: [], demoPayments: true, fin: null, ledger: [], pricing: null, pricingErr: '',
       rules: { auto: true, retry: true, block: true, notify: true },
     };
   }
@@ -106,6 +110,7 @@ class Component extends DCLogic {
     const days = PER[this.state.period][1];
     const [ov, s, a, t, c, p] = await Promise.all([api(`/api/admin/overview?days=${days}`), api('/api/admin/shipments'), api('/api/admin/adjustments'), api('/api/admin/tickets'),
       api('/api/admin/customers'), api('/api/admin/providers')]);
+    api('/api/admin/notifications').then((notif) => this.setState({ notif }), () => {});
     this.setState({ ov, shipments: s.shipments, adjustments: a.adjustments, tickets: t.tickets, customers: c.customers, providers: p.providers, live: p.live, demoPayments: p.demoPayments });
     if (this.state.view === 'sup' && !this.state.sup) this.pickFirstTicket();
   }
@@ -234,6 +239,8 @@ class Component extends DCLogic {
       { name: 'ShipEngine', ini: 'SE', color: '#2463DB', note: st.live.includes('shipengine') ? 'Quoting and buying labels' : 'Optional second source', state: st.live.includes('shipengine') ? 'Connected' : 'Not connected', fg: st.live.includes('shipengine') ? '#166534' : '#8593A8' },
       ...(st.live.includes('packlink') ? [{ name: 'Packlink PRO', ini: 'PL', color: '#FF6B35', note: 'Labels after payment in Packlink PRO', state: 'Connected', fg: '#166534' }] : []),
       { name: 'Stripe', ini: 'St', color: '#635BFF', note: st.demoPayments ? 'Test mode · payments simulated' : 'Payments and webhooks', state: st.demoPayments ? 'Test' : 'Connected', fg: st.demoPayments ? '#9A5B00' : '#166534' },
+      { name: 'WhatsApp', ini: 'WA', color: '#1FAF38', note: st.notif.enabled.whatsapp ? 'Labels sent with the PDF' : 'Add WHATSAPP_TOKEN to send labels', state: st.notif.enabled.whatsapp ? 'Connected' : 'Not connected', fg: st.notif.enabled.whatsapp ? '#166534' : '#8593A8' },
+      { name: 'SMS', ini: 'SM', color: '#E5484D', note: st.notif.enabled.sms ? 'Label link by SMS' : 'Connect The SMS Works in Connections', state: st.notif.enabled.sms ? 'Connected' : 'Not connected', fg: st.notif.enabled.sms ? '#166534' : '#8593A8' },
       { name: 'Courier webhooks', ini: 'WH', color: '#1F2A3C', note: 'Tracking and weight updates', state: 'Listening', fg: '#166534' },
       ...(st.live.includes('mock') ? [{ name: 'Demo rates', ini: 'DM', color: '#E89B12', note: 'Sample prices while no provider is connected', state: 'Test', fg: '#9A5B00' }] : []),
     ];
@@ -242,6 +249,9 @@ class Component extends DCLogic {
       ...(usCount ? [{ t: `${usCount} support request${usCount > 1 ? 's' : ''} waiting`, s: st.tickets.some((t) => t.overdue) ? 'At least one is overdue.' : 'Reply before the SLA runs out.', bg: '#FDF2F2', dot: '#E5484D', go: go('sup') }] : []),
       ...(st.shipments.some((s) => s.status === 'awaiting_label') ? [{ t: `${st.shipments.filter((s) => s.status === 'awaiting_label').length} Packlink label${st.shipments.filter((s) => s.status === 'awaiting_label').length > 1 ? 's' : ''} waiting for payment`,
         s: 'Customers have paid. Open Packlink PRO › Ready for payment and pay them so the labels are issued.', bg: '#FFF8EC', dot: '#E89B12', go: () => window.open('https://pro.packlink.com', '_blank', 'noopener') }] : []),
+      ...(st.notif.items.some((n) => n.status === 'failed') ? [{ t: `${st.notif.items.filter((n) => n.status === 'failed').length} label message${st.notif.items.filter((n) => n.status === 'failed').length > 1 ? 's' : ''} not delivered`,
+        s: `Latest: ${st.notif.items.find((n) => n.status === 'failed').channel} · ${st.notif.items.find((n) => n.status === 'failed').detail || ''}. Click to send again.`, bg: '#FDF2F2', dot: '#E5484D',
+        go: async () => { const ids = [...new Set(st.notif.items.filter((n) => n.status === 'failed').map((n) => n.shipment_id))]; for (const id of ids) await api(`/api/admin/shipments/${id}/notify`, { method: 'POST', body: {} }).catch(() => {}); this.say('Sent again'); this.reload(); } }] : []),
       ...(!ssLive ? [{ t: 'Connect ShipStation', s: 'Add your API key to start buying labels through it.', bg: '#EAF2FE', dot: '#2463DB', go: go('conn') }] : []),
       ...(st.demoPayments ? [{ t: 'Connect Stripe to take real payments', s: 'Until then top-ups and card payments are simulated.', bg: '#FFF8EC', dot: '#E89B12', go: go('conn') }] : []),
     ];
@@ -478,7 +488,7 @@ class Component extends DCLogic {
     const conItem = (p) => {
       const d = provDesc[p.id];
       const envLive = st.live.includes(p.id) && !d?.enabled;
-      const conn = (!!d?.enabled) || envLive || (p.id === 'stripe' && !st.demoPayments);
+      const conn = (!!d?.enabled) || envLive || (p.id === 'stripe' && !st.demoPayments) || ((p.id === 'netgsm' || p.id === 'smsworks') && Boolean(d?.enabled));
       const mode = st.modeSel[p.id] || d?.mode || 'test';
       const isOpen = st.open === p.id, t = st.tested[p.id];
       const state = !p.backend ? 'Coming soon' : envLive ? 'Connected · server key' : !conn ? 'Not connected' : mode === 'live' ? 'Connected · Live' : 'Connected · Test';
@@ -488,13 +498,21 @@ class Component extends DCLogic {
         modes: [['test', 'Test'], ['live', 'Live']].map(([m, label]) => ({ label, on: mode === m ? 'true' : 'false', bg: mode === m ? (m === 'live' ? '#16A34A' : '#E89B12') : 'transparent', fg: mode === m ? '#FFFFFF' : '#586579',
           pick: () => this.setState({ modeSel: { ...st.modeSel, [p.id]: m } }) })),
         fields: p.fields.map(([key, label, type, help]) => ({ label, type, key: `${p.id}.${key}`, value: '', ph: d?.fields?.[key] ? `Saved: ${d.fields[key]} · paste to replace` : envLive && key === 'apiKey' ? 'Set on the server (Render env)' : 'Paste here', help })),
-        hook: p.id === 'stripe' ? `${origin}/webhooks/stripe` : p.backend ? `${origin}/webhooks/carrier/${p.id}/YOUR_CARRIER_WEBHOOK_TOKEN` : 'Available when this provider is supported',
+        hook: p.id === 'netgsm' || p.id === 'smsworks' ? 'No webhook needed' : p.id === 'stripe' ? `${origin}/webhooks/stripe` : p.backend ? `${origin}/webhooks/carrier/${p.id}/YOUR_CARRIER_WEBHOOK_TOKEN` : 'Available when this provider is supported',
         events: p.events,
         where: (e) => { e.preventDefault(); this.say(`The grey hint under each box says where to find it in ${p.name}.`); },
         copy: async () => { try { await navigator.clipboard.writeText(p.id === 'stripe' ? `${origin}/webhooks/stripe` : `${origin}/webhooks/carrier/${p.id}/`); this.say('Copied'); } catch { this.say('Select the URL and copy it'); } },
         test: async () => {
           if (!p.backend) { this.say(`${p.name} is not supported yet.`); return; }
           if (p.id === 'stripe') { this.say(st.demoPayments ? 'Stripe is not connected yet: payments are simulated.' : 'Stripe is connected.'); return; }
+          if (p.id === 'netgsm' || p.id === 'smsworks') {
+            const phone = window.prompt('Send a test SMS to which mobile number?', '');
+            if (!phone) return;
+            this.setState({ tested: { ...st.tested, [p.id]: 'Sending…' } });
+            try { const r = await api('/api/admin/notify/test', { method: 'POST', body: { phone } }); this.setState({ tested: { ...this.state.tested, [p.id]: `✓ ${r.message}` } }); }
+            catch (e) { this.setState({ tested: { ...this.state.tested, [p.id]: `✗ ${e.message}` } }); }
+            return;
+          }
           this.setState({ tested: { ...st.tested, [p.id]: 'Testing…' } });
           try { const r = await api(`/api/admin/providers/${p.id}/test`, { method: 'POST' });
             this.setState({ tested: { ...this.state.tested, [p.id]: r.rates ? `✓ Connected · ${r.ms} ms · ${r.rates} rates · ${r.carriers.join(', ')}` : `✗ Connected, but 0 rates. ${(r.problems || []).slice(0, 3).join(' | ') || 'No reason given by the carriers.'}` } });
@@ -514,6 +532,7 @@ class Component extends DCLogic {
     const connGroups = [
       { title: 'Shipping providers', note: 'Quotes come from every connected provider at once.', items: PROV.filter((p) => p.g === 'ship').map(conItem) },
       { title: 'Payment providers', note: 'Used for top-ups, card checkout and adjustment charges.', items: PROV.filter((p) => p.g === 'pay').map(conItem) },
+      { title: 'Label messages', note: 'Tells customers their label is ready.', items: PROV.filter((p) => p.g === 'msg').map(conItem) },
     ];
 
     // ---- pricing

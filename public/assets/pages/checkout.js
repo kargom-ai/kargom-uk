@@ -151,6 +151,7 @@ class Component extends DCLogic {
     const kg = Math.round(parcel.weightGrams / 100) / 10;
     const k = pick.carrier;
     return {
+      notifyHint: st.cfg?.notify?.whatsapp || st.cfg?.notify?.sms ? `· label sent here by ${[st.cfg.notify.whatsapp ? 'WhatsApp' : '', st.cfg.notify.sms ? 'SMS' : ''].filter(Boolean).join(' & ')}` : '',
       missing: false, ready: true, signInUrl: `/login?next=${encodeURIComponent('/app/send')}`,
       s1: S(1), s2: S(2), s3: S(3), s4: S(4),
       y: st.y, c: st.c, d: st.d, p: { ...st.p, terms: st.p.terms ? 'true' : 'false' },

@@ -64,6 +64,9 @@ export class BookingService {
   private readonly providers: (id: string) => ShippingProvider | undefined;
   private readonly clock: Clock;
 
+  /** Called after a label exists (instant = bought on the spot; otherwise it arrived later). */
+  onLabelReady?: (shipmentId: string, instant: boolean) => void;
+
   constructor(deps: {
     db: Db; ledger: Ledger; wallet: Wallet; payments: PaymentGateway; signer: QuoteSigner;
     providers: (id: string) => ShippingProvider | undefined; clock: Clock;
@@ -217,6 +220,7 @@ export class BookingService {
           lines: [{ account: acct.providerCost(s.provider), amount: label.cost }, { account: acct.providerPayable(s.provider), amount: -label.cost }],
         }, tx);
       });
+      if (!label.pending) this.onLabelReady?.(shipmentId, true);
       return { kind: 'booked', shipment: await this.get(shipmentId) };
     } catch (e) {
       const reason = (e as Error).message;
@@ -263,6 +267,7 @@ export class BookingService {
     if (r.state === 'ready') {
       await this.db.run("UPDATE shipments SET status = 'booked', label_url = $1, tracking_number = $2, updated_at = $3 WHERE id = $4 AND status = 'awaiting_label'",
         [r.labelUrl, r.trackingNumber, this.now(), shipmentId]);
+      this.onLabelReady?.(shipmentId, false);
       return 'booked';
     }
     if (r.state === 'failed') {
