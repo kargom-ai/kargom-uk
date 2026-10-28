@@ -34,7 +34,6 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
   </header>
 
   <main style="max-width: 1180px; margin: 0 auto; padding: 24px; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
-    <button type="button" class="m-only m-filterbtn" onClick="{{toggleFilters}}" aria-expanded="{{filtersOpen}}">{{filterBtn}}</button>
     <aside aria-label="Filters" class="m-filters" data-open="{{filtersOpen}}" style="flex: 1 1 250px; max-width: 290px; display: flex; flex-direction: column; gap: 12px">
       <div style="background: #FFFFFF; border: 1px solid #DCE2EB; border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 8px">
         <b style="font-size: 15px">How it starts its journey</b>
@@ -61,12 +60,14 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
           </label>
         </sc-for>
       </div>
+      <button type="button" class="m-only m-filterdone" onClick="{{toggleFilters}}">Show {{count}} results</button>
     </aside>
 
     <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
       <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px">
         <h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 26px">{{count}} delivery services</h1>
         <span style="font-size: 13px; color: #586579">Sample prices · all prices include VAT</span>
+        <button type="button" class="m-only m-filterbtn" onClick="{{toggleFilters}}" aria-expanded="{{filtersOpen}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>Filter</button>
       </div>
 
       <div role="tablist" aria-label="Sort" class="m-sort" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: #FFFFFF; border: 1px solid #DCE2EB; border-radius: 8px; overflow: hidden">
