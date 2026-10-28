@@ -65,14 +65,17 @@ export class GuestCheckout {
     await this.app.db.run('INSERT INTO guest_links (token_hash, shipment_id, email, created_at) VALUES ($1,$2,$3,$4)', [
       sha256(token), shipmentId, email.toLowerCase(), this.app.clock.now().toISOString()]);
 
-    // Test mode without Stripe: pretend the card was paid so the whole flow can be tried.
-    if (r.kind === 'payment_required' && this.app.payments instanceof FakeGateway) {
-      const piId = r.shipment.payment_ref ?? `pi_fake_${shipmentId}`;
-      await this.app.webhooks.stripe({ id: `evt_guest_${shipmentId}`, type: 'payment_intent.succeeded',
-        data: { object: { id: piId, amount_received: q.price, metadata: { purpose: 'booking', shipment_id: shipmentId, customer_id: customerId } } } });
-      return { token, shipmentId, clientSecret: null, pricePence: q.price, status: (await this.app.bookings.get(shipmentId)).status };
-    }
     return { token, shipmentId, clientSecret: r.kind === 'payment_required' ? r.clientSecret : null, pricePence: q.price, status: r.shipment.status };
+  }
+
+  /** Test mode only (no Stripe keys): the test payment sheet confirms the card payment here. */
+  async demoPay(token: string) {
+    if (!(this.app.payments instanceof FakeGateway)) throw new AppError('forbidden', 'Only available in test mode');
+    const { s } = await this.shipmentFor(token);
+    if (s.status !== 'awaiting_payment') return { status: s.status };
+    await this.app.webhooks.stripe({ id: `evt_demo_${s.id}`, type: 'payment_intent.succeeded',
+      data: { object: { id: s.payment_ref ?? `pi_fake_${s.id}`, amount_received: s.price_pence, metadata: { purpose: 'booking', shipment_id: s.id, customer_id: s.customer_id } } } });
+    return { status: (await this.app.bookings.get(s.id)).status };
   }
 
   private async shipmentFor(token: string) {

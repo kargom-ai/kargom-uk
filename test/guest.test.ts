@@ -14,7 +14,9 @@ test('guest checkout: buy a label without an account, then view and download it 
   const preview = (await app.quotes.quote('anonymous', r)).quotes[0]!;
   const out = await g.book({ email: 'Ann@Example.com', name: 'Ann Smith', ...addr(r), contents: 'Books', valuePence: 2000,
     carrier: preview.carrier, serviceCode: preview.serviceCode, expectedPricePence: preview.price, idempotencyKey: 'k1' });
-  assert.equal(out.status, 'booked');
+  assert.equal(out.status, 'awaiting_payment');
+  assert.ok(out.clientSecret);
+  assert.equal((await g.demoPay(out.token)).status, 'booked');
   const v = await g.view(out.token);
   assert.equal(v.email, 'ann@example.com');
   assert.ok(v.tracking && v.hasLabel);

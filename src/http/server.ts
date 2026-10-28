@@ -152,6 +152,18 @@ export function buildRouter(app: App) {
     return { ...(await addresses.byPostcode(c.query.get('postcode') ?? '')), fullList: addresses.hasAddressList };
   });
   on('GET', '/api/guest/label/:token', 'public', async (c) => guest.view(c.params.token!));
+  on('POST', '/api/guest/demo-pay/:token', 'public', async (c) => guest.demoPay(c.params.token!));
+  /** Test mode only: the test payment sheet marks a card booking as paid. */
+  on('POST', '/api/dev/card-paid/:id', 'customer', async (c) => {
+    if (!(app.payments instanceof FakeGateway)) throw new AppError('forbidden', 'Only available in test mode');
+    const s = await app.bookings.get(c.params.id!);
+    if (s.customer_id !== me(c)) throw new AppError('not_found', 'Shipment not found');
+    if (s.status === 'awaiting_payment') {
+      await app.webhooks.stripe({ id: `evt_demo_${s.id}`, type: 'payment_intent.succeeded',
+        data: { object: { id: s.payment_ref ?? `pi_fake_${s.id}`, amount_received: s.price_pence, metadata: { purpose: 'booking', shipment_id: s.id, customer_id: s.customer_id } } } });
+    }
+    return { status: (await app.bookings.get(s.id)).status };
+  });
   on('GET', '/api/guest/label/:token/pdf', 'public', async (c) => {
     const pdf = await guest.labelPdf(c.params.token!);
     c.res.writeHead(200, {

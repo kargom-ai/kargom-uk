@@ -200,12 +200,13 @@ class Component extends DCLogic {
         } catch (e) { this.say(e.message); }
         return;
       }
-      try {
-        await api('/api/dev/topup', { method: 'POST', body: { amountPence: st.amt * 100 } });
-        this.setState({ topup: false });
-        this.say(`${gbp(st.amt)} added to your wallet (test mode)`);
-        await this.reload();
-      } catch (e) { this.say(e.message); }
+      // Test mode: same payment sheet with a simulated card.
+      this.setState({ topup: false });
+      const res = await openPaySheet({ amountTxt: gbp(st.amt), title: 'Top up your wallet', subtitle: 'Card, Apple Pay or Google Pay', summary: 'Amount to add',
+        payLabel: `Add ${gbp(st.amt)} to wallet`, demoPay: () => api('/api/dev/topup', { method: 'POST', body: { amountPence: st.amt * 100 } }) });
+      if (res === 'cancelled') { this.say('Top-up cancelled. No money was taken.'); return; }
+      this.say(`${gbp(st.amt)} added to your wallet (test mode)`);
+      await this.reload();
     };
 
     // ---- invoices (monthly, from shipments)

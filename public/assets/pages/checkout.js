@@ -67,10 +67,12 @@ class Component extends DCLogic {
       const r = await api('/api/guest/book', { method: 'POST', idempotencyKey: this.key, body: {
         email: st.y.email, name: st.y.name, from: st.c, to: st.d, parcel: pick.parcel, contents: p.contents, valuePence: Math.round(value * 100),
         carrier: pick.carrier, serviceCode: pick.serviceCode, expectedPricePence: pick.price } });
-      if (r.clientSecret && st.cfg?.stripePk) {
+      const demo = st.cfg?.demoPayments;
+      if (r.clientSecret && (st.cfg?.stripePk || demo)) {
         const res = await openPaySheet({ publishableKey: st.cfg.stripePk, clientSecret: r.clientSecret, amountTxt: gbp(r.pricePence),
           title: 'Pay and get your label', subtitle: `${pick.serviceName} · ${st.c.postcode} → ${st.d.postcode}`, payLabel: `Pay ${gbp(r.pricePence)}`,
-          returnUrl: `${location.origin}/l/${r.token}` });
+          returnUrl: `${location.origin}/l/${r.token}`,
+          ...(demo ? { demoPay: () => api(`/api/guest/demo-pay/${encodeURIComponent(r.token)}`, { method: 'POST', body: {} }) } : {}) });
         if (res === 'cancelled') { this.key = uid(); this.setState({ busy: false }); this.say('Payment cancelled. Nothing was charged.'); return; }
       } else if (r.clientSecret) {
         throw new Error('Card payments are being set up. Please try again in a few minutes.');

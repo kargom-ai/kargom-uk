@@ -141,7 +141,7 @@ class Component extends DCLogic {
     this.setState({ busy: true });
     try {
       const me = st.me || {};
-      const r = await api('/api/bookings', { method: 'POST', body: { quoteToken: q.token, payWith: st.pay === 'wallet' ? 'wallet' : 'card', flow: me.stripePk ? 'embedded' : 'hosted' }, idempotencyKey: this.key });
+      const r = await api('/api/bookings', { method: 'POST', body: { quoteToken: q.token, payWith: st.pay === 'wallet' ? 'wallet' : 'card', flow: (me.stripePk || me.demoPayments) ? 'embedded' : 'hosted' }, idempotencyKey: this.key });
       if (r.kind === 'booked') {
         this.setState({ done: { shipment: r.shipment, quote: q }, busy: false, bal: st.pay === 'wallet' ? st.bal - q.price : st.bal });
         window.scrollTo(0, 0);
@@ -149,11 +149,12 @@ class Component extends DCLogic {
         this.key = uid();
         toast(`The courier could not create this label (${r.reason}). Your money has been returned.`);
         this.setState({ busy: false });
-      } else if (r.clientSecret && me.stripePk) {
+      } else if (r.clientSecret && (me.stripePk || me.demoPayments)) {
         // Card form on our page: the customer never leaves Kargom.
         const res = await openPaySheet({ publishableKey: me.stripePk, clientSecret: r.clientSecret, amountTxt: gbp(r.shipment.price_pence),
           title: 'Pay and book', subtitle: `${r.shipment.service_name} · ${r.shipment.ref}`, payLabel: `Pay ${gbp(r.shipment.price_pence)} and book`,
-          returnUrl: `${location.origin}/app/send?paid=${r.shipment.id}` });
+          returnUrl: `${location.origin}/app/send?paid=${r.shipment.id}`,
+          ...(me.demoPayments ? { demoPay: () => api(`/api/dev/card-paid/${encodeURIComponent(r.shipment.id)}`, { method: 'POST', body: {} }) } : {}) });
         this.key = uid();
         if (res === 'cancelled') { toast('Payment cancelled. Nothing was charged.'); this.setState({ busy: false }); return; }
         await this.waitForPaid(r.shipment.id);
@@ -225,13 +226,13 @@ class Component extends DCLogic {
     const price = C ? C.p : 0;
     const short = st.step === 5 && C && st.pay === 'wallet' && price > st.bal;
     const PM = [['wallet', 'Wallet', 'Balance ' + gbp(st.bal), 'W', '#2463DB'],
-      ['card', me.has_card ? 'Saved card' : 'Card', me.demoPayments ? 'Opens when Stripe is connected' : 'Visa, Mastercard', 'CARD', '#1A1F71'],
-      ['newcard', 'Apple Pay', me.demoPayments ? 'Opens when Stripe is connected' : 'Pay securely with Stripe', '+', '#33AEEF']];
+      ['card', me.has_card ? 'Saved card' : 'Card', me.demoPayments ? 'Test mode card' : 'Visa, Mastercard', 'CARD', '#1A1F71'],
+      ['newcard', 'Apple Pay', me.demoPayments ? 'Test mode' : 'Pay securely with Stripe', '+', '#33AEEF']];
     const payMethods = PM.map(([id, label, note, icon, iconBg]) => { const on = st.pay === id; const low = id === 'wallet' && C && price > st.bal;
       return { label, icon, iconBg, note: low ? note + ' · not enough' : note, noteFg: low ? '#B42318' : '#586579',
         on: on ? 'true' : 'false', border: on ? '#2463DB' : '#E1E7EF', bg: on ? '#F5F9FF' : '#FFFFFF', ring: on ? '#2463DB' : '#9FB0C8', dot: on ? '#2463DB' : 'transparent',
         pick: () => this.setState({ pay: id }) }; });
-    const cardBlocked = st.step === 5 && st.pay !== 'wallet' && me.demoPayments;
+    const cardBlocked = false;
     const can = ready[st.step] && !short && !cardBlocked;
     const next = () => {
       if (!can) return;
