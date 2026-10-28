@@ -139,7 +139,10 @@ class Component extends DCLogic {
   }
 
   async loadQuotes() {
-    this.setState({ quotes: null, quoteError: '', courier: '' });
+    this.setState({ quotes: null, quoteError: '', courier: '', qSlow: 0 });
+    // Reassure while couriers answer: the message changes if it takes a while.
+    const t1 = setTimeout(() => this.state.quotes === null && this.setState({ qSlow: 1 }), 3500);
+    const t2 = setTimeout(() => this.state.quotes === null && this.setState({ qSlow: 2 }), 8000);
     try {
       const { quotes } = await api('/api/quotes', { method: 'POST', body: this.request() });
       const prefer = quotes.find((q) => q.serviceName === this.state.preferService);
@@ -147,7 +150,7 @@ class Component extends DCLogic {
     } catch (e) {
       this.setState({ quotes: [], quoteError: e.message });
       toast(e.message);
-    }
+    } finally { clearTimeout(t1); clearTimeout(t2); }
   }
 
   async book() {
@@ -218,13 +221,16 @@ class Component extends DCLogic {
 
     // live quotes
     const Q = (st.quotes || []).map((q) => ({ id: q.token, k: q.carrier, carrier: CARRIER_NAME[q.carrier] || q.carrierName, service: q.serviceName, p: q.price, ex: q.priceExVat,
-      eta: q.transitDays ? (q.transitDays === 1 ? 'Next day' : `${q.transitDays} days`) : 'Varies', how: q.carrier === 'inpost' ? 'Drop off at a locker' : q.dropOff ? 'Drop off at a shop' : 'Collected from your door', speed: q.transitDays || 9 }));
+      later: Boolean(q.labelLater), eta: q.transitDays ? (q.transitDays === 1 ? 'Next day' : `${q.transitDays} days`) : 'Varies', how: q.carrier === 'inpost' ? 'Drop off at a locker' : q.dropOff ? 'Drop off at a shop' : 'Collected from your door', speed: q.transitDays || 9 }));
     const cheapest = Math.min(...Q.map((q) => q.p)), fastest = Math.min(...Q.map((q) => q.speed));
     if (st.sort === 'cheap') Q.sort((a, b) => a.p - b.p);
     if (st.sort === 'fast') Q.sort((a, b) => a.speed - b.speed || a.p - b.p);
     if (st.sort === 'best') Q.sort((a, b) => (a.p / 100 + a.speed) - (b.p / 100 + b.speed));
+    const nt = st.me?.notify || {};
+    const chans = [nt.email && 'email', nt.sms && 'SMS', nt.whatsapp && 'WhatsApp'].filter(Boolean);
+    const laterTxt = chans.length ? `Sent to you by ${chans.length > 1 ? chans.slice(0, -1).join(', ') + ' & ' + chans[chans.length - 1] : chans[0]} and shown here when ready` : 'Appears here and under Shipments when ready';
     const quotes = Q.map((q) => { const fast = q.speed === fastest, cheap = q.p === cheapest;
-      return { ...sel(st.courier === q.id), carrier: q.carrier, service: q.service, logo: CARRIER_LOGO[q.k] || '', eta: q.eta, how: q.how, price: gbp(q.p), ex: gbp(q.ex),
+      return { ...sel(st.courier === q.id), carrier: q.carrier, service: q.service, logo: CARRIER_LOGO[q.k] || '', eta: q.eta, how: q.how, instant: !q.later, later: q.later, laterTxt, price: gbp(q.p), ex: gbp(q.ex),
         badge: cheap ? 'Cheapest' : fast ? 'Fastest' : '', badgeBg: cheap ? '#E6F4EA' : fast ? '#EAF2FE' : 'transparent', badgeFg: cheap ? '#166534' : '#1D4FB8',
         pick: () => this.setState({ courier: q.id }) }; });
     const C = Q.find((q) => q.id === st.courier);
@@ -335,6 +341,10 @@ class Component extends DCLogic {
       modes, intl, flow: !D, done: !!D,
       s1: step(1), s2: step(2), s3: step(3), s4: step(4), s5: step(5),
       parcels, senders, recips, items, quotes, sorts,
+      qLoading: st.quotes === null && st.step === 5,
+      loadTitle: ['Comparing live prices…', 'Still checking couriers…', 'Nearly there…'][st.qSlow || 0],
+      loadTxt: ['Asking Royal Mail, Evri, DPD, InPost and more for this parcel.', 'Some couriers take a few seconds to answer. Hang on.', 'The slowest courier is still answering. Your prices are almost ready.'][st.qSlow || 0],
+      quoteHead: st.quotes === null ? 'Finding the best prices for your parcel…' : st.quoteError ? 'No services could quote. ' + st.quoteError : `${Q.length} services compared for your parcel. Prices include VAT.`,
       quoteCount: st.quotes === null ? 'Comparing' : st.quoteError ? 'No' : Q.length,
       newParcel: st.newParcel, toggleNewParcel: () => this.setState({ newParcel: !st.newParcel }), saveParcel,
       lk: { sa: lookup('sa'), ra: lookup('ra') }, ukRecip: !intl,

@@ -17,6 +17,23 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
 .qty:hover{background:#EAF2FE}
 select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
 </style>
+<style>.ld{background:#FFFFFF;border:1px solid #DCE2EB;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px}
+.ld-top{display:flex;align-items:center;gap:14px}
+.ld-top b{display:block;font:600 19px 'Outfit',sans-serif}
+.ld-top span{font-size:14px;color:#586579}
+.ld-spin{flex:none;width:34px;height:34px;border-radius:50%;border:4px solid #DCE8FD;border-top-color:#2463DB;animation:ldspin .8s linear infinite}
+.ld-bar{height:6px;border-radius:3px;background:#EEF2F7;overflow:hidden}
+.ld-bar span{display:block;height:100%;width:40%;border-radius:3px;background:linear-gradient(90deg,#33AEEF,#2463DB);animation:ldbar 1.4s ease-in-out infinite}
+.ld-logos{display:flex;flex-wrap:wrap;gap:10px}
+.ld-logos img{width:58px;height:34px;object-fit:contain;padding:6px;border-radius:8px;background:#F4F6FA;animation:ldpulse 1.6s ease-in-out infinite}
+.sk{background:#FFFFFF;border:1px solid #DCE2EB;border-radius:8px;padding:18px 20px;display:flex;align-items:center;gap:18px}
+.sk i{display:block;border-radius:6px;background:linear-gradient(90deg,#EEF2F7 25%,#F7F9FC 50%,#EEF2F7 75%);background-size:200% 100%;animation:ldshine 1.2s linear infinite}
+@keyframes ldspin{to{transform:rotate(360deg)}}
+@keyframes ldbar{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+@keyframes ldpulse{0%,100%{opacity:.35;transform:scale(.96)}50%{opacity:1;transform:scale(1)}}
+@keyframes ldshine{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.ld-spin,.ld-bar span,.ld-logos img,.sk i{animation:none}}
+</style>
 <style>.kg-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1F2A3C;color:#fff;padding:12px 18px;border-radius:12px;font:600 14px 'Plus Jakarta Sans',sans-serif;z-index:60;box-shadow:0 12px 30px rgba(8,14,28,.3)}</style>
 <script type="module" src="/assets/pages/send.js"></script>
 <link rel="stylesheet" href="/assets/mobile.css">
@@ -374,13 +391,23 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
                   </svg>
                   <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
                     <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px">
-                      <span style="font-size: 14px; color: #3E4A5C">{{quoteCount}} services compared for your parcel. Prices include VAT.</span>
+                      <span style="font-size: 14px; color: #3E4A5C">{{quoteHead}}</span>
                       <div role="tablist" aria-label="Sort" style="display: flex; gap: 6px">
                         <sc-for list="{{sorts}}" as="t" hint-placeholder-count="3">
                           <button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: {{t.fg}}; font: 600 13px 'Plus Jakarta Sans', sans-serif; cursor: pointer">{{t.label}}</button>
                         </sc-for>
                       </div>
                     </div>
+                    <sc-if value="{{qLoading}}">
+        <div class="ld" role="status" aria-live="polite">
+          <div class="ld-top"><span class="ld-spin" aria-hidden="true"></span><div><b>{{loadTitle}}</b><span>{{loadTxt}}</span></div></div>
+          <div class="ld-bar" aria-hidden="true"><span></span></div>
+          <div class="ld-logos" aria-hidden="true"><img src="/assets/carriers/royalmail.png" alt="" style="animation-delay: 0.00s"><img src="/assets/carriers/evri.png" alt="" style="animation-delay: 0.18s"><img src="/assets/carriers/dpd.png" alt="" style="animation-delay: 0.36s"><img src="/assets/carriers/inpost.png" alt="" style="animation-delay: 0.54s"><img src="/assets/carriers/yodel.png" alt="" style="animation-delay: 0.72s"><img src="/assets/carriers/parcelforce.png" alt="" style="animation-delay: 0.90s"><img src="/assets/carriers/ups.png" alt="" style="animation-delay: 1.08s"><img src="/assets/carriers/dhl.png" alt="" style="animation-delay: 1.26s"></div>
+        </div>
+        <div class="sk" aria-hidden="true"><i style="width: 64px; height: 40px"></i><span style="flex: 1; display: flex; flex-direction: column; gap: 8px"><i style="width: 55%; height: 14px"></i><i style="width: 35%; height: 12px"></i></span><i style="width: 70px; height: 40px"></i></div>
+        <div class="sk" aria-hidden="true"><i style="width: 64px; height: 40px"></i><span style="flex: 1; display: flex; flex-direction: column; gap: 8px"><i style="width: 45%; height: 14px"></i><i style="width: 30%; height: 12px"></i></span><i style="width: 70px; height: 40px"></i></div>
+        <div class="sk" aria-hidden="true"><i style="width: 64px; height: 40px"></i><span style="flex: 1; display: flex; flex-direction: column; gap: 8px"><i style="width: 50%; height: 14px"></i><i style="width: 40%; height: 12px"></i></span><i style="width: 70px; height: 40px"></i></div>
+                    </sc-if>
                     <div role="radiogroup" aria-label="Courier service" style="display: flex; flex-direction: column; gap: 10px">
                       <sc-for list="{{quotes}}" as="q" hint-placeholder-count="5">
                         <button type="button" role="radio" class="opt" aria-checked="{{q.on}}" onClick="{{q.pick}}" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 16px; border-radius: 14px; border: 2px solid {{q.border}}; background: {{q.bg}}; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; color: #1F2A3C">
@@ -389,6 +416,10 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
                           <span style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 3px">
                             <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><b style="font-size: 15px">{{q.service}}</b><span style="font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: {{q.badgeBg}}; color: {{q.badgeFg}}">{{q.badge}}</span></span>
                             <span style="font-size: 13px; color: #586579">{{q.eta}} · {{q.how}}</span>
+                            <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px">
+                              <sc-if value="{{q.instant}}" hint-placeholder-val="{{ true }}"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 4px; background: #E6F4EA; color: #166534"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"></path></svg>Instant label</span><span style="font-size: 12px; color: #586579">Print it straight after payment</span></sc-if>
+                              <sc-if value="{{q.later}}" hint-placeholder-val="{{ false }}"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 4px; background: #FFF4E0; color: #9A5B00"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>Label within 1 hour</span><span style="font-size: 12px; color: #586579">{{q.laterTxt}}</span></sc-if>
+                            </span>
                           </span>
                           <span style="display: flex; flex-direction: column; align-items: flex-end; gap: 1px">
                             <b style="font-family: 'Outfit', sans-serif; font-size: 22px; font-variant-numeric: tabular-nums">{{q.price}}</b>
