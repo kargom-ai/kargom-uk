@@ -206,9 +206,10 @@ export class BookingService {
         `label:${shipmentId}`,
       );
       await this.db.tx(async (tx) => {
+        // A provider that issues the label later (Packlink) leaves the shipment in awaiting_label.
         await tx.run(
           'UPDATE shipments SET status = $1, provider_label_id = $2, tracking_number = $3, label_url = $4, cost_pence = $5, updated_at = $6 WHERE id = $7',
-          ['booked', label.providerLabelId, label.trackingNumber, label.labelUrl, label.cost, this.now(), shipmentId],
+          [label.pending ? 'awaiting_label' : 'booked', label.providerLabelId, label.trackingNumber || null, label.labelUrl || null, label.cost, this.now(), shipmentId],
         );
         if (hold) await this.wallet.capture(hold.id, tx);
         await this.ledger.post({
@@ -247,6 +248,47 @@ export class BookingService {
     if (s.status === 'failed') return { kind: 'failed', shipment: s, reason: 'Label purchase failed earlier' };
     if (s.status === 'awaiting_payment') return { kind: 'payment_required', shipment: s, clientSecret: '' };
     return { kind: 'booked', shipment: s };
+  }
+
+  /**
+   * Labels that arrive later: ask the provider again. Ready → booked with the label;
+   * failed → refunded in full. Safe to call any number of times.
+   */
+  async refreshPendingLabel(shipmentId: string): Promise<string> {
+    const s = await this.get(shipmentId);
+    if (s.status !== 'awaiting_label' || !s.provider_label_id) return s.status;
+    const provider = this.providers(s.provider);
+    if (!provider?.checkLabel) return s.status;
+    const r = await provider.checkLabel(s.provider_label_id);
+    if (r.state === 'ready') {
+      await this.db.run("UPDATE shipments SET status = 'booked', label_url = $1, tracking_number = $2, updated_at = $3 WHERE id = $4 AND status = 'awaiting_label'",
+        [r.labelUrl, r.trackingNumber, this.now(), shipmentId]);
+      return 'booked';
+    }
+    if (r.state === 'failed') {
+      await this.refundUnissued(s, r.detail);
+      return 'failed';
+    }
+    return s.status;
+  }
+
+  /** The provider will never issue this label: give the customer all their money back. */
+  async refundUnissued(s: ShipmentRow, reason: string) {
+    const claim = await this.db.run("UPDATE shipments SET status = 'failed', updated_at = $1 WHERE id = $2 AND status = 'awaiting_label'", [this.now(), s.id]);
+    if (claim.changes !== 1) return;
+    await this.db.tx(async (tx) => {
+      // Reverse the sale and the provider cost booked when the order was accepted.
+      await this.ledger.post({ idempotencyKey: `unissued-cost:${s.id}`, kind: 'provider_cost', ref: s.id, memo: reason,
+        lines: [{ account: acct.providerCost(s.provider), amount: -s.cost_pence }, { account: acct.providerPayable(s.provider), amount: s.cost_pence }] }, tx);
+    });
+    if (s.pay_method === 'card' && s.payment_ref) {
+      await this.payments.refund({ paymentIntentId: s.payment_ref, idempotencyKey: `refund-unissued:${s.id}` });
+      await this.ledger.post({ idempotencyKey: `unissued-sale:${s.id}`, kind: 'refund', ref: s.id, memo: reason,
+        lines: [{ account: acct.revenue, amount: s.price_pence - s.vat_pence }, { account: acct.vatOutput, amount: s.vat_pence }, { account: acct.cashStripe, amount: -s.price_pence }] });
+    } else {
+      await this.ledger.post({ idempotencyKey: `unissued-sale:${s.id}`, kind: 'refund', ref: s.id, memo: reason,
+        lines: [{ account: acct.revenue, amount: s.price_pence - s.vat_pence }, { account: acct.vatOutput, amount: s.vat_pence }, { account: acct.wallet(s.customer_id), amount: -s.price_pence }] });
+    }
   }
 
   async listForCustomer(customerId: string, limit = 500) {

@@ -14,6 +14,7 @@ export type Quote = {
   serviceName: string;
   transitDays: number | null;
   dropOff: boolean;
+  labelLater: boolean;       // label is issued after a manual step (shown to the customer)
   price: Pence;              // gross, inc VAT
   priceExVat: Pence;
   expiresAt: string;
@@ -129,6 +130,7 @@ export class QuoteService {
         serviceName: rate.serviceName,
         transitDays: rate.transitDays,
         dropOff: rate.dropOff,
+        labelLater: rate.labelTiming === 'later',
         price: price.gross,
         priceExVat: price.net,
         expiresAt: new Date(exp).toISOString(),

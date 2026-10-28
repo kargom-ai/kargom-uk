@@ -52,7 +52,7 @@ export class GuestCheckout {
     if (!i.from || !i.to || i.from.country !== 'GB' || i.to.country !== 'GB') throw new AppError('bad_request', 'Guest checkout is for UK to UK parcels. Sign in to send abroad.');
     for (const a of [i.from, i.to]) if (!a.phone || String(a.phone).replace(/\D/g, '').length < 7) throw new AppError('bad_request', 'A phone number is needed for the collection and delivery address');
     const from: Address = { ...i.from, email, country: 'GB' };
-    const req: ShipmentRequest = { from, to: { ...i.to, country: 'GB' }, parcel: i.parcel };
+    const req: ShipmentRequest = { from, to: { ...i.to, country: 'GB' }, parcel: i.parcel, contents, valuePence: Math.max(0, Math.round(Number(i.valuePence) || 0)) };
 
     const customerId = await this.guestCustomer(email, name, from.phone);
     const { quotes } = await this.app.quotes.quote(customerId, req);

@@ -82,6 +82,11 @@ export class WebhookHandlers {
           await tx.run("UPDATE shipments SET status = $1, updated_at = $2 WHERE id = $3 AND status NOT IN ('cancelled','failed')", [
             ev.status, this.clock.now().toISOString(), s.id]);
         });
+      } else if (ev.type === 'label_update') {
+        // The event only says "something changed"; ask the provider for the truth.
+        const s = await this.db.get<{ id: string }>('SELECT id FROM shipments WHERE provider = $1 AND provider_label_id = $2', [provider, ev.providerLabelId]);
+        if (s) await this.bookings.refreshPendingLabel(s.id);
+        await mark(this.db, provider, ev.eventId, this.clock);
       } else {
         await this.adjustments.handleMeasurement(ev);
         await mark(this.db, provider, ev.eventId, this.clock);

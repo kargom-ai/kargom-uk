@@ -32,6 +32,9 @@ export type ShipmentRequest = {
   to: Address;
   parcel: Parcel;
   customs?: { contents: 'merchandise' | 'gift' | 'documents' | 'returned_goods' | 'sample'; items: CustomsItem[] };
+  /** What is inside and its value, for providers that ask (Packlink). */
+  contents?: string;
+  valuePence?: Pence;
 };
 
 /** One price for one service from one provider. `cost` is net of VAT, in pence. */
@@ -45,6 +48,8 @@ export type ProviderRate = {
   cost: Pence;
   transitDays: number | null;
   dropOff: boolean;
+  /** 'later' = the provider issues the label after a manual step (Packlink PRO payment). */
+  labelTiming?: 'instant' | 'later';
 };
 
 export type Label = {
@@ -52,13 +57,21 @@ export type Label = {
   trackingNumber: string;
   labelUrl: string;
   cost: Pence; // final cost charged by the provider
+  /** True when the provider accepted the order but the label comes later (see checkLabel). */
+  pending?: boolean;
 };
+
+export type LabelCheck =
+  | { state: 'pending'; detail: string }
+  | { state: 'ready'; labelUrl: string; trackingNumber: string }
+  | { state: 'failed'; detail: string };
 
 export type TrackingStatus = 'booked' | 'collected' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'exception';
 
 /** Normalised event from any provider webhook. */
 export type ProviderEvent =
   | { type: 'tracking'; eventId: string; trackingNumber: string; status: TrackingStatus; description: string; occurredAt: string }
+  | { type: 'label_update'; eventId: string; providerLabelId: string }
   | {
       type: 'measurement';
       eventId: string;
@@ -75,4 +88,6 @@ export interface ShippingProvider {
   voidLabel(providerLabelId: string): Promise<boolean>;
   /** Verify and parse a webhook. Returns [] for events we do not use. */
   parseWebhook(headers: Record<string, string | undefined>, rawBody: string): Promise<ProviderEvent[]>;
+  /** Providers with labels that arrive later: ask whether it is ready yet. */
+  checkLabel?(providerLabelId: string): Promise<LabelCheck>;
 }

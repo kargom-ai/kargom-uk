@@ -73,6 +73,21 @@ class Component extends DCLogic {
     }
   }
 
+  /** Label that the courier issues later (Packlink): refresh the done screen when it arrives. */
+  async watchLabel(id) {
+    for (let i = 0; i < 480; i++) {
+      await new Promise((r) => setTimeout(r, 15000));
+      try {
+        const { shipment } = await api(`/api/shipments/${encodeURIComponent(id)}`);
+        if (shipment.status !== 'awaiting_label') {
+          if (this.state.done?.shipment.id === id) this.setState({ done: { ...this.state.done, shipment } });
+          if (shipment.status === 'booked') toast('Your label is ready.');
+          return;
+        }
+      } catch { /* keep trying */ }
+    }
+  }
+
   /** Stripe's webhook books the label after the card payment; wait for it (normally a few seconds). */
   async waitForPaid(shipmentId) {
     this.setState({ busy: true });
@@ -82,6 +97,7 @@ class Component extends DCLogic {
         const { shipment } = await api(`/api/shipments/${encodeURIComponent(shipmentId)}`);
         if (shipment.status === 'failed') { toast('The courier could not create this label. Your card payment has been refunded.'); break; }
         if (!['awaiting_payment', 'pending', 'purchasing'].includes(shipment.status)) {
+          if (shipment.status === 'awaiting_label') this.watchLabel(shipment.id);
           this.setState({ done: { shipment, quote: { dropOff: /drop|shop|locker|post office/i.test(shipment.service_name) } }, busy: false });
           window.scrollTo(0, 0);
           return;
@@ -144,6 +160,7 @@ class Component extends DCLogic {
       const r = await api('/api/bookings', { method: 'POST', body: { quoteToken: q.token, payWith: st.pay === 'wallet' ? 'wallet' : 'card', flow: (me.stripePk || me.demoPayments) ? 'embedded' : 'hosted' }, idempotencyKey: this.key });
       if (r.kind === 'booked') {
         this.setState({ done: { shipment: r.shipment, quote: q }, busy: false, bal: st.pay === 'wallet' ? st.bal - q.price : st.bal });
+        if (r.shipment.status === 'awaiting_label') this.watchLabel(r.shipment.id);
         window.scrollTo(0, 0);
       } else if (r.kind === 'failed') {
         this.key = uid();
@@ -335,7 +352,7 @@ class Component extends DCLogic {
       nextLabel: st.busy ? 'Booking…' : st.step < 4 ? 'Continue' : st.step === 4 ? 'Compare prices' : (C ? 'Book and pay ' + gbp(price) : st.quotes === null ? 'Comparing couriers…' : 'Choose a courier'),
       priceTxt: D ? gbp(D.shipment.price_pence) : '', again: reset, payMethods,
       paidLabel: D ? (D.shipment.pay_method === 'wallet' ? 'Paid from wallet' : 'Paid by card') : '',
-      doneLine: D ? `${D.shipment.service_name} to ${doneTo.name}, ${town(doneTo)}. Print the label and ${D.quote.dropOff ? 'drop it off at the shop or locker.' : 'have the parcel ready for collection.'}` : '',
+      doneLine: D ? (D.shipment.status === 'awaiting_label' ? `Paid. ${D.shipment.service_name} to ${doneTo.name}, ${town(doneTo)}. The courier issues this label shortly, usually within an hour: it appears here and under Shipments by itself.` : `${D.shipment.service_name} to ${doneTo.name}, ${town(doneTo)}. Print the label and ${D.quote.dropOff ? 'drop it off at the shop or locker.' : 'have the parcel ready for collection.'}`) : '',
       doneRef: D ? D.shipment.ref : '', doneTracking: D ? (D.shipment.tracking_number || '') : '',
       labelUrl: D?.shipment.label_url || '#', trackUrl: D?.shipment.tracking_number ? `https://kargoradari.com/?q=${encodeURIComponent(D.shipment.tracking_number)}` : '#',
       meName: me.name, meIni: (me.name || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase(), meType: me.account_type === 'business' ? 'Business account' : 'Personal account',

@@ -4,6 +4,7 @@ import { startServer, warmPreviewCache } from './http/server.ts';
 import { FakeGateway, StripeGateway } from './payments/stripe.ts';
 import { MockProvider } from './providers/mock.ts';
 import { ShipEngineProvider } from './providers/shipengine.ts';
+import { PacklinkProvider } from './providers/packlink.ts';
 
 const env = (k: string, fallback?: string) => {
   const v = process.env[k] ?? fallback;
@@ -50,6 +51,32 @@ if (process.env.SHIPSTATION_API_KEY) {
     .then((rates) => console.log(`[shipstation] test quote Manchester → Leeds 1 kg: ${rates.length} rate(s)${rates.length ? ': ' + rates.slice(0, 6).map((r) => `${r.carrierName} ${r.serviceName} £${(r.cost / 100).toFixed(2)}`).join(', ') : ' · ' + (shipstation.lastProblems.join(' | ') || 'no reason given')}`))
     .catch((e) => console.error(`[shipstation] FAILED: ${(e as Error).message} ${JSON.stringify((e as { details?: unknown }).details ?? '')}`));
 }
+
+// Packlink PRO straight from environment variables. Labels arrive after the shipment is paid in Packlink PRO.
+if (process.env.PACKLINK_API_KEY) {
+  const packlink = new PacklinkProvider({ apiKey: process.env.PACKLINK_API_KEY, sell: process.env.PACKLINK_SELL !== '0' });
+  app.registry.addStatic(packlink);
+  packlink.getRates({
+    from: { name: 'Test', line1: '1 Piccadilly', city: 'Manchester', postcode: 'M1 1AE', country: 'GB' },
+    to: { name: 'Test', line1: '2 Park Row', city: 'Leeds', postcode: 'LS1 5HD', country: 'GB' },
+    parcel: { weightGrams: 1000, lengthCm: 20, widthCm: 15, heightCm: 10 },
+  }, AbortSignal.timeout(20_000))
+    .then((rates) => console.log(`[packlink] connected: test quote Manchester → Leeds 1 kg: ${rates.length} rate(s)${rates.length ? ': ' + rates.slice(0, 6).map((r) => `${r.serviceName} £${(r.cost / 100).toFixed(2)}`).join(', ') : ''}`))
+    .catch((e) => console.error(`[packlink] FAILED: ${(e as Error).message}`));
+  if (process.env.PUBLIC_URL) {
+    packlink.registerCallback(`${process.env.PUBLIC_URL.replace(/\/+$/, '')}/webhooks/carrier/packlink/${app.config.carrierWebhookToken}`)
+      .then(() => console.log('[packlink] status webhook registered'))
+      .catch((e) => console.warn(`[packlink] could not register the status webhook: ${(e as Error).message}`));
+  }
+}
+
+// Labels that arrive later (Packlink): check every 2 minutes, in case a webhook was missed.
+setInterval(async () => {
+  try {
+    const rows = await app.db.all<{ id: string }>("SELECT id FROM shipments WHERE status = 'awaiting_label' ORDER BY updated_at LIMIT 50");
+    for (const r of rows) await app.bookings.refreshPendingLabel(r.id).catch((e) => console.warn(`[labels] ${r.id}: ${(e as Error).message}`));
+  } catch { /* next round */ }
+}, 120_000).unref();
 
 // The fake courier only runs when no real provider is configured (or MOCK_PROVIDER=1).
 if (!production && (process.env.MOCK_PROVIDER === '1' || (!process.env.SHIPSTATION_API_KEY && process.env.MOCK_PROVIDER !== '0'))) {

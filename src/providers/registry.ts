@@ -2,6 +2,7 @@ import type { Db } from '../db/db.ts';
 import { AppError } from '../core/errors.ts';
 import type { Clock } from '../core/clock.ts';
 import { SecretBox } from '../auth/auth.ts';
+import { PacklinkProvider } from './packlink.ts';
 import { ShipEngineProvider } from './shipengine.ts';
 import type { ShippingProvider } from './types.ts';
 
@@ -18,6 +19,12 @@ export const PROVIDER_CATALOG = {
     name: 'ShipEngine',
     fields: ['apiKey', 'carrierIds'],
     baseUrl: { live: 'https://api.shipengine.com/v1', test: 'https://api.shipengine.com/v1' },
+  },
+  packlink: {
+    kind: 'shipping',
+    name: 'Packlink PRO',
+    fields: ['apiKey', 'sell'],
+    baseUrl: { live: 'https://api.packlink.com/v1', test: 'https://api.packlink.com/v1' },
   },
   stripe: { kind: 'payment', name: 'Stripe', fields: ['secretKey', 'publishableKey', 'webhookSecret'], baseUrl: null },
 } as const;
@@ -54,6 +61,10 @@ export class ProviderRegistry {
       const cat = PROVIDER_CATALOG[r.id as ProviderId];
       if (!cat || cat.kind !== 'shipping' || !r.secrets_enc) continue;
       const s = this.box.open(r.secrets_enc);
+      if (r.id === 'packlink') {
+        next.set(r.id, new PacklinkProvider({ apiKey: s.apiKey ?? '', baseUrl: cat.baseUrl[r.mode], sell: s.sell !== 'no' }));
+        continue;
+      }
       next.set(r.id, new ShipEngineProvider({
         id: r.id,
         baseUrl: cat.baseUrl[r.mode],

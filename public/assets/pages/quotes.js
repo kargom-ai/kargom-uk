@@ -76,7 +76,7 @@ class Component extends DCLogic {
       const badge = r === cheapest ? 'Cheapest' : r === fastest ? 'Fastest' : r === recommended ? 'Recommended' : '';
       const logo = CARRIER_LOGO[r.carrier];
       return { logo: logo || '', hasLogo: !!logo, noLogo: !logo, courier: r.c, service: r.s, typeLabel: T[r.t], eta: etaTxt(r.d), cover: 'Standard cover', tracked: true,
-        price: gbp(r.v), exVat: gbp(r.ex), hasBadge: !!badge, badge, book: (e) => this.book(r, e) };
+        price: gbp(r.v), exVat: gbp(r.ex), hasBadge: !!badge, badge, later: Boolean(r.q?.labelLater), book: (e) => this.book(r, e) };
     });
     const present = Object.keys(T).filter((k) => DATA.some((r) => r.t === k));
     const typeFilters = present.map((k) => ({ label: { drop: 'Drop-off', coll: 'Collection', locker: 'Locker' }[k], on: !st.toff[k],

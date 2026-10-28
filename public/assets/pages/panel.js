@@ -5,7 +5,7 @@ import { openPaySheet } from '../pay.js';
 
 const S = { print: ['Ready to print', '#FFF4E0', '#9A5B00'], coll: ['Processing', '#EEF2F7', '#3E4A5C'], transit: ['In transit', '#EAF2FE', '#1D4FB8'],
   deliv: ['Delivered', '#E6F4EA', '#166534'], issue: ['Issue', '#FDECEC', '#B42318'] };
-const KEY = { booked: 'print', pending: 'coll', purchasing: 'coll', awaiting_payment: 'coll', collected: 'transit', in_transit: 'transit',
+const KEY = { booked: 'print', awaiting_label: 'coll', pending: 'coll', purchasing: 'coll', awaiting_payment: 'coll', collected: 'transit', in_transit: 'transit',
   out_for_delivery: 'transit', delivered: 'deliv', exception: 'issue', failed: 'issue', cancelled: 'issue' };
 const STATUS_LABEL = { collected: 'Collected', out_for_delivery: 'Out for delivery', failed: 'Failed, refunded', cancelled: 'Cancelled', awaiting_payment: 'Awaiting payment' };
 const HS = { waiting_us: ['Open · we will reply soon', '#FFF4E0', '#9A5B00'], waiting_customer: ['New reply', '#EAF2FE', '#1D4FB8'], solved: ['Solved', '#E6F4EA', '#166534'] };

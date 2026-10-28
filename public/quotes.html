@@ -120,6 +120,7 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
               <sc-if value="{{r.hasBadge}}" hint-placeholder-val="{{ false }}">
                 <span style="font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 4px; background: #E6F4EA; color: #166534">{{r.badge}}</span>
               </sc-if>
+              <sc-if value="{{r.later}}"><span title="The courier issues this label shortly after payment. We show it on your label page and under Shipments." style="font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 4px; background: #FFF4E0; color: #9A5B00">Label within 1 hour</span></sc-if>
             </div>
             <div style="display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: #3E4A5C">
               <span>{{r.typeLabel}}</span>

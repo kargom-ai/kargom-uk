@@ -3,19 +3,20 @@ import { DCLogic, mount, api, CARRIER_NAME } from '../dc.js';
 /** Guest label page: /l/<secret token>. Waits for the label, then preview, print, download and share. */
 const token = decodeURIComponent(location.pathname.split('/')[2] || '');
 const gbp = (p) => `£${(p / 100).toFixed(2)}`;
-const WAITING = ['awaiting_payment', 'pending', 'purchasing'];
+const WAITING = ['awaiting_payment', 'pending', 'purchasing', 'awaiting_label'];
 
 class Component extends DCLogic {
   constructor(p) { super(p); this.state = { s: null, error: '', tries: 0, toast: '', copied: false }; }
 
   async mounted() {
-    for (let i = 0; i < 45; i++) {
+    // Fast checks while the payment and label go through; slower while a courier issues a label later.
+    for (let i = 0; i < 600; i++) {
       try {
         const s = await api(`/api/guest/label/${encodeURIComponent(token)}`);
         this.setState({ s, tries: i });
         if (!WAITING.includes(s.status)) return;
       } catch (e) { this.setState({ error: e.status === 404 ? 'notfound' : 'network' }); if (e.status === 404) return; }
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, this.state.s?.status === 'awaiting_label' ? 15000 : 2000));
     }
   }
 
@@ -33,8 +34,10 @@ class Component extends DCLogic {
     const msg = s ? `Your Kargom label for ${s.service} (${s.ref}). Tracking ${s.tracking || ''}. Print it here: ${link}` : '';
     return {
       loading: !failed && waiting && st.error !== 'notfound',
-      waitTitle: s?.status === 'awaiting_payment' ? 'Confirming your payment…' : 'Creating your label…',
-      waitTxt: st.tries > 20 ? 'This is taking longer than usual. Keep this page open; it updates by itself.' : 'This usually takes a few seconds.',
+      waitTitle: s?.status === 'awaiting_payment' ? 'Confirming your payment…' : s?.status === 'awaiting_label' ? 'Paid. Your label is on its way' : 'Creating your label…',
+      waitTxt: s?.status === 'awaiting_label'
+        ? `${s.service} (${s.ref}). The courier issues this label shortly, usually within an hour. Bookmark this page or send the link to yourself: the label appears here by itself.`
+        : st.tries > 20 ? 'This is taking longer than usual. Keep this page open; it updates by itself.' : 'This usually takes a few seconds.',
       failed, failTitle: st.error === 'notfound' ? 'Label not found' : 'We could not create this label',
       failTxt: st.error === 'notfound' ? 'Check that you opened the full link. If you paid and lost the page, contact us with the email you used and we will send it again.' : 'The courier did not accept this booking. Your card payment has been refunded in full. It can take 5–10 days to show on your statement.',
       ready,

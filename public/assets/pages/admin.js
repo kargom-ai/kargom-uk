@@ -21,7 +21,7 @@ const sw = (on) => ({ on: on ? 'true' : 'false', bg: on ? '#2463DB' : '#C9D6EA',
 
 const SS = { booked: ['Booked', '#EEF2F7', '#3E4A5C'], coll: ['Collected', '#EAF2FE', '#1D4FB8'], transit: ['In transit', '#EAF2FE', '#1D4FB8'], out: ['Out for delivery', '#E0F2FE', '#0369A1'],
   deliv: ['Delivered', '#E6F4EA', '#166534'], exc: ['Exception', '#FDECEC', '#B42318'] };
-const STAGE = { pending: 'booked', purchasing: 'booked', awaiting_payment: 'booked', booked: 'booked', collected: 'coll', in_transit: 'transit', out_for_delivery: 'out', delivered: 'deliv',
+const STAGE = { awaiting_label: 'booked', pending: 'booked', purchasing: 'booked', awaiting_payment: 'booked', booked: 'booked', collected: 'coll', in_transit: 'transit', out_for_delivery: 'out', delivered: 'deliv',
   exception: 'exc', failed: 'exc', cancelled: 'exc' };
 const AS = { charged: ['Charged', '#E6F4EA', '#166534'], failed: ['Card declined', '#FDECEC', '#B42318'], pending: ['To collect', '#FFF4E0', '#9A5B00'], disputed: ['Disputed', '#EAF2FE', '#1D4FB8'],
   waived: ['Waived', '#EEF2F7', '#3E4A5C'], no_charge: ['No extra charge', '#FFF4E0', '#9A5B00'] };
@@ -49,6 +49,10 @@ const PROV = [
   { g: 'ship', id: 'shipengine', name: 'ShipEngine', ini: 'SE', color: '#2463DB', backend: true, desc: 'Rates, labels and tracking for UK carriers.', chips: ['Royal Mail', 'Evri', 'DPD', 'Parcelforce', 'Yodel', 'UPS'],
     fields: [['apiKey', 'API key', 'password', 'ShipEngine dashboard › API Management'], ['carrierIds', 'Carrier account IDs', 'text', 'One per connected carrier, comma separated']],
     events: ['track', 'carrier_adjustment'] },
+  { g: 'ship', id: 'packlink', name: 'Packlink PRO', ini: 'PL', color: '#FF6B35', backend: true, desc: 'Packlink PRO rates. Labels are issued after you pay the shipment in Packlink PRO (customers are told "Label within 1 hour").',
+    chips: ['Evri', 'DPD', 'Royal Mail', 'InPost', 'Yodel', 'UPS'],
+    fields: [['apiKey', 'Packlink PRO API key', 'password', 'Packlink PRO › Settings › Packlink PRO API key › Generate']],
+    events: ['shipment.label.ready', 'shipment.tracking.update', 'shipment.delivered'] },
   { g: 'ship', id: 'easypost', name: 'EasyPost', ini: 'EP', color: '#1D3593', desc: 'Second source of rates; also used for international.', chips: ['Royal Mail', 'DPD', 'UPS', 'DHL', 'FedEx'],
     fields: [['prod', 'Production API key', 'password', 'Dashboard › API Keys › Production'], ['test', 'Test API key', 'password', 'Used when this connection is in test mode']],
     events: ['tracker.updated', 'shipment.invoice.created', 'refund.successful'] },
@@ -228,6 +232,7 @@ class Component extends DCLogic {
     const health = [
       { name: 'ShipStation', ini: 'SS', color: '#3B7A57', note: ssLive ? 'Quoting and buying labels' : 'Add your API key to start', state: ssLive ? 'Connected' : 'Not connected', fg: ssLive ? '#166534' : '#8593A8' },
       { name: 'ShipEngine', ini: 'SE', color: '#2463DB', note: st.live.includes('shipengine') ? 'Quoting and buying labels' : 'Optional second source', state: st.live.includes('shipengine') ? 'Connected' : 'Not connected', fg: st.live.includes('shipengine') ? '#166534' : '#8593A8' },
+      ...(st.live.includes('packlink') ? [{ name: 'Packlink PRO', ini: 'PL', color: '#FF6B35', note: 'Labels after payment in Packlink PRO', state: 'Connected', fg: '#166534' }] : []),
       { name: 'Stripe', ini: 'St', color: '#635BFF', note: st.demoPayments ? 'Test mode · payments simulated' : 'Payments and webhooks', state: st.demoPayments ? 'Test' : 'Connected', fg: st.demoPayments ? '#9A5B00' : '#166534' },
       { name: 'Courier webhooks', ini: 'WH', color: '#1F2A3C', note: 'Tracking and weight updates', state: 'Listening', fg: '#166534' },
       ...(st.live.includes('mock') ? [{ name: 'Demo rates', ini: 'DM', color: '#E89B12', note: 'Sample prices while no provider is connected', state: 'Test', fg: '#9A5B00' }] : []),
@@ -235,6 +240,8 @@ class Component extends DCLogic {
     const alerts = [
       ...(openAdj.length ? [{ t: `${openAdj.length} weight adjustment${openAdj.length > 1 ? 's' : ''} to resolve`, s: `${P(openAdj.reduce((x, a) => x + a.diff_pence, 0))} to collect.`, bg: '#FDF2F2', dot: '#E5484D', go: go('adj') }] : []),
       ...(usCount ? [{ t: `${usCount} support request${usCount > 1 ? 's' : ''} waiting`, s: st.tickets.some((t) => t.overdue) ? 'At least one is overdue.' : 'Reply before the SLA runs out.', bg: '#FDF2F2', dot: '#E5484D', go: go('sup') }] : []),
+      ...(st.shipments.some((s) => s.status === 'awaiting_label') ? [{ t: `${st.shipments.filter((s) => s.status === 'awaiting_label').length} Packlink label${st.shipments.filter((s) => s.status === 'awaiting_label').length > 1 ? 's' : ''} waiting for payment`,
+        s: 'Customers have paid. Open Packlink PRO › Ready for payment and pay them so the labels are issued.', bg: '#FFF8EC', dot: '#E89B12', go: () => window.open('https://pro.packlink.com', '_blank', 'noopener') }] : []),
       ...(!ssLive ? [{ t: 'Connect ShipStation', s: 'Add your API key to start buying labels through it.', bg: '#EAF2FE', dot: '#2463DB', go: go('conn') }] : []),
       ...(st.demoPayments ? [{ t: 'Connect Stripe to take real payments', s: 'Until then top-ups and card payments are simulated.', bg: '#FFF8EC', dot: '#E89B12', go: go('conn') }] : []),
     ];
@@ -253,7 +260,7 @@ class Component extends DCLogic {
       return { no: s.ref, time: dateTime(s.created_at), cust: s.customer_name, openCust: oc(s.customer_id), route: routeOf(s), logo: CARRIER_LOGO[s.carrier] || '', svc: s.service_name,
         via: s.provider === 'shipstation' ? 'ShipStation' : s.provider === 'shipengine' ? 'ShipEngine' : s.provider === 'mock' ? 'Demo' : s.provider,
         cost: P(s.cost_pence), price: P(s.price_pence), margin: P(s.price_pence - s.vat_pence - s.cost_pence), paid: s.pay_method === 'card' ? 'Card' : 'Wallet',
-        status: s.status === 'failed' ? 'Failed, refunded' : s.status === 'cancelled' ? 'Cancelled' : c[0], sBg: c[1], sFg: c[2],
+        status: s.status === 'failed' ? 'Failed, refunded' : s.status === 'cancelled' ? 'Cancelled' : s.status === 'awaiting_label' ? 'Waiting for label' : c[0], sBg: c[1], sFg: c[2],
         adj: !!a, adjTxt: a ? adjTxt(a) : '', adjBg: a && a.diff_pence === 0 ? '#E89B12' : '#E5484D' };
     });
 
@@ -470,7 +477,7 @@ class Component extends DCLogic {
     const origin = location.origin;
     const conItem = (p) => {
       const d = provDesc[p.id];
-      const envLive = p.id === 'shipstation' && ssLive && !d?.enabled;
+      const envLive = st.live.includes(p.id) && !d?.enabled;
       const conn = (!!d?.enabled) || envLive || (p.id === 'stripe' && !st.demoPayments);
       const mode = st.modeSel[p.id] || d?.mode || 'test';
       const isOpen = st.open === p.id, t = st.tested[p.id];
