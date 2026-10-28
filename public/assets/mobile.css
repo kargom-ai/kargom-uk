@@ -51,7 +51,7 @@ div[style*="overflow-x: auto"] { position: relative; }
   body[data-page="home"] section > div { padding-left: 16px !important; padding-right: 16px !important; }
   body[data-page="home"] section > div[style*="padding: 56px"] { padding-top: 28px !important; }
   .m-modes { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
-  .m-modes > button { font-size: 13px !important; min-height: 46px !important; padding: 2px 4px !important; white-space: normal; line-height: 1.15; overflow: hidden; letter-spacing: -0.01em; }
+  .m-modes > button { font-size: 13px !important; min-height: 46px !important; padding: 0 4px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.01em; }
 
   body[data-page="home"] h1 > span:first-child { font-size: 30px !important; }
   body[data-page="home"] h1 > span:last-child { font-size: 36px !important; }

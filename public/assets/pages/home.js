@@ -49,7 +49,7 @@ class Component extends DCLogic {
     }
     if (st.mode === 'freight') {
       e.preventDefault();
-      const q = new URLSearchParams({ from: field('Shipping from'), to: field('Shipping to'), load: LOADS[field('What are you shipping?')] || 'boxes' });
+      const q = new URLSearchParams({ from: field('Shipping from'), to: field('Shipping to'), load: LOADS[field('Load')] || 'boxes' });
       location.href = `/freight?${q}`;
       return;
     }
@@ -74,7 +74,7 @@ class Component extends DCLogic {
 
   renderVals() {
     const st = this.state;
-    const MODES = [['uk', 'Send a Parcel'], ['freight', 'Compare Freight Rates'], ['move', 'Removals'], ['track', 'Tracking']];
+    const MODES = [['uk', 'Parcel'], ['freight', 'Freight'], ['move', 'Removals'], ['track', 'Tracking']];
     const modes = MODES.map(([id, label], i) => ({ label, on: st.mode === id ? 'true' : 'false',
       bg: st.mode === id ? '#FFFFFF' : '#1F2A3C', fg: st.mode === id ? '#1F2A3C' : '#FFFFFF',
       radius: i === 0 ? '6px 0 0 0' : i === MODES.length - 1 ? '0 6px 0 0' : '0',
@@ -85,7 +85,7 @@ class Component extends DCLogic {
     const F = {
       uk: [{ ...b, label: 'Collect from', isSelect: true, options: countryOpts() }, { ...b, label: 'Delivering to', isSelect: true, options: countryOpts() }, weight, dims],
       freight: [{ ...b, label: 'Shipping from', isSelect: true, options: countryOpts('China') }, { ...b, label: 'Shipping to', isSelect: true, options: countryOpts() },
-        { ...b, label: 'What are you shipping?', isSelect: true, options: Object.keys(LOADS).map((t) => ({ t, sep: false, sel: false })), flex: '1 1 150px' }],
+        { ...b, label: 'Load', isSelect: true, options: Object.keys(LOADS).map((t) => ({ t, sep: false, sel: false })), flex: '1 1 150px' }],
       move: [{ ...b, label: 'Moving from (postcode)', isInput: true, placeholder: 'e.g. M1 1AE' }, { ...b, label: 'Moving to (postcode)', isInput: true, placeholder: 'e.g. LS1 5HD' },
         { ...b, label: 'Home size', isSelect: true, options: Object.keys(HOME_SIZE).map((t) => ({ t, sep: false, sel: false })), flex: '1 1 150px' }],
       track: [{ ...b, label: 'Tracking number', isInput: true, placeholder: 'Enter your tracking number', flex: '999 1 400px' }],
@@ -93,7 +93,7 @@ class Component extends DCLogic {
     const CTA = { uk: ['Get quotes', '/quotes'], freight: ['Compare rates', '/freight'], move: ['Get moving quotes', '/app/quote?type=removals'], track: ['Track', '/track'] };
     const L = (t, href) => ({ t, href });
     const LINKS = {
-      uk: [L('Cheapest way to send a parcel', '/guides/cheapest-way-to-send-a-parcel-uk'), L('Volumetric weight calculator', '/tools/volumetric-weight-calculator'), L('UK prices by weight', '/parcel-prices'), L('Customs and duties explained', '/guides/sending-a-parcel-abroad-customs'), L('All destinations', '/send-parcel-to')],
+      uk: [L('Cheapest way to send a parcel', '/guides/cheapest-way-to-send-a-parcel-uk'), L('Volumetric weight calculator', '/tools/volumetric-weight-calculator'), L('UK prices by weight', '/parcel-prices')],
       freight: [L('China to Amazon FBA UK', '/freight?from=China&to=United+Kingdom&toType=amazon'), L('UK to Amazon USA', '/freight?from=United+Kingdom&to=United+States&toType=amazon'), L('Road freight: FTL / LTL', '/app/quote?type=freight'), L('Freight company? Join as a partner', '/partner')],
       move: [L('Removal company? Join as a partner', '/partner')],
       track: [L('Where is my tracking number?', '/track'), L('Royal Mail tracking', '/track/royal-mail'), L('Evri tracking', '/track/evri')],
