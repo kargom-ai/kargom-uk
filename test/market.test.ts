@@ -131,3 +131,22 @@ test('market: straight-line distance is sensible', () => {
   const miles = haversineMiles(manchester, leeds);
   assert.ok(miles > 30 && miles < 40, `${miles}`);
 });
+
+test('market: the request PDF opens for the owner and by its secret link, with photos', async () => {
+  const { app } = await makeApp();
+  const m = app.market;
+  const customer = await app.auth.register({ email: 'p@example.com', password: 'correct-horse-1', name: 'Pat Doe', accountType: 'personal' });
+  // a 1x1 JPEG
+  const jpeg = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=';
+  const job = await m.createJob(customer, { kind: 'removals', from: home('1 High St', 'Manchester', 'M1 1AE'), to: home('2 Park Rd', 'Leeds', 'LS1 5HD'), date: tomorrow(), phone: '07700 900123',
+    details: { moveType: 'home', size: '3', notes: 'Piano → 2nd floor' }, photos: [jpeg] });
+  const full = await m.customerJob(customer, job.id);
+  assert.match(full.sharePath, /^\/r\/[\w-]{16,}$/);
+  const own = await m.customerPdf(customer, job.id);
+  assert.equal(own.pdf.subarray(0, 5).toString(), '%PDF-');
+  assert.match(own.pdf.toString('latin1'), /\/DCTDecode/, 'photo embedded');
+  const shared = await m.sharedPdf(full.sharePath.slice(3));
+  assert.equal(shared.ref, job.ref);
+  await assert.rejects(m.sharedPdf('not-a-real-token-123456'), /no longer|not found/i);
+  assert.equal((await m.customerJob(customer, job.id)).sharePath, full.sharePath, 'the link stays the same');
+});

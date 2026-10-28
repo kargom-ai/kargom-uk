@@ -292,6 +292,14 @@ export function buildRouter(app: App) {
   on('GET', '/api/jobs', 'customer', async (c) => ({ jobs: await app.market.listJobs(me(c)) }));
   on('GET', '/api/jobs/:id', 'customer', async (c) => app.market.customerJob(me(c), c.params.id!));
   on('GET', '/api/jobs/:id/partners', 'customer', async (c) => app.market.nearbyPartners(me(c), c.params.id!));
+  const sendPdf = (c: Ctx, r: { ref: number; pdf: Buffer }, download: boolean) => {
+    c.res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': String(r.pdf.length), 'Cache-Control': 'private, no-store',
+      'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename="kargom-request-${r.ref}.pdf"`, 'X-Robots-Tag': 'noindex', 'X-Content-Type-Options': 'nosniff' });
+    c.res.end(r.pdf);
+    return null;
+  };
+  on('GET', '/api/jobs/:id/pdf', 'customer', async (c) => sendPdf(c, await app.market.customerPdf(me(c), c.params.id!), Boolean(c.query.get('download'))));
+  on('GET', '/r/:token', 'public', async (c) => sendPdf(c, await app.market.sharedPdf(c.params.token!.replace(/\.pdf$/, '')), false));
   on('GET', '/api/jobs/:id/google', 'customer', async (c) => { marketLimiter.check(me(c)); return app.market.googleNearby(me(c), c.params.id!); });
   on('POST', '/api/jobs/:id/invite', 'customer', async (c) => app.market.invite(me(c), c.params.id!, c.body));
   on('GET', '/api/admin/partner-invites', 'admin', async () => ({ invites: await app.market.adminInvites() }));

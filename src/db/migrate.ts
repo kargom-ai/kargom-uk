@@ -5,7 +5,7 @@ export async function migrate(db: Db): Promise<void> {
   const sql = readFileSync(new URL('./schema.sql', import.meta.url), 'utf8');
   await db.exec(sql);
   // Columns added after the first release (CREATE TABLE IF NOT EXISTS does not add them to old tables).
-  for (const stmt of ['ALTER TABLE partners ADD COLUMN base_postcode TEXT']) {
+  for (const stmt of ['ALTER TABLE partners ADD COLUMN base_postcode TEXT', 'ALTER TABLE jobs ADD COLUMN share_token TEXT']) {
     try { await db.exec(stmt); } catch { /* already there */ }
   }
   const seq = await db.get<{ n: number }>('SELECT n FROM shipment_seq');

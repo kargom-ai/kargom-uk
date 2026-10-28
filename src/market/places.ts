@@ -7,9 +7,9 @@ import { haversineMiles } from './route.ts';
  * We ask only for the fields we show, and keep results in memory for an hour so one
  * customer opening a page twice does not cost two searches. Nothing is written to the DB.
  */
-export type GooglePlace = { placeId: string; name: string; address: string; phone: string | null; rating: number | null; reviews: number; website: string | null; mapsUrl: string | null; milesAway: number | null };
+export type GooglePlace = { placeId: string; name: string; address: string; phone: string | null; intlPhone: string | null; rating: number | null; reviews: number; website: string | null; mapsUrl: string | null; milesAway: number | null };
 
-const FIELDS = ['places.id', 'places.displayName', 'places.formattedAddress', 'places.rating', 'places.userRatingCount', 'places.websiteUri', 'places.nationalPhoneNumber', 'places.googleMapsUri', 'places.location', 'places.businessStatus'].join(',');
+const FIELDS = ['places.id', 'places.displayName', 'places.formattedAddress', 'places.rating', 'places.userRatingCount', 'places.websiteUri', 'places.nationalPhoneNumber', 'places.internationalPhoneNumber', 'places.googleMapsUri', 'places.location', 'places.businessStatus'].join(',');
 const QUERY: Record<string, string> = { removals: 'removal company', freight: 'haulage company road freight' };
 const cache = new Map<string, { at: number; v: GooglePlace[] }>();
 const TTL = 3600_000;
@@ -31,7 +31,7 @@ export async function nearbyOnGoogle(kind: string, near: { label: string; lat: n
   if (!r.ok) throw new AppError('provider_failed', `Google Places: ${j.error?.message ?? r.status}`);
   const v = (j.places ?? []).filter((p) => p.businessStatus !== 'CLOSED_PERMANENTLY').map((p) => ({
     placeId: String(p.id), name: String(p.displayName?.text ?? ''), address: String(p.formattedAddress ?? '').replace(/, UK$|, United Kingdom$/, ''),
-    phone: p.nationalPhoneNumber ?? null, rating: typeof p.rating === 'number' ? p.rating : null, reviews: Number(p.userRatingCount ?? 0), website: p.websiteUri ?? null, mapsUrl: p.googleMapsUri ?? null,
+    phone: p.nationalPhoneNumber ?? null, intlPhone: p.internationalPhoneNumber ?? null, rating: typeof p.rating === 'number' ? p.rating : null, reviews: Number(p.userRatingCount ?? 0), website: p.websiteUri ?? null, mapsUrl: p.googleMapsUri ?? null,
     milesAway: near.lat !== undefined && p.location ? Math.round(haversineMiles({ lat: near.lat, lng: near.lng! }, { lat: p.location.latitude, lng: p.location.longitude })) : null,
   })).filter((p) => p.name);
   cache.set(ck, { at: Date.now(), v });

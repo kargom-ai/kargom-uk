@@ -177,3 +177,8 @@ textarea.inp { min-height: 96px; padding: 10px 12px; resize: vertical; line-heig
 .g-logo i:nth-child(1), .g-logo i:nth-child(4) { color: #4285F4; } .g-logo i:nth-child(2), .g-logo i:nth-child(6) { color: #EA4335; }
 .g-logo i:nth-child(3) { color: #FBBC05; } .g-logo i:nth-child(5) { color: #34A853; }
 .gplace { background: #FCFDFE; }
+.btn.wa { background: #1FAF38; color: #FFFFFF; gap: 8px; } .btn.wa:hover { background: #178A2C; color: #FFFFFF; }
+.sheet-box { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; padding: 14px 16px; border-radius: 14px; background: #F5F9FF; border: 1px solid #D6E4FB; }
+.sheet-ic { flex: none; width: 44px; height: 52px; border-radius: 8px; background: #E5484D; color: #FFFFFF; display: grid; place-items: center; font: 800 12px 'Plus Jakarta Sans', sans-serif; }
+.sheet-t { flex: 1 1 240px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: #3E4A5C; }
+.sheet-t b { font-size: 15px; color: #1F2A3C; }

@@ -5,6 +5,8 @@ import { newId } from '../core/ids.ts';
 import type { AuthService } from '../auth/auth.ts';
 import { haversineMiles, outcodeCoords } from './route.ts';
 import { nearbyOnGoogle, placesEnabled } from './places.ts';
+import { requestSheet } from './sheet.ts';
+import { randomBytes } from 'node:crypto';
 
 /**
  * Moving & road-freight requests.
@@ -21,7 +23,7 @@ import { nearbyOnGoogle, placesEnabled } from './places.ts';
 export type Kind = 'removals' | 'freight';
 export type Addr = { line1: string; line2?: string; city: string; postcode: string; country: string };
 type Partner = { id: string; customer_id: string; kind: Kind; company: string; phone: string; email: string; website: string | null; about: string | null; areas: string | null; base_postcode: string | null; fleet: string | null; logo: string | null; status: string; created_at: string };
-type Job = { id: string; ref: number; customer_id: string; kind: Kind; status: string; title: string; details: string; from_addr: string; to_addr: string; from_area: string; to_area: string; distance_miles: number | null; move_date: string | null; contact_phone: string; accepted_offer_id: string | null; created_at: string; updated_at: string };
+type Job = { id: string; ref: number; customer_id: string; kind: Kind; status: string; title: string; details: string; from_addr: string; to_addr: string; from_area: string; to_area: string; distance_miles: number | null; move_date: string | null; contact_phone: string; accepted_offer_id: string | null; share_token?: string | null; created_at: string; updated_at: string };
 type Offer = { id: string; job_id: string; partner_id: string; price_pence: number; message: string | null; vehicle: string | null; available_date: string | null; valid_until: string | null; status: string; payment_status: string | null; created_at: string; updated_at: string };
 
 export type Notice = (to: string, subject: string, heading: string, lines: string[], link?: { href: string; text: string }) => Promise<unknown>;
@@ -264,6 +266,7 @@ export class Market {
     const review = await this.db.get<{ rating: number; comment: string | null }>('SELECT rating, comment FROM partner_reviews WHERE job_id = $1', [j.id]);
     return {
       ...this.jobView(j, true), photos: (await this.photoIds(j.id)).map((pid) => `/api/jobs/${j.id}/photos/${pid}`), review: review ?? null,
+      sharePath: `/r/${await this.shareToken(j)}`,
       offers: await Promise.all(offers.map(async (o) => ({
         id: o.id, pricePence: o.price_pence, message: o.message, vehicle: o.vehicle, availableDate: o.available_date, validUntil: o.valid_until, status: o.status, createdAt: o.created_at,
         partner: await this.profile(o.partner_id),
@@ -397,6 +400,39 @@ export class Market {
 
   async adminInvites() {
     return this.db.all('SELECT i.name, i.website, i.area, i.created_at, j.ref, j.title, j.from_area FROM partner_invites i JOIN jobs j ON j.id = i.job_id ORDER BY i.created_at DESC LIMIT 500');
+  }
+
+  /* ---------------- the PDF sheet the customer sends to companies ---------------- */
+
+  private async shareToken(j: Job) {
+    if (j.share_token) return j.share_token;
+    const t = randomBytes(16).toString('base64url');
+    await this.db.run('UPDATE jobs SET share_token = $1 WHERE id = $2 AND share_token IS NULL', [t, j.id]);
+    const r = await this.db.get<{ share_token: string }>('SELECT share_token FROM jobs WHERE id = $1', [j.id]);
+    return r!.share_token;
+  }
+
+  private async sheet(j: Job) {
+    const c = await this.db.get<{ name: string }>('SELECT name FROM customers WHERE id = $1', [j.customer_id]);
+    const rows = await this.db.all<{ data: string }>('SELECT data FROM job_photos WHERE job_id = $1 ORDER BY created_at', [j.id]);
+    const photos = rows.map((r) => /^data:image\/jpeg;base64,(.+)$/.exec(r.data)?.[1]).filter((x): x is string => Boolean(x)).map((b64) => Buffer.from(b64, 'base64'));
+    return requestSheet({
+      ref: j.ref, kind: j.kind, title: j.title, details: JSON.parse(j.details), from: JSON.parse(j.from_addr), to: JSON.parse(j.to_addr), date: j.move_date,
+      distanceMiles: j.distance_miles, createdAt: j.created_at, contactName: c?.name ?? 'Customer', contactPhone: j.contact_phone,
+    }, photos);
+  }
+
+  async customerPdf(customerId: string, jobId: string) {
+    const j = await this.ownJob(customerId, jobId);
+    return { ref: j.ref, pdf: await this.sheet(j) };
+  }
+
+  /** Anyone with the secret link (the customer shared it) can open the sheet. */
+  async sharedPdf(token: string) {
+    if (!/^[\w-]{16,40}$/.test(token)) throw new AppError('not_found', 'Not found');
+    const j = await this.db.get<Job>('SELECT * FROM jobs WHERE share_token = $1', [token]);
+    if (!j || j.status === 'cancelled') throw new AppError('not_found', 'This request is no longer available');
+    return { ref: j.ref, pdf: await this.sheet(j) };
   }
 
   /* ---------------- partner: find work, send offers ---------------- */

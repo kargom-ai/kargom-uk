@@ -209,6 +209,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   move_date         TEXT,                     -- YYYY-MM-DD
   contact_phone     TEXT NOT NULL,
   accepted_offer_id TEXT,
+  share_token       TEXT,                     -- secret link to the PDF sheet the customer can send to companies
   created_at        TEXT NOT NULL,
   updated_at        TEXT NOT NULL
 );
