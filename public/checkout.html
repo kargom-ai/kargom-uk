@@ -40,7 +40,7 @@
           <div class="step-b">
           <div class="grid2">
             <label class="fld"><span>Full name <i>*</i></span><input aria-label="y_name" value="{{y.name}}" autocomplete="name" class="inp"></label>
-            <label class="fld"><span>Email <i>*</i></span><input aria-label="y_email" value="{{y.email}}" type="email" autocomplete="email" placeholder="you@example.com" class="inp"></label>
+            <label class="fld"><span>Email <i>*</i> <em>{{emailHint}}</em></span><input aria-label="y_email" value="{{y.email}}" type="email" autocomplete="email" placeholder="you@example.com" class="inp"></label>
           </div>
           <span class="hint">No account needed. We only use your email if there is a problem with this parcel.</span>
             <div class="err" hidden="{{noErr}}">{{err}}</div>

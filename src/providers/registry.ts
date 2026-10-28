@@ -26,6 +26,7 @@ export const PROVIDER_CATALOG = {
     fields: ['apiKey', 'sell'],
     baseUrl: { live: 'https://api.packlink.com/v1', test: 'https://api.packlink.com/v1' },
   },
+  resend: { kind: 'email', name: 'Resend email', fields: ['apiKey', 'from'], baseUrl: null },
   smsworks: { kind: 'sms', name: 'The SMS Works', fields: ['token', 'sender'], baseUrl: null },
   netgsm: { kind: 'sms', name: 'NetGSM SMS', fields: ['usercode', 'password', 'header'], baseUrl: null },
   stripe: { kind: 'payment', name: 'Stripe', fields: ['secretKey', 'publishableKey', 'webhookSecret'], baseUrl: null },

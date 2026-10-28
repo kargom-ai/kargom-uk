@@ -366,7 +366,10 @@ export function buildRouter(app: App) {
     items: await app.db.all(`SELECT n.channel, n.status, n.detail, n.to_number, n.created_at, s.ref, s.id AS shipment_id FROM notifications n JOIN shipments s ON s.id = n.shipment_id ORDER BY n.created_at DESC LIMIT 100`),
   }));
   on('POST', '/api/admin/notify/test', 'admin', async (c) => {
-    try { return { ok: true, message: await app.notifier.testSms(str(c.body.phone, 'Phone', 30)) }; }
+    try {
+      const to = str(c.body.phone, 'Phone or email', 200).trim();
+      return { ok: true, message: to.includes('@') ? await app.notifier.testEmail(to) : await app.notifier.testSms(to) };
+    }
     catch (e) { throw new AppError('bad_request', (e as Error).message); }
   });
   on('POST', '/api/admin/shipments/:id/notify', 'admin', async (c) => ({ results: await app.notifier.resend(c.params.id!) }));
@@ -384,7 +387,7 @@ export function buildRouter(app: App) {
   on('GET', '/api/admin/providers', 'admin', async () => ({ providers: await app.registry.describe(), live: app.registry.all().map((p) => p.id), demoPayments: app.payments instanceof FakeGateway }));
   on('PUT', '/api/admin/providers/:id', 'admin', async (c) => {
     await app.registry.save(c.params.id!, { mode: c.body.mode === 'live' ? 'live' : 'test', enabled: Boolean(c.body.enabled), secrets: c.body.secrets ?? {} });
-    if (c.params.id === 'netgsm' || c.params.id === 'smsworks') await app.refreshNotifier();
+    if (['netgsm', 'smsworks', 'resend'].includes(c.params.id!)) await app.refreshNotifier();
     return { providers: await app.registry.describe() };
   });
   on('POST', '/api/admin/providers/:id/test', 'admin', async (c) => {

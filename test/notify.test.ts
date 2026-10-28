@@ -53,11 +53,30 @@ test('a label that arrives later is sent once on each channel; failures are reco
 test('The SMS Works: sends sender, destination and content with the JWT; explains common errors', async () => {
   const { SmsWorks } = await import('../src/notify/channels.ts');
   let req: any;
-  const ok = new SmsWorks({ token: 'JWT abc', sender: 'Kargom UK!', fetchImpl: (async (_u: string, i: RequestInit) => { req = { auth: new Headers(i.headers).get('authorization'), body: JSON.parse(String(i.body)) }; return new Response(JSON.stringify({ messageid: 'm1' }), { status: 201 }); }) as any });
+  const ok = new SmsWorks({ token: ' eyJabc\n', sender: 'Kargom UK!', fetchImpl: (async (_u: string, i: RequestInit) => { req = { auth: new Headers(i.headers).get('authorization'), body: JSON.parse(String(i.body)) }; return new Response(JSON.stringify({ messageid: 'm1' }), { status: 201 }); }) as any });
   const m = { to: '447700900123', name: 'Ann', service: 'Evri', tracking: 'H1', ref: 'R', link: 'https://kargom.eu/l/x', pdfUrl: '' };
   assert.equal(await ok.sendLabelReady(m), 'm1');
-  assert.equal(req.auth, 'JWT abc');
+  assert.equal(req.auth, 'JWT eyJabc');
   assert.deepEqual([req.body.sender, req.body.destination], ['KargomUK', '447700900123']);
   const broke = new SmsWorks({ token: 't', sender: 'Kargom', fetchImpl: (async () => new Response('{}', { status: 402 })) as any });
   await assert.rejects(broke.sendLabelReady(m), /out of credit/);
+});
+
+test('Resend email attaches the label PDF by URL and goes to the guest email', async () => {
+  const { ResendEmail } = await import('../src/notify/channels.ts');
+  let body: any, auth = '';
+  const em = new ResendEmail({ apiKey: 're_x', from: 'Kargom <labels@kargom.eu>', fetchImpl: (async (_u: string, i: RequestInit) => { auth = String(new Headers(i.headers).get('authorization')); body = JSON.parse(String(i.body)); return new Response(JSON.stringify({ id: 'em_1' })); }) as any });
+  const { app } = await makeApp();
+  app.notifier.configure([em], 'https://kargom.eu', 'all');
+  const { GuestCheckout } = await import('../src/guest/guest.ts');
+  const g = new GuestCheckout(app);
+  const r = ukReq();
+  const pv = (await app.quotes.quote('anonymous', r)).quotes[0]!;
+  const out = await g.book({ email: 'ann@example.com', name: 'Ann Lee', from: { ...r.from, phone: '0161 496 0000' }, to: { ...r.to, phone: '07700900222' }, parcel: r.parcel,
+    contents: 'Books', valuePence: 0, carrier: pv.carrier, serviceCode: pv.serviceCode, expectedPricePence: pv.price, idempotencyKey: 'e1' });
+  await g.demoPay(out.token);
+  await new Promise((x) => setTimeout(x, 30));
+  assert.equal(auth, 'Bearer re_x');
+  assert.deepEqual(body.to, ['ann@example.com']);
+  assert.match(body.attachments[0].path, /^https:\/\/kargom\.eu\/api\/guest\/label\/[\w-]+\/pdf$/);
 });

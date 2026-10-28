@@ -28,7 +28,7 @@ export class Notifier {
     if (instantPolicy) this.instantPolicy = instantPolicy;
   }
 
-  get enabled() { return { whatsapp: this.channels.some((c) => c.id === 'whatsapp'), sms: this.channels.some((c) => c.id === 'sms') }; }
+  get enabled() { return { whatsapp: this.channels.some((c) => c.id === 'whatsapp'), sms: this.channels.some((c) => c.id === 'sms'), email: this.channels.some((c) => c.id === 'email') }; }
 
   async labelReady(shipmentId: string, opts: { instant?: boolean } = {}): Promise<Array<{ channel: string; status: string; detail?: string }>> {
     if (!this.channels.length || !this.publicUrl) return [];
@@ -41,22 +41,24 @@ export class Notifier {
     if (opts.instant && this.instantPolicy === 'guests' && c?.account_type !== 'guest') return [];
     const from = JSON.parse(s.from_json) as Address;
     const to = toE164(from.phone, from.country) ?? toE164(c?.phone, 'GB');
-    if (!to) return [{ channel: 'all', status: 'skipped', detail: 'no mobile number' }];
+    const email = (c?.account_type === 'guest' ? c?.company : c?.email) || from.email || '';
+    if (!to && !email) return [{ channel: 'all', status: 'skipped', detail: 'no mobile number or email' }];
 
     // A private link that opens and prints the label without an account.
     const token = randomBytes(24).toString('base64url');
     await this.db.run('INSERT INTO guest_links (token_hash, shipment_id, email, created_at) VALUES ($1,$2,$3,$4)', [
       sha256(token), s.id, (c?.account_type === 'guest' ? c.company : c?.email) ?? '', this.clock.now().toISOString()]);
     const msg = {
-      to, name: (from.name || c?.name || 'there').split(/\s+/)[0]!, service: s.service_name || CARRIER_LABEL[s.carrier] || 'parcel',
+      to: to ?? '', email, name: (from.name || c?.name || 'there').split(/\s+/)[0]!, service: s.service_name || CARRIER_LABEL[s.carrier] || 'parcel',
       tracking: s.tracking_number || s.ref, ref: s.ref, link: `${this.publicUrl}/l/${token}`, pdfUrl: `${this.publicUrl}/api/guest/label/${token}/pdf`,
     };
     const out: Array<{ channel: string; status: string; detail?: string }> = [];
     for (const ch of this.channels) {
+      if (ch.id === 'email' ? !email : !to) { out.push({ channel: ch.id, status: 'skipped' }); continue; }
       const id = newId('ntf');
       try {
         await this.db.run(`INSERT INTO notifications (id, shipment_id, channel, kind, to_number, status, created_at) VALUES ($1,$2,$3,'label_ready',$4,'sending',$5)`,
-          [id, s.id, ch.id, to, this.clock.now().toISOString()]);
+          [id, s.id, ch.id, ch.id === 'email' ? email : to, this.clock.now().toISOString()]);
       } catch { out.push({ channel: ch.id, status: 'already_sent' }); continue; }
       try {
         const ref = await ch.sendLabelReady(msg);
@@ -80,6 +82,15 @@ export class Notifier {
     if (!to) throw new Error('That does not look like a mobile number. Use e.g. 07700 900123 or +90 532 123 45 67.');
     const id = await sms.sendLabelReady({ to, name: 'Test', service: 'TEST', tracking: 'TEST123', ref: 'TEST', link: `${this.publicUrl || 'https://kargom.eu'}/l/test`, pdfUrl: '' });
     return `Sent to +${to} (message ${id})`;
+  }
+
+  /** Admin check: send a sample "label ready" email. */
+  async testEmail(address: string): Promise<string> {
+    const ch = this.channels.find((c) => c.id === 'email');
+    if (!ch) throw new Error('Email is not set up yet. Save the Resend details first.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(address)) throw new Error('That does not look like an email address.');
+    const id = await ch.sendLabelReady({ to: '', email: address, name: 'there', service: 'TEST', tracking: 'TEST123', ref: 'TEST', link: `${this.publicUrl || 'https://kargom.eu'}/l/test`, pdfUrl: '' });
+    return `Sent to ${address} (email ${id})`;
   }
 
   /** Admin "send again": clears earlier attempts for this shipment, then sends. */

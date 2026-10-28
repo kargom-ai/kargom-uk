@@ -13,7 +13,7 @@ import { ProviderRegistry } from './providers/registry.ts';
 import { WebhookHandlers } from './webhooks.ts';
 import { AdminQueries } from './admin.ts';
 import { Notifier } from './notify/notify.ts';
-import { NetgsmSms, SmsWorks, WhatsAppCloud, type Channel } from './notify/channels.ts';
+import { NetgsmSms, ResendEmail, SmsWorks, WhatsAppCloud, type Channel } from './notify/channels.ts';
 import type { PaymentGateway } from './payments/stripe.ts';
 
 export type AppConfig = {
@@ -53,6 +53,9 @@ export async function createApp(db: Db, config: AppConfig, payments: PaymentGate
     if (env.WHATSAPP_TOKEN && env.WHATSAPP_PHONE_NUMBER_ID) {
       channels.push(new WhatsAppCloud({ token: env.WHATSAPP_TOKEN, phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID, template: env.WHATSAPP_TEMPLATE ?? 'label_ready', lang: env.WHATSAPP_TEMPLATE_LANG ?? 'en_GB' }));
     }
+    const rs = (await registry.secretsFor('resend')) ?? {};
+    const rsKey = rs.apiKey || env.RESEND_API_KEY, rsFrom = rs.from || env.RESEND_FROM;
+    if (rsKey && rsFrom) channels.push(new ResendEmail({ apiKey: rsKey, from: rsFrom }));
     // SMS: The SMS Works (UK) first; NetGSM only if that is not set up.
     const sw = (await registry.secretsFor('smsworks')) ?? {};
     const swToken = sw.token || env.SMSWORKS_TOKEN, swSender = sw.sender || env.SMSWORKS_SENDER || 'Kargom';

@@ -58,6 +58,10 @@ const PROV = [
     events: ['tracker.updated', 'shipment.invoice.created', 'refund.successful'] },
   { g: 'ship', id: 'shippo', name: 'Shippo', ini: 'SH', color: '#33AEEF', desc: 'Backup provider.', chips: ['Evri', 'DPD', 'UPS', 'DHL'],
     fields: [['token', 'API token', 'password', 'Settings › API › Tokens']], events: ['track_updated', 'transaction_updated'] },
+  { g: 'msg', id: 'resend', name: 'Resend email', ini: 'RE', color: '#1F2A3C', backend: true, desc: 'Free up to 3,000 emails a month: "your label is ready" with the PDF attached and a print button.',
+    chips: ['Label PDF attached', 'Free tier', 'From your domain'],
+    fields: [['apiKey', 'API key', 'password', 'resend.com › API Keys › Create (starts with re_)'], ['from', 'From address', 'text', 'e.g. Kargom <labels@kargom.eu> (verify kargom.eu in Resend › Domains first)']],
+    events: ['label_ready'] },
   { g: 'msg', id: 'smsworks', name: 'The SMS Works', ini: 'SW', color: '#2463DB', backend: true, desc: 'UK SMS: "your label is ready" with a link to print. Pay as you go, about 3–4p per text, credits never expire.',
     chips: ['Label ready SMS', 'UK numbers', 'Sender: Kargom'],
     fields: [['token', 'API token (JWT)', 'password', 'The SMS Works › API Key › Generate: copy the long token'], ['sender', 'Sender name', 'text', '4–11 letters/digits, no spaces, e.g. Kargom']],
@@ -240,6 +244,7 @@ class Component extends DCLogic {
       ...(st.live.includes('packlink') ? [{ name: 'Packlink PRO', ini: 'PL', color: '#FF6B35', note: 'Labels after payment in Packlink PRO', state: 'Connected', fg: '#166534' }] : []),
       { name: 'Stripe', ini: 'St', color: '#635BFF', note: st.demoPayments ? 'Test mode · payments simulated' : 'Payments and webhooks', state: st.demoPayments ? 'Test' : 'Connected', fg: st.demoPayments ? '#9A5B00' : '#166534' },
       { name: 'WhatsApp', ini: 'WA', color: '#1FAF38', note: st.notif.enabled.whatsapp ? 'Labels sent with the PDF' : 'Add WHATSAPP_TOKEN to send labels', state: st.notif.enabled.whatsapp ? 'Connected' : 'Not connected', fg: st.notif.enabled.whatsapp ? '#166534' : '#8593A8' },
+      { name: 'Email (Resend)', ini: 'RE', color: '#1F2A3C', note: st.notif.enabled.email ? 'Label PDF by email' : 'Connect Resend in Connections (free)', state: st.notif.enabled.email ? 'Connected' : 'Not connected', fg: st.notif.enabled.email ? '#166534' : '#8593A8' },
       { name: 'SMS', ini: 'SM', color: '#E5484D', note: st.notif.enabled.sms ? 'Label link by SMS' : 'Connect The SMS Works in Connections', state: st.notif.enabled.sms ? 'Connected' : 'Not connected', fg: st.notif.enabled.sms ? '#166534' : '#8593A8' },
       { name: 'Courier webhooks', ini: 'WH', color: '#1F2A3C', note: 'Tracking and weight updates', state: 'Listening', fg: '#166534' },
       ...(st.live.includes('mock') ? [{ name: 'Demo rates', ini: 'DM', color: '#E89B12', note: 'Sample prices while no provider is connected', state: 'Test', fg: '#9A5B00' }] : []),
@@ -488,7 +493,7 @@ class Component extends DCLogic {
     const conItem = (p) => {
       const d = provDesc[p.id];
       const envLive = st.live.includes(p.id) && !d?.enabled;
-      const conn = (!!d?.enabled) || envLive || (p.id === 'stripe' && !st.demoPayments) || ((p.id === 'netgsm' || p.id === 'smsworks') && Boolean(d?.enabled));
+      const conn = (!!d?.enabled) || envLive || (p.id === 'stripe' && !st.demoPayments) || (['netgsm', 'smsworks', 'resend'].includes(p.id) && Boolean(d?.enabled));
       const mode = st.modeSel[p.id] || d?.mode || 'test';
       const isOpen = st.open === p.id, t = st.tested[p.id];
       const state = !p.backend ? 'Coming soon' : envLive ? 'Connected · server key' : !conn ? 'Not connected' : mode === 'live' ? 'Connected · Live' : 'Connected · Test';
@@ -498,15 +503,15 @@ class Component extends DCLogic {
         modes: [['test', 'Test'], ['live', 'Live']].map(([m, label]) => ({ label, on: mode === m ? 'true' : 'false', bg: mode === m ? (m === 'live' ? '#16A34A' : '#E89B12') : 'transparent', fg: mode === m ? '#FFFFFF' : '#586579',
           pick: () => this.setState({ modeSel: { ...st.modeSel, [p.id]: m } }) })),
         fields: p.fields.map(([key, label, type, help]) => ({ label, type, key: `${p.id}.${key}`, value: '', ph: d?.fields?.[key] ? `Saved: ${d.fields[key]} · paste to replace` : envLive && key === 'apiKey' ? 'Set on the server (Render env)' : 'Paste here', help })),
-        hook: p.id === 'netgsm' || p.id === 'smsworks' ? 'No webhook needed' : p.id === 'stripe' ? `${origin}/webhooks/stripe` : p.backend ? `${origin}/webhooks/carrier/${p.id}/YOUR_CARRIER_WEBHOOK_TOKEN` : 'Available when this provider is supported',
+        hook: ['netgsm', 'smsworks', 'resend'].includes(p.id) ? 'No webhook needed' : p.id === 'stripe' ? `${origin}/webhooks/stripe` : p.backend ? `${origin}/webhooks/carrier/${p.id}/YOUR_CARRIER_WEBHOOK_TOKEN` : 'Available when this provider is supported',
         events: p.events,
         where: (e) => { e.preventDefault(); this.say(`The grey hint under each box says where to find it in ${p.name}.`); },
         copy: async () => { try { await navigator.clipboard.writeText(p.id === 'stripe' ? `${origin}/webhooks/stripe` : `${origin}/webhooks/carrier/${p.id}/`); this.say('Copied'); } catch { this.say('Select the URL and copy it'); } },
         test: async () => {
           if (!p.backend) { this.say(`${p.name} is not supported yet.`); return; }
           if (p.id === 'stripe') { this.say(st.demoPayments ? 'Stripe is not connected yet: payments are simulated.' : 'Stripe is connected.'); return; }
-          if (p.id === 'netgsm' || p.id === 'smsworks') {
-            const phone = window.prompt('Send a test SMS to which mobile number?', '');
+          if (['netgsm', 'smsworks', 'resend'].includes(p.id)) {
+            const phone = window.prompt(p.id === 'resend' ? 'Send a test email to which address?' : 'Send a test SMS to which mobile number?', '');
             if (!phone) return;
             this.setState({ tested: { ...st.tested, [p.id]: 'Sending…' } });
             try { const r = await api('/api/admin/notify/test', { method: 'POST', body: { phone } }); this.setState({ tested: { ...this.state.tested, [p.id]: `✓ ${r.message}` } }); }

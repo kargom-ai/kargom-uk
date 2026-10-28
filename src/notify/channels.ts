@@ -1,9 +1,9 @@
 import { AppError } from '../core/errors.ts';
 
-export type LabelMessage = { to: string; name: string; service: string; tracking: string; ref: string; link: string; pdfUrl: string };
+export type LabelMessage = { to: string; name: string; service: string; tracking: string; ref: string; link: string; pdfUrl: string; email?: string };
 
 export interface Channel {
-  readonly id: 'whatsapp' | 'sms';
+  readonly id: 'whatsapp' | 'sms' | 'email';
   sendLabelReady(m: LabelMessage): Promise<string>; // returns the provider's message id
 }
 
@@ -72,7 +72,12 @@ export class NetgsmSms implements Channel {
 export class SmsWorks implements Channel {
   readonly id = 'sms' as const;
   private readonly cfg: { token: string; sender: string; fetchImpl?: typeof fetch };
-  constructor(cfg: { token: string; sender: string; fetchImpl?: typeof fetch }) { this.cfg = cfg; }
+  constructor(cfg: { token: string; sender: string; fetchImpl?: typeof fetch }) {
+    // The site shows the token as "JWT" + a line break + "eyJ…", and people often copy only the "eyJ…" part.
+    // The API wants exactly "JWT eyJ…", so we rebuild that whatever was pasted.
+    const raw = cfg.token.replace(/\s+/g, ' ').trim().replace(/^JWT\s*/i, '');
+    this.cfg = { ...cfg, token: `JWT ${raw}` };
+  }
   async sendLabelReady(m: LabelMessage): Promise<string> {
     const content = `Kargom: your ${m.service} label is ready. Open and print it: ${m.link} Tracking ${m.tracking}`.normalize('NFKD').replace(/[^\x20-\x7E]/g, '');
     const sender = this.cfg.sender.replace(/[^A-Za-z0-9]/g, '').slice(0, 11);
@@ -89,5 +94,40 @@ export class SmsWorks implements Channel {
       throw new AppError('provider_failed', `SMS: ${why[res.status] ?? j.message ?? j.error ?? res.status}`);
     }
     return String(j.messageid ?? j.messageId ?? 'sent');
+  }
+}
+
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+/**
+ * Email through Resend (free up to 3,000 a month). The label PDF is attached by URL,
+ * and the email has a button to open and print it.
+ */
+export class ResendEmail implements Channel {
+  readonly id = 'email' as const;
+  private readonly cfg: { apiKey: string; from: string; fetchImpl?: typeof fetch };
+  constructor(cfg: { apiKey: string; from: string; fetchImpl?: typeof fetch }) { this.cfg = cfg; }
+  async sendLabelReady(m: LabelMessage): Promise<string> {
+    if (!m.email) throw new AppError('bad_request', 'No email address for this customer');
+    const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#1F2A3C;max-width:520px;margin:0 auto">
+      <div style="background:#1F2A3C;padding:16px 20px;border-radius:12px 12px 0 0"><b style="color:#fff;font-size:20px">Kargom<span style="color:#33AEEF">.co.uk</span></b></div>
+      <div style="border:1px solid #E1E7EF;border-top:0;border-radius:0 0 12px 12px;padding:22px 20px">
+        <h1 style="font-size:22px;margin:0 0 10px">Your label is ready</h1>
+        <p style="margin:0 0 14px;line-height:1.5">Hi ${esc(m.name)}, your <b>${esc(m.service)}</b> label is attached to this email as a PDF. Print it, tape it to the parcel and hand it over.</p>
+        <p style="margin:0 0 18px;line-height:1.5">Tracking: <b>${esc(m.tracking)}</b><br>Reference: ${esc(m.ref)}</p>
+        <a href="${esc(m.link)}" style="display:inline-block;background:#2463DB;color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:10px">Open and print the label</a>
+        <p style="margin:18px 0 0;font-size:12px;color:#586579">Anyone with this link can open the label, so share it only with people you trust.</p>
+      </div></div>`;
+    const res = await (this.cfg.fetchImpl ?? fetch)('https://api.resend.com/emails', {
+      method: 'POST', headers: { Authorization: `Bearer ${this.cfg.apiKey}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(20_000),
+      body: JSON.stringify({
+        from: this.cfg.from, to: [m.email], subject: `Your Kargom label is ready (${m.ref})`, html,
+        text: `Hi ${m.name}, your ${m.service} label is ready. Tracking ${m.tracking}. Open and print it: ${m.link}`,
+        attachments: m.pdfUrl ? [{ path: m.pdfUrl, filename: `Kargom-label-${m.ref}.pdf` }] : [],
+      }),
+    }).catch((e: Error) => { throw new AppError('provider_failed', `Email: could not reach Resend (${e.message})`); });
+    const j = (await res.json().catch(() => ({}))) as { id?: string; message?: string; name?: string };
+    if (!res.ok) throw new AppError('provider_failed', `Email: ${j.message ?? j.name ?? res.status}`);
+    return j.id ?? 'sent';
   }
 }
