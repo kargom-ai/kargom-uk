@@ -430,9 +430,20 @@ export function buildRouter(app: App) {
     return { received: events.length };
   });
 
+  // One main address: visitors on any other domain (e.g. kargom.eu) are sent to it with a permanent redirect.
+  // API calls and webhooks are never redirected, so nothing already pointing at the old domain breaks.
+  const canonical = (() => { try { return process.env.PUBLIC_URL ? new URL(process.env.PUBLIC_URL) : null; } catch { return null; } })();
+
   async function handle(req: IncomingMessage, res: ServerResponse) {
     try {
       const url = new URL(req.url ?? '/', 'http://local');
+      const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '').split(':')[0]!.toLowerCase();
+      if (canonical && host && host !== canonical.hostname && !host.startsWith('localhost') && !host.endsWith('.onrender.com')
+        && (req.method === 'GET' || req.method === 'HEAD') && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/webhooks/')) {
+        res.writeHead(301, { Location: `${canonical.origin}${url.pathname}${url.search}`, 'Cache-Control': 'public, max-age=3600' });
+        res.end();
+        return;
+      }
       const route = routes.find((r) => r.method === req.method && r.pattern.test(url.pathname));
       if (!route) {
         if (await serveStatic(req, res, url.pathname)) return;

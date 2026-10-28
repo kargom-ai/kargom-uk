@@ -29,6 +29,7 @@ class Component extends DCLogic {
     const t2 = setTimeout(() => this.state.data === null && this.setState({ slow: 2 }), 8000);
     this.stopTimers = () => { clearTimeout(t1); clearTimeout(t2); };
     api('/api/me').then(() => { this.signedIn = true; }, () => { this.signedIn = false; });
+    api('/api/guest/config').then((c) => this.setState({ notify: c.notify || {} }), () => {});
     try {
       const { quotes } = await api('/api/quotes/preview', { method: 'POST', body: request() });
       this.setState({ data: quotes.map((q) => ({
@@ -48,7 +49,7 @@ class Component extends DCLogic {
     if (!this.signedIn && req.from.country === 'GB' && req.to.country === 'GB') {
       const q = r.q;
       sessionStorage.setItem('kg_guest', JSON.stringify({ carrier: q.carrier, carrierName: q.carrierName, serviceCode: q.serviceCode, serviceName: q.serviceName,
-        price: q.price, priceExVat: q.priceExVat, transitDays: q.transitDays, type: r.t, parcel: req.parcel, backUrl: location.pathname + location.search }));
+        price: q.price, priceExVat: q.priceExVat, transitDays: q.transitDays, labelLater: Boolean(q.labelLater), type: r.t, parcel: req.parcel, backUrl: location.pathname + location.search }));
       location.href = '/checkout';
       return;
     }
@@ -72,11 +73,17 @@ class Component extends DCLogic {
     const sorts = [['cheap', 'Cheapest', cheapest], ['fast', 'Fastest', fastest], ['rec', 'Recommended', recommended]].map(([id, label, r]) => ({
       label, on: st.sort === id ? 'true' : 'false', bg: st.sort === id ? '#FFFFFF' : '#F8FAFD', bar: st.sort === id ? '#2463DB' : 'transparent',
       price: r ? gbp(r.v) : '—', sub: r ? r.s + ' · ' + etaTxt(r.d) : '', pick: () => this.setState({ sort: id }) }));
+    // Only promise the channels that are switched on right now.
+    const n = st.notify || {};
+    const ch = [n.email && 'email', n.sms && 'SMS', n.whatsapp && 'WhatsApp'].filter(Boolean);
+    const laterTxt = ch.length
+      ? `Sent to you by ${ch.length > 1 ? ch.slice(0, -1).join(', ') + ' & ' + ch[ch.length - 1] : ch[0]} when ready`
+      : 'Appears on your label page when ready';
     const results = rows.map((r) => {
       const badge = r === cheapest ? 'Cheapest' : r === fastest ? 'Fastest' : r === recommended ? 'Recommended' : '';
       const logo = CARRIER_LOGO[r.carrier];
       return { logo: logo || '', hasLogo: !!logo, noLogo: !logo, courier: r.c, service: r.s, typeLabel: T[r.t], eta: etaTxt(r.d), cover: 'Standard cover', tracked: true,
-        price: gbp(r.v), exVat: gbp(r.ex), hasBadge: !!badge, badge, later: Boolean(r.q?.labelLater), book: (e) => this.book(r, e) };
+        price: gbp(r.v), exVat: gbp(r.ex), hasBadge: !!badge, badge, later: Boolean(r.q?.labelLater), instant: !r.q?.labelLater, laterTxt, book: (e) => this.book(r, e) };
     });
     const present = Object.keys(T).filter((k) => DATA.some((r) => r.t === k));
     const typeFilters = present.map((k) => ({ label: { drop: 'Drop-off', coll: 'Collection', locker: 'Locker' }[k], on: !st.toff[k],

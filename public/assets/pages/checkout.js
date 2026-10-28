@@ -164,6 +164,7 @@ class Component extends DCLogic {
       backUrl: pick.backUrl || '/',
       q: { service: pick.serviceName, carrierName: CARRIER_NAME[k] || pick.carrierName, logo: CARRIER_LOGO[k] || '', hasLogo: Boolean(CARRIER_LOGO[k]),
         how: HOW[pick.type] || 'Drop off or collection', eta: pick.transitDays ? `${pick.transitDays} working day${pick.transitDays > 1 ? 's' : ''}` : '2–4 working days',
+        labelTxt: pick.labelLater ? 'Within 1 hour, sent to you' : 'Instant, right after payment', labelFg: pick.labelLater ? '#9A5B00' : '#166534',
         exTxt: gbp(pick.priceExVat), vatTxt: gbp(pick.price - pick.priceExVat), priceTxt: gbp(pick.price) },
       toast: !!st.toast, toastTxt: st.toast,
     };
