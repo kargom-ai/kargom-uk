@@ -87,7 +87,7 @@ export class BookingService {
     return s;
   }
 
-  async book(input: { customerId: string; quoteToken: string; payWith: PayWith; idempotencyKey: string; returnBase?: string }): Promise<BookResult> {
+  async book(input: { customerId: string; quoteToken: string; payWith: PayWith; idempotencyKey: string; returnBase?: string; successUrl?: string; cancelUrl?: string }): Promise<BookResult> {
     const quote = this.signer.verify(input.quoteToken, this.clock.now());
     if (quote.customerId !== input.customerId) throw new AppError('quote_invalid', 'This quote belongs to another account');
     if (!input.idempotencyKey || input.idempotencyKey.length > 100) throw new AppError('bad_request', 'Idempotency-Key header is required');
@@ -125,7 +125,7 @@ export class BookingService {
       const cs = await this.payments.createCheckout({
         amount: quote.price, customerStripeId: stripeId, description: `${quote.rate.carrierName} ${quote.rate.serviceName} · ${shipment.ref}`,
         metadata: { purpose: 'booking', shipment_id: id, customer_id: input.customerId },
-        successUrl: `${input.returnBase}/app/send?paid=${id}`, cancelUrl: `${input.returnBase}/app/send?cancelled=${id}`,
+        successUrl: input.successUrl ?? `${input.returnBase}/app/send?paid=${id}`, cancelUrl: input.cancelUrl ?? `${input.returnBase}/app/send?cancelled=${id}`,
         idempotencyKey: `cs:${id}`, saveCard: true,
       });
       await this.db.run('UPDATE shipments SET payment_ref = $1, updated_at = $2 WHERE id = $3', [cs.id, this.now(), id]);

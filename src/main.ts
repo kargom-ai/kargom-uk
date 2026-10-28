@@ -1,6 +1,6 @@
 import { SqliteDb } from './db/sqlite.ts';
 import { createApp } from './app.ts';
-import { startServer } from './http/server.ts';
+import { startServer, warmPreviewCache } from './http/server.ts';
 import { FakeGateway, StripeGateway } from './payments/stripe.ts';
 import { MockProvider } from './providers/mock.ts';
 import { ShipEngineProvider } from './providers/shipengine.ts';
@@ -58,4 +58,12 @@ if (!production && (process.env.MOCK_PROVIDER === '1' || (!process.env.SHIPSTATI
 
 const port = Number(process.env.PORT ?? 8080);
 await startServer(app, port);
+if (stripeKey && !process.env.STRIPE_PUBLISHABLE_KEY) console.warn('[stripe] STRIPE_PUBLISHABLE_KEY is not set: card payments use Stripe\'s hosted page instead of the on-page form.');
+if (stripeKey) console.log(`[stripe] ${stripeKey.startsWith('sk_live_') ? 'LIVE' : 'TEST'} mode, on-page card form ${process.env.STRIPE_PUBLISHABLE_KEY ? 'ON' : 'OFF (no publishable key)'}`);
+// Price the common homepage searches now and every 6 hours.
+{
+  const warm = () => warmPreviewCache(app).then((n) => console.log(`[quotes] homepage prices warmed (${n} searches)`)).catch(() => {});
+  setTimeout(warm, 3000);
+  setInterval(warm, Math.max(60_000, Number(process.env.PREVIEW_CACHE_HOURS ?? 6) * 3600_000 - 5 * 60_000)).unref();
+}
 console.log(`Kargom API listening on :${port}${stripeKey ? '' : ' (fake payments: set STRIPE_SECRET_KEY for real ones)'}`);

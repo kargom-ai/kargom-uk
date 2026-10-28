@@ -42,3 +42,13 @@ test('guest checkout never charges more than the price shown', async () => {
   await assert.rejects(g.book({ email: 'not-an-email', name: 'Bo Li', ...addr(r), contents: 'Shoes', valuePence: 0,
     carrier: preview.carrier, serviceCode: preview.serviceCode, expectedPricePence: preview.price, idempotencyKey: 'k4' }), /email/);
 });
+
+test('guest checkout falls back to the Stripe-hosted page and returns to the private label link', async () => {
+  const { app } = await makeApp();
+  const g = new GuestCheckout(app);
+  const r = ukReq();
+  const preview = (await app.quotes.quote('anonymous', r)).quotes[0]!;
+  const out = await g.book({ email: 'c@example.com', name: 'Cem Ak', ...addr(r), contents: 'Toys', valuePence: 1000,
+    carrier: preview.carrier, serviceCode: preview.serviceCode, expectedPricePence: preview.price, idempotencyKey: 'k5', hostedReturnBase: 'https://kargom.eu' });
+  assert.equal(out.checkoutUrl, `https://kargom.eu/l/${out.token}`);
+});

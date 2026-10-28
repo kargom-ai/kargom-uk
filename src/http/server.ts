@@ -70,6 +70,52 @@ function siteBase(req: IncomingMessage): string {
   return `${proto}://${host}`;
 }
 
+/**
+ * Public price search: same route + parcel within 6 hours is answered from memory,
+ * because carrier prices do not move that fast. Booking always re-quotes live with
+ * the real addresses, so the price charged is never a stale one.
+ */
+const PREVIEW_TTL_MS = Number(process.env.PREVIEW_CACHE_HOURS ?? 6) * 3600_000;
+const previewKey = (r: ShipmentRequest) => JSON.stringify([String(r?.from?.postcode ?? '').toUpperCase().replace(/\s+/g, ''), r?.from?.country, String(r?.to?.postcode ?? '').toUpperCase().replace(/\s+/g, ''), r?.to?.country,
+  r?.parcel?.weightGrams, r?.parcel?.lengthCm, r?.parcel?.widthCm, r?.parcel?.heightCm, r?.customs ?? null]);
+const previewCache = new Map<string, { at: number; value: { quotes: unknown[]; failures: number } }>();
+const previewInFlight = new Map<string, Promise<{ quotes: unknown[]; failures: number }>>();
+export async function previewQuotes(app: App, req: ShipmentRequest) {
+  const key = previewKey(req);
+  const hit = previewCache.get(key);
+  if (hit && Date.now() - hit.at < PREVIEW_TTL_MS) return { ...hit.value, cached: true };
+  // Ten people searching the same route at once share one carrier round trip.
+  let p = previewInFlight.get(key);
+  if (!p) {
+    p = app.quotes.quote('anonymous', req).then(({ quotes, failures }) => {
+      const value = { quotes: quotes.map(({ token: _t, ...q }) => q), failures: failures.length };
+      if (quotes.length) {
+        previewCache.set(key, { at: Date.now(), value });
+        if (previewCache.size > 5000) previewCache.delete(previewCache.keys().next().value!);
+      }
+      return value;
+    }).finally(() => previewInFlight.delete(key));
+    previewInFlight.set(key, p);
+  }
+  return { ...(await p), cached: false };
+}
+
+/** The homepage's most common searches, priced in the background so the first visitor waits for nothing. */
+export async function warmPreviewCache(app: App) {
+  let n = 0;
+  const dims = { lengthCm: 30, widthCm: 20, heightCm: 15 };
+  for (const kg of [0.5, 1, 2, 3, 5, 10, 15, 20]) {
+    const req = { from: { name: 'Quote', line1: 'Quote', city: 'Quote', postcode: 'EC1A 1BB', country: 'GB' },
+      to: { name: 'Quote', line1: 'Quote', city: 'Quote', postcode: 'M1 1AE', country: 'GB' }, parcel: { weightGrams: Math.round(kg * 1000), ...dims } };
+    try {
+      // Refresh in place: visitors keep getting the old prices until the new ones are in.
+      const { quotes, failures } = await app.quotes.quote('anonymous', req);
+      if (quotes.length) { previewCache.set(previewKey(req), { at: Date.now(), value: { quotes: quotes.map(({ token: _t, ...q }) => q), failures: failures.length } }); n++; }
+    } catch { /* next time */ }
+  }
+  return n;
+}
+
 class RateLimiter {
   private hits = new Map<string, { n: number; reset: number }>();
   private readonly limit: number;
@@ -130,8 +176,7 @@ export function buildRouter(app: App) {
   /** Homepage prices without signing in. No tokens: booking needs a signed-in quote. */
   on('POST', '/api/quotes/preview', 'public', async (c) => {
     quoteLimiter.check(ip(c));
-    const { quotes, failures } = await app.quotes.quote('anonymous', c.body as ShipmentRequest);
-    return { quotes: quotes.map(({ token: _t, ...q }) => q), failures: failures.length };
+    return previewQuotes(app, c.body as ShipmentRequest);
   });
   // ---------- guest checkout (no account)
   /** Payment settings the guest page needs (the publishable key is public by design). */
@@ -145,7 +190,9 @@ export function buildRouter(app: App) {
     const b = c.body;
     return guest.book({ email: b.email, name: b.name, from: b.from, to: b.to, parcel: b.parcel, contents: b.contents, valuePence: Number(b.valuePence) || 0,
       carrier: String(b.carrier ?? ''), serviceCode: String(b.serviceCode ?? ''), expectedPricePence: Number(b.expectedPricePence) || 0,
-      idempotencyKey: String(c.req.headers['idempotency-key'] ?? '') || String(Date.now()) });
+      idempotencyKey: String(c.req.headers['idempotency-key'] ?? '') || String(Date.now()),
+      // Stripe is on but the publishable key is missing: fall back to Stripe's hosted page so nobody is blocked.
+      ...(!(app.payments instanceof FakeGateway) && !process.env.STRIPE_PUBLISHABLE_KEY ? { hostedReturnBase: siteBase(c.req) } : {}) });
   });
   on('GET', '/api/guest/address', 'public', async (c) => {
     guestLimiter.check(ip(c));

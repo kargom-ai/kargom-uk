@@ -47,6 +47,7 @@ class Component extends DCLogic {
 
   async mounted() {
     try { this.setState({ cfg: await api('/api/guest/config') }); } catch { /* shown on pay */ }
+    if (new URLSearchParams(location.search).get('cancelled')) { history.replaceState(null, '', '/checkout'); this.setState({ step: 4 }); this.say('Payment cancelled. Nothing was charged.'); }
     // Signed-in customers book from their account instead.
     try { await api('/api/me'); location.href = '/app/send'; } catch { /* guest: stay */ }
   }
@@ -67,9 +68,11 @@ class Component extends DCLogic {
       const r = await api('/api/guest/book', { method: 'POST', idempotencyKey: this.key, body: {
         email: st.y.email, name: st.y.name, from: st.c, to: st.d, parcel: pick.parcel, contents: p.contents, valuePence: Math.round(value * 100),
         carrier: pick.carrier, serviceCode: pick.serviceCode, expectedPricePence: pick.price } });
-      const demo = st.cfg?.demoPayments;
-      if (r.clientSecret && (st.cfg?.stripePk || demo)) {
-        const res = await openPaySheet({ publishableKey: st.cfg.stripePk, clientSecret: r.clientSecret, amountTxt: gbp(r.pricePence),
+      if (r.checkoutUrl) { location.href = r.checkoutUrl; return; }
+      const cfg = st.cfg || await api('/api/guest/config');
+      const demo = cfg.demoPayments;
+      if (r.clientSecret && (cfg.stripePk || demo)) {
+        const res = await openPaySheet({ publishableKey: cfg.stripePk, clientSecret: r.clientSecret, amountTxt: gbp(r.pricePence),
           title: 'Pay and get your label', subtitle: `${pick.serviceName} · ${st.c.postcode} → ${st.d.postcode}`, payLabel: `Pay ${gbp(r.pricePence)}`,
           returnUrl: `${location.origin}/l/${r.token}`,
           ...(demo ? { demoPay: () => api(`/api/guest/demo-pay/${encodeURIComponent(r.token)}`, { method: 'POST', body: {} }) } : {}) });
@@ -77,6 +80,7 @@ class Component extends DCLogic {
       } else if (r.clientSecret) {
         throw new Error('Card payments are being set up. Please try again in a few minutes.');
       }
+      // (A guest who cancels on Stripe's hosted page comes back to /checkout?cancelled=1 with the form still filled.)
       sessionStorage.removeItem('kg_guest_form');
       location.href = `/l/${r.token}`;
     } catch (e) {

@@ -13,6 +13,8 @@ export type GuestBookInput = {
   email: string; name: string; from: Address; to: Address;
   parcel: ShipmentRequest['parcel']; contents: string; valuePence: number;
   carrier: string; serviceCode: string; expectedPricePence: number; idempotencyKey: string;
+  /** Set when the on-page card form cannot be used: pay on Stripe's own page and come back to the label link. */
+  hostedReturnBase?: string;
 };
 
 /**
@@ -40,7 +42,7 @@ export class GuestCheckout {
     return id;
   }
 
-  async book(i: GuestBookInput): Promise<{ token: string; shipmentId: string; clientSecret: string | null; pricePence: number; status: string }> {
+  async book(i: GuestBookInput): Promise<{ token: string; shipmentId: string; clientSecret: string | null; checkoutUrl: string | null; pricePence: number; status: string }> {
     const email = String(i.email ?? '').trim();
     const name = String(i.name ?? '').trim();
     if (!EMAIL.test(email) || email.length > 200) throw new AppError('bad_request', 'Please enter a valid email address');
@@ -59,13 +61,16 @@ export class GuestCheckout {
     // Never charge more than the customer saw; a cheaper live price is fine.
     if (q.price > i.expectedPricePence) throw new AppError('quote_invalid', `The price for this route is now £${(q.price / 100).toFixed(2)}. Please check and try again.`, { pricePence: q.price });
 
-    const r = await this.app.bookings.book({ customerId, quoteToken: q.token, payWith: 'card', idempotencyKey: `guest:${String(i.idempotencyKey ?? '').slice(0, 80)}` });
-    const shipmentId = r.shipment.id;
     const token = randomBytes(24).toString('base64url');
+    const base = i.hostedReturnBase;
+    const r = await this.app.bookings.book({ customerId, quoteToken: q.token, payWith: 'card', idempotencyKey: `guest:${String(i.idempotencyKey ?? '').slice(0, 80)}`,
+      ...(base ? { returnBase: base, successUrl: `${base}/l/${token}`, cancelUrl: `${base}/checkout?cancelled=1` } : {}) });
+    const shipmentId = r.shipment.id;
     await this.app.db.run('INSERT INTO guest_links (token_hash, shipment_id, email, created_at) VALUES ($1,$2,$3,$4)', [
       sha256(token), shipmentId, email.toLowerCase(), this.app.clock.now().toISOString()]);
 
-    return { token, shipmentId, clientSecret: r.kind === 'payment_required' ? r.clientSecret : null, pricePence: q.price, status: r.shipment.status };
+    const pr = r.kind === 'payment_required' ? r : null;
+    return { token, shipmentId, clientSecret: pr?.clientSecret || null, checkoutUrl: pr?.checkoutUrl ?? null, pricePence: q.price, status: r.shipment.status };
   }
 
   /** Test mode only (no Stripe keys): the test payment sheet confirms the card payment here. */

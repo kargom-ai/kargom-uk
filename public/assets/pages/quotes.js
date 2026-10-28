@@ -22,8 +22,12 @@ function request() {
 const T = { drop: 'Drop-off at a shop', coll: 'Collected from your door', locker: 'Drop-off at a locker' };
 
 class Component extends DCLogic {
-  constructor(p) { super(p); this.state = { sort: 'cheap', speed: 'all', toff: {}, coff: {}, data: null, error: '', filters: false }; }
+  constructor(p) { super(p); this.state = { sort: 'cheap', speed: 'all', toff: {}, coff: {}, data: null, error: '', filters: false, slow: 0 }; }
   async mounted() {
+    // Reassure while couriers answer: the message changes if it takes a while.
+    const t1 = setTimeout(() => this.state.data === null && this.setState({ slow: 1 }), 3500);
+    const t2 = setTimeout(() => this.state.data === null && this.setState({ slow: 2 }), 8000);
+    this.stopTimers = () => { clearTimeout(t1); clearTimeout(t2); };
     api('/api/me').then(() => { this.signedIn = true; }, () => { this.signedIn = false; });
     try {
       const { quotes } = await api('/api/quotes/preview', { method: 'POST', body: request() });
@@ -84,7 +88,10 @@ class Component extends DCLogic {
     return {
       filtersOpen: st.filters ? 'true' : 'false', filterBtn: st.filters ? 'Hide filters' : 'Filter results', toggleFilters: () => this.setState({ filters: !st.filters }),
       sorts, results, typeFilters, speedFilters, courierFilters,
-      count: loading ? 'Finding' : results.length, empty: !loading && results.length === 0,
+      count: loading ? 'Finding' : results.length, loading, loaded: !loading,
+      headTxt: loading ? 'Finding the best prices' : `${results.length} delivery services`,
+      loadTitle: ['Comparing live prices…', 'Still checking couriers…', 'Nearly there…'][st.slow],
+      loadTxt: ['Asking Royal Mail, Evri, DPD, InPost and more for this parcel.', 'Some couriers take a few seconds to answer. Hang on.', 'The slowest courier is still answering. Your prices are almost ready.'][st.slow], empty: !loading && results.length === 0,
       emptyTxt: st.error || (DATA.length ? 'No services match these filters. Try widening them.' : 'No courier could quote for this parcel. Try a different weight or size.'),
       route: `${from} → ${to}`, parcelTxt: `1 parcel · ${kg} kg`,
     };
