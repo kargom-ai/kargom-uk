@@ -15,6 +15,7 @@ import { FakeGateway } from '../payments/stripe.ts';
 import { AddressLookup } from '../address/lookup.ts';
 import { GuestCheckout } from '../guest/guest.ts';
 import { routeInfo } from '../market/route.ts';
+import { placeLogo } from '../market/places.ts';
 
 type Ctx = {
   req: IncomingMessage;
@@ -301,7 +302,12 @@ export function buildRouter(app: App) {
   on('GET', '/api/jobs/:id/pdf', 'customer', async (c) => sendPdf(c, await app.market.customerPdf(me(c), c.params.id!), Boolean(c.query.get('download'))));
   on('GET', '/r/:token', 'public', async (c) => sendPdf(c, await app.market.sharedPdf(c.params.token!.replace(/\.pdf$/, '')), false));
   const publicLimiter = new RateLimiter(15, 60_000);
-  on('GET', '/api/public/movers', 'public', async (c) => { publicLimiter.check(ip(c)); return app.market.publicNearby(c.query.get('from'), c.query.get('kind') ?? 'removals'); });
+  on('GET', '/api/public/movers', 'public', async (c) => { publicLimiter.check(ip(c)); return app.market.publicNearby(c.query.get('from'), c.query.get('kind') ?? 'removals', undefined, c.query.get('to'), c.query.get('size')); });
+  on('GET', '/api/gplace/:id/logo', 'public', async (c) => {
+    const img = await placeLogo(c.params.id!);
+    if (!img) throw new AppError('not_found', 'No logo');
+    return image(c, img, 'public, max-age=604800');
+  });
   on('GET', '/api/jobs/:id/google', 'customer', async (c) => { marketLimiter.check(me(c)); return app.market.googleNearby(me(c), c.params.id!); });
   on('POST', '/api/jobs/:id/invite', 'customer', async (c) => app.market.invite(me(c), c.params.id!, c.body));
   on('GET', '/api/admin/partner-invites', 'admin', async () => ({ invites: await app.market.adminInvites() }));

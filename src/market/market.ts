@@ -5,6 +5,7 @@ import { newId } from '../core/ids.ts';
 import type { AuthService } from '../auth/auth.ts';
 import { haversineMiles, outcodeCoords } from './route.ts';
 import { nearbyOnGoogle, placesEnabled } from './places.ts';
+import { estimatePrice } from './estimate.ts';
 import { requestSheet } from './sheet.ts';
 import { randomBytes } from 'node:crypto';
 
@@ -267,6 +268,7 @@ export class Market {
     return {
       ...this.jobView(j, true), photos: (await this.photoIds(j.id)).map((pid) => `/api/jobs/${j.id}/photos/${pid}`), review: review ?? null,
       sharePath: `/r/${await this.shareToken(j)}`,
+      estimate: estimatePrice(j.kind, JSON.parse(j.details), j.distance_miles, (JSON.parse(j.from_addr) as Addr).postcode, (JSON.parse(j.to_addr) as Addr).postcode),
       offers: await Promise.all(offers.map(async (o) => ({
         id: o.id, pricePence: o.price_pence, message: o.message, vehicle: o.vehicle, availableDate: o.available_date, validUntil: o.valid_until, status: o.status, createdAt: o.created_at,
         partner: await this.profile(o.partner_id),
@@ -375,7 +377,7 @@ export class Market {
    * For visitors who are not signed in (homepage "Removals" search): companies near a postcode,
    * with phone numbers partly hidden and no links, so they sign up to contact them.
    */
-  async publicNearby(postcodeIn: unknown, kindIn: unknown, f?: typeof fetch) {
+  async publicNearby(postcodeIn: unknown, kindIn: unknown, f?: typeof fetch, toIn?: unknown, sizeIn?: unknown) {
     const kind = oneOf(kindIn, KINDS, 'removals');
     const raw = s(postcodeIn, 10).toUpperCase().replace(/\s+/g, ' ');
     const m = /^([A-Z]{1,2}\d[A-Z\d]?)(?:\s*(\d[A-Z]{2}))?$/.exec(raw);
@@ -395,10 +397,20 @@ export class Market {
         const ours = new Set(partners.map((p) => p.company.toLowerCase().replace(/\W+/g, '')));
         google = (await nearbyOnGoogle(kind, c ? { label: oc, lat: c.lat, lng: c.lng } : { label: oc }, f))
           .filter((p) => !ours.has(p.name.toLowerCase().replace(/\W+/g, '')))
-          .map((p) => ({ company: p.name, rating: p.rating, reviewCount: p.reviews, area: p.address.split(',').slice(-2).join(',').trim(), milesAway: p.milesAway, phone: mask(p.phone), whatsapp: Boolean(p.intlPhone) }));
+          .map((p) => ({ company: p.name, logoUrl: p.hasLogo ? `/api/gplace/${encodeURIComponent(p.placeId)}/logo` : null, rating: p.rating, reviewCount: p.reviews, area: p.address.split(',').slice(-2).join(',').trim(), milesAway: p.milesAway, phone: mask(p.phone), whatsapp: Boolean(p.intlPhone) }));
       } catch (e) { console.warn(`[places] ${(e as Error).message}`); }
     }
-    return { near: oc, kind, partners, google };
+    // a rough price for the move, from the two outward codes
+    let estimate = null;
+    const to = /^([A-Z]{1,2}\d[A-Z\d]?)/.exec(s(toIn, 10).toUpperCase().replace(/\s+/g, ''));
+    const size = s(sizeIn, 10);
+    if (kind === 'removals' && size) {
+      const [a, b] = to ? await Promise.all([outcodeCoords(oc, f), outcodeCoords(to[1]!, f)]) : [null, null];
+      const miles = a && b ? Math.max(1, Math.round(haversineMiles(a, b) * 1.2)) : null;
+      estimate = estimatePrice('removals', { moveType: 'home', size }, miles, oc, to?.[1] ?? '');
+      if (estimate) estimate.basis = miles === null ? 'UK average removal prices for this home size, for a local move' : `UK average removal prices for this home size, about ${miles} miles`;
+    }
+    return { near: oc, kind, partners, google, estimate };
   }
 
   /** Companies on Google near the start of the job that are not on Kargom yet. */

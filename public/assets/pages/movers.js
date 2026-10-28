@@ -1,4 +1,4 @@
-import { api, esc, stars, logoHtml } from '../market-ui.js';
+import { api, esc, stars, logoHtml, estimateHtml } from '../market-ui.js';
 
 /**
  * Homepage "Removals" search for visitors: companies near their postcode, with phone numbers
@@ -40,11 +40,12 @@ async function main() {
       <a class="btn big" href="${signup}">Get free quotes</a></div>`;
   root.innerHTML = `${head}<div class="list" style="margin-top:16px"><p class="muted" style="margin:0">Finding companies near ${esc(from)}…</p></div>`;
   let r;
-  try { r = await api(`/api/public/movers?from=${encodeURIComponent(from)}&kind=removals`); } catch (e) {
+  try { r = await api(`/api/public/movers?${new URLSearchParams({ from, kind: 'removals', to, size })}`); } catch (e) {
     root.innerHTML = `${head}<div class="empty-box" style="margin-top:16px"><b>${esc(e.message)}</b><a class="btn" href="/">Back</a></div>`; return;
   }
   const all = [...r.partners, ...r.google];
   root.innerHTML = `${head}
+    ${r.estimate ? `<div style="margin-top:16px">${estimateHtml(r.estimate, 'Get real quotes free and pick the best one.')}</div>` : ''}
     ${all.length ? `<div class="list" style="margin-top:16px">${all.map(card).join('')}</div>
       ${r.google.length ? '<p class="g-attr" style="margin-top:10px;justify-content:flex-end;display:flex">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></p>' : ''}
       <p class="muted" style="font-size:13px;margin-top:6px">Full phone numbers and WhatsApp are free for members. <a href="${signup}">Sign up free</a> or <a href="/login?next=${encodeURIComponent(next)}">sign in</a>.</p>`

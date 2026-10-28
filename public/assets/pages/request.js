@@ -1,5 +1,5 @@
 import { mountShell } from '../shell.js';
-import { api, esc, gbp, toast, drawMap, routeChips, niceDate, ago, stars, ratingHtml, logoHtml, profileDrawer, detailsHtml, fullAddr, STATUS } from '../market-ui.js';
+import { api, esc, gbp, toast, drawMap, routeChips, niceDate, ago, stars, ratingHtml, logoHtml, estimateHtml, profileDrawer, detailsHtml, fullAddr, STATUS } from '../market-ui.js';
 
 /** The customer's moving & freight requests: the list, and one request with its offers. */
 
@@ -63,7 +63,7 @@ function noOffersHtml(j) {
   const gHtml = g && g.enabled && g.error ? `<p class="hint" style="margin:8px 0 0">Google listings could not load: ${esc(g.error)}</p>` : !g || !g.enabled || !g.places.length ? '' : `<div class="g-head"><h3 style="margin:0;font-size:18px">Other companies near you</h3><span class="g-attr">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></span></div>
     <p class="muted" style="margin:0;font-size:14px">These companies are not on Kargom yet, so they cannot send you an offer here. Call them, or send your request PDF on WhatsApp in one tap.</p>
     ${g.places.map((p) => `<article class="offer gplace">
-      <div class="offer-top"><div class="co">${logoHtml({ company: p.name })}<div class="co-t"><b>${esc(p.name)}</b>
+      <div class="offer-top"><div class="co">${logoHtml({ company: p.name, logoUrl: p.hasLogo ? `/api/gplace/${encodeURIComponent(p.placeId)}/logo` : null })}<div class="co-t"><b>${esc(p.name)}</b>
         <span>${p.rating ? `${stars(p.rating)}<span class="stars-n">${p.rating.toFixed(1)} · ${p.reviews} Google review${p.reviews === 1 ? '' : 's'}</span>` : '<span class="stars-n">No Google reviews yet</span>'}</span>
         <span class="muted" style="font-size:13px">${esc(p.address)}${p.milesAway !== null ? ` · ${p.milesAway} mile${p.milesAway === 1 ? '' : 's'} from you` : ''}</span></div></div>
         <span class="badge cancelled">Not on Kargom yet</span></div>
@@ -108,6 +108,7 @@ function jobView() {
       : j.status === 'open' ? noOffersHtml(j)
       : '<div class="empty-box">No offers.</div>'}</div>` : `
       <section class="card" style="display:flex;flex-direction:column;gap:14px">
+        ${estimateHtml(j.estimate)}
         ${detailsHtml(j)}
         <div class="addr"><div><b>${j.kind === 'removals' ? 'Moving from' : 'Collection'}</b>${esc(fullAddr(j.from))}</div><div><b>${j.kind === 'removals' ? 'Moving to' : 'Delivery'}</b>${esc(fullAddr(j.to))}</div></div>
         <div class="kv"><span class="muted">Your phone</span><b>${esc(j.contactPhone)}</b></div>
@@ -129,6 +130,7 @@ function jobView() {
     <div class="route"><span class="pin b">B</span><span>${esc(j.toArea)}</span></div>
     <div class="mapbox" id="map"></div><div id="miles"></div>
     ${pending.length ? `<div class="kv total"><span>Best offer</span><b>${gbp(pending[0].pricePence)}</b></div>` : ''}
+    ${j.estimate ? `<div class="kv"><span class="muted">Estimated price</span><b>${gbp(j.estimate.lowPence).replace('.00', '')} – ${gbp(j.estimate.highPence).replace('.00', '')}</b></div>` : ''}
   </div></aside>`;
   drawMap(document.getElementById('map'), { from: j.fromPostcode, to: j.toPostcode, fc: j.fromCountry, tc: j.toCountry })
     .then((r) => { const el = document.getElementById('miles'); if (el) el.innerHTML = routeChips(r || (j.distanceMiles ? { miles: j.distanceMiles, source: 'estimate' } : null)); });

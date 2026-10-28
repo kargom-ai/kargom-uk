@@ -116,8 +116,13 @@ export function routeChips(r) {
 /* ---------- company profile ---------- */
 export function logoHtml(p, size = '') {
   const ini = (p.company || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
-  return `<span class="co-logo" ${size ? `style="width:${size};height:${size}"` : ''}>${p.logoUrl ? `<img src="${esc(p.logoUrl)}" alt="${esc(p.company)} logo">` : esc(ini)}</span>`;
+  return `<span class="co-logo" data-ini="${esc(ini)}" ${size ? `style="width:${size};height:${size}"` : ''}>${p.logoUrl ? `<img src="${esc(p.logoUrl)}" alt="${esc(p.company)} logo" loading="lazy">` : esc(ini)}</span>`;
 }
+// a company picture that fails to load falls back to its initials
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (img instanceof HTMLImageElement && img.parentElement?.classList.contains('co-logo')) img.parentElement.textContent = img.parentElement.dataset.ini || '?';
+}, true);
 export function ratingHtml(p) {
   return p.reviewCount ? `${stars(p.rating)}<span class="stars-n">${p.rating.toFixed(1)} · ${p.reviewCount} review${p.reviewCount > 1 ? 's' : ''}</span>` : '<span class="stars-n">New on Kargom · no reviews yet</span>';
 }
@@ -184,3 +189,10 @@ export function detailsHtml(job) {
 }
 export const fullAddr = (a) => [a.line1, a.line2, a.city, a.postcode, a.country !== 'GB' ? cname(a.country) : ''].filter(Boolean).join(', ');
 export const STATUS = { open: 'Waiting for offers', booked: 'Booked', completed: 'Completed', cancelled: 'Cancelled' };
+
+/** "Estimated £370 – £580" box. Real quotes from companies can differ. */
+export function estimateHtml(e, note = '') {
+  if (!e) return '';
+  return `<div class="est"><span class="est-l">Estimated price</span><b>${gbp(e.lowPence).replace('.00', '')} – ${gbp(e.highPence).replace('.00', '')}</b>
+    <span class="est-n">Based on ${esc(e.basis)}. ${note || 'Real quotes from companies can be higher or lower.'}</span></div>`;
+}
