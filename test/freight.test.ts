@@ -56,3 +56,26 @@ test('market: air and sea freight requests from China to an Amazon warehouse', a
   const pdf = requestSheet({ ref: 1, kind: 'freight', title: job.title, details: job.details, from: base.from, to: base.to, date: base.date, distanceMiles: null, createdAt: new Date().toISOString(), contactName: 'Tik Seller', contactPhone: '07700 900123' }, []);
   assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
 });
+
+test('freight forwarders: Google search anywhere, numbers hidden for visitors', async () => {
+  const { freightForwarders } = await import('../src/freight/forwarders.ts');
+  process.env.GOOGLE_PLACES_API_KEY = 'k';
+  let body: any = null;
+  const f = (async (_u: string, init: any) => {
+    body = JSON.parse(init.body);
+    return new Response(JSON.stringify({ places: [{ id: 'P1', displayName: { text: 'Bao An Logistics' }, formattedAddress: 'Bao An, Shenzhen, Guangdong, China', nationalPhoneNumber: '0755 2345 6789', internationalPhoneNumber: '+86 755 2345 6789', rating: 4.7, userRatingCount: 31, websiteUri: 'https://baoan.example' }] }), { status: 200 });
+  }) as typeof fetch;
+  const guest = await freightForwarders('Shenzhen, China', 'CN', false, f);
+  assert.equal(body.textQuery, 'freight forwarder in Shenzhen, China');
+  assert.equal(body.regionCode, 'cn');
+  const g = guest.places[0] as Record<string, unknown>;
+  assert.equal(g.phone, '0755 2345 ****');
+  assert.equal(g.whatsapp, true);
+  assert.equal(g.website, undefined);
+  assert.equal(g.intlPhone, undefined);
+  const m = (await freightForwarders('Shenzhen, China', 'CN', true, f)).places[0] as Record<string, unknown>;
+  assert.equal(m.intlPhone, '+86 755 2345 6789');
+  assert.equal(m.website, 'https://baoan.example');
+  await assert.rejects(freightForwarders('x', 'CN', false, f), /place/);
+  delete process.env.GOOGLE_PLACES_API_KEY;
+});

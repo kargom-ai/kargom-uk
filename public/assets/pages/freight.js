@@ -1,4 +1,4 @@
-import { api, esc, gbp, toast, wrapLabels, UK_PC } from '../market-ui.js';
+import { api, esc, gbp, toast, wrapLabels, UK_PC, stars, logoHtml } from '../market-ui.js';
 import { OPTIONS, SEP, place, isUk } from '../countries.js';
 import { AMAZON, TIKTOK } from '../warehouses.js';
 
@@ -17,7 +17,7 @@ const S = {
   to: place(qs.get('to')) ? qs.get('to') : 'United Kingdom', toType: pick(qs.get('toType'), ['business', 'home', 'amazon', 'tiktok'], 'business'), toPlace: qs.get('toPlace') || '', fc: qs.get('fc') || '',
   load: pick(qs.get('load'), ['boxes', 'pallets', 'container'], 'boxes'), box: pick(qs.get('box'), ['container20', 'container40', 'container40HC'], 'container20'),
   qty: qs.get('qty') || '1', kg: qs.get('kg') || '', l: qs.get('l') || '', w: qs.get('w') || '', h: qs.get('h') || '',
-  busy: false, res: null, err: '',
+  busy: false, res: null, err: '', me: null, fwd: null,
 };
 if (S.load === 'pallets') { S.l ||= '120'; S.w ||= '100'; S.h ||= '150'; }
 
@@ -133,10 +133,59 @@ function resultsHtml() {
   </section>`;
 }
 
+/* ---------- freight forwarders on Google, at both ends ---------- */
+const WA = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"></path></svg>';
+const placeLabel = (name, town) => { const p = place(name); return `${town || p.city}, ${isUk(name) ? 'United Kingdom' : p.n}`; };
+function fwdPlaces() {
+  const w = warehouses().find((x) => x.v === S.fc);
+  const toTown = (S.toType === 'amazon' || S.toType === 'tiktok') && w ? w.town.replace(/ \(.*\)$/, '') : S.toPlace.trim();
+  return [{ side: 'from', label: placeLabel(S.from, S.fromCity.trim()), country: place(S.from).code }, { side: 'to', label: placeLabel(S.to, toTown), country: code(S.to) }];
+}
+function shipText() {
+  const what = S.load === 'container' ? `${S.qty || 1} x ${{ container20: '20 ft', container40: '40 ft', container40HC: '40 ft High Cube' }[S.box]} container`
+    : `${S.qty || 1} ${S.load === 'boxes' ? 'boxes' : 'pallets'}, ${S.kg} kg each${S.l && S.w && S.h ? `, ${S.l}x${S.w}x${S.h} cm` : ''}`;
+  const dest = destination().text + (S.toType === 'amazon' && S.fc ? ` (Amazon ${S.fc})` : S.toType === 'tiktok' ? ' (TikTok Shop warehouse)' : '');
+  return `Hello, I found you on Kargom.co.uk. Could you quote me for this shipment?\n\nFrom: ${placeLabel(S.from, S.fromCity.trim())}\nTo: ${dest}\nGoods: ${what}\n\nPlease send your best price for air and sea, door to door. Thank you.`;
+}
+function fwdCard(p) {
+  const signup = `/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}`;
+  const rating = p.rating ? `${stars(p.rating)}<span class="stars-n">${p.rating.toFixed(1)} · ${p.reviewCount} Google review${p.reviewCount === 1 ? '' : 's'}</span>` : '<span class="stars-n">No reviews yet</span>';
+  const member = Boolean(S.me);
+  const wa = p.whatsapp ? `<a class="btn wa sm" href="${member && p.intlPhone ? esc(`https://wa.me/${p.intlPhone.replace(/\D/g, '')}?text=${encodeURIComponent(shipText())}`) : signup}" ${member ? 'target="_blank" rel="noopener"' : ''}>${WA}WhatsApp</a>` : '';
+  const tel = p.phone ? `<a class="btn ghost sm" href="${member ? `tel:${esc(String(p.intlPhone || p.phone).replace(/[^\d+]/g, ''))}` : signup}">📞 ${esc(p.phone)}</a>` : '';
+  const more = member ? `${p.website ? `<a class="btn ghost sm" href="${esc(p.website)}" target="_blank" rel="noopener nofollow">Website</a>` : ''}${p.mapsUrl ? `<a class="btn ghost sm" href="${esc(p.mapsUrl)}" target="_blank" rel="noopener">Map</a>` : ''}` : '';
+  return `<article class="offer gplace"><div class="offer-top"><div class="co">${logoHtml(p)}<div class="co-t"><b>${esc(p.company)}</b><span>${rating}</span>${p.area ? `<span class="muted" style="font-size:13px">${esc(p.area)}</span>` : ''}</div></div></div>
+    <div class="acts">${wa}${tel}${more}</div></article>`;
+}
+function fwdHtml() {
+  if (!S.fwd) return '';
+  const cols = S.fwd.map((g) => `<section class="fr-fwd-col"><h3>Freight forwarders in ${esc(g.label)}</h3>
+    ${g.busy ? '<p class="muted" style="margin:0">Finding companies…</p>' : g.places.length ? `<div class="list">${g.places.map(fwdCard).join('')}</div>`
+      : `<p class="muted" style="margin:0">${g.error ? esc(g.error) : 'No companies listed here yet.'}</p>`}</section>`).join('');
+  if (S.fwd.every((g) => !g.busy && !g.places.length && !g.error)) return '';
+  return `<div class="fr-fwd">${cols}</div>
+    <div class="fr-fwd-foot"><span class="g-attr">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></span>
+      ${S.me ? '<span class="muted">WhatsApp opens with your shipment details already written.</span>' : `<span class="muted">Full numbers and WhatsApp are free for members. <a href="/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}">Sign up free</a></span>`}</div>`;
+}
+async function loadForwarders() {
+  const wanted = fwdPlaces();
+  S.fwd = wanted.map((w) => ({ ...w, busy: true, places: [], error: null }));
+  render();
+  await Promise.all(S.fwd.map(async (g) => {
+    try {
+      const r = await api(`/api/freight/forwarders?${new URLSearchParams({ place: g.label, country: g.country })}`);
+      if (!r.enabled) { S.fwd = null; return; }
+      g.places = r.places; g.error = r.error || null;
+    } catch (e) { g.error = e.message; }
+    g.busy = false;
+  }));
+  render();
+}
+
 function render() {
   root.className = 'wrap';
   root.innerHTML = `<div class="steps-head"><h1>Compare freight rates</h1><span class="muted">Air, sea and road · free estimates in seconds</span></div>
-    <div class="fr-cols">${formHtml()}${resultsHtml()}</div>`;
+    <div class="fr-cols">${formHtml()}${resultsHtml()}</div>${fwdHtml()}`;
 }
 
 async function go() {
@@ -159,6 +208,7 @@ async function go() {
   } catch (e) { S.res = null; S.err = e.message; }
   S.busy = false; render();
   document.querySelector('.fr-res')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (S.res) loadForwarders();
 }
 
 root.addEventListener('input', (e) => {
@@ -181,6 +231,6 @@ root.addEventListener('click', (e) => {
 });
 
 document.getElementById('top').insertAdjacentHTML('beforeend', '<a class="toplink" href="/login">Sign in</a>');
-api('/api/me').then((me) => { const a = document.querySelector('#top .toplink'); if (a && me) { a.href = '/app'; a.textContent = 'My account'; } }).catch(() => {});
+api('/api/me').then((me) => { S.me = me; const a = document.querySelector('#top .toplink'); if (a && me) { a.href = '/app'; a.textContent = 'My account'; } if (S.fwd) render(); }).catch(() => {});
 render();
 if (qs.get('kg') || qs.get('box')) go();

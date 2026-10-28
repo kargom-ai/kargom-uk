@@ -18,13 +18,16 @@ const TTL = 3600_000;
 
 export const placesEnabled = () => Boolean(process.env.GOOGLE_PLACES_API_KEY);
 
-export async function nearbyOnGoogle(kind: string, near: { label: string; lat: number; lng: number } | { label: string; lat?: undefined; lng?: undefined }, f: typeof fetch = fetch): Promise<GooglePlace[]> {
+export async function nearbyOnGoogle(kind: string, near: { label: string; lat: number; lng: number } | { label: string; lat?: undefined; lng?: undefined }, f: typeof fetch = fetch,
+  opts: { query?: string; region?: string } = {}): Promise<GooglePlace[]> {
   const key = process.env.GOOGLE_PLACES_API_KEY;
   if (!key) return [];
-  const ck = `${kind}|${near.label}`.toUpperCase();
+  const ck = `${kind}|${near.label}|${opts.query ?? ''}|${opts.region ?? ''}`.toUpperCase();
   const hit = cache.get(ck);
   if (hit && Date.now() - hit.at < TTL) return hit.v;
-  const body: Record<string, unknown> = { textQuery: `${QUERY[kind] ?? QUERY.removals} near ${near.label}, UK`, regionCode: 'GB', languageCode: 'en-GB', pageSize: 10 };
+  const body: Record<string, unknown> = opts.query
+    ? { textQuery: opts.query, ...(opts.region ? { regionCode: opts.region } : {}), languageCode: 'en', pageSize: 10 }
+    : { textQuery: `${QUERY[kind] ?? QUERY.removals} near ${near.label}, UK`, regionCode: 'GB', languageCode: 'en-GB', pageSize: 10 };
   if (near.lat !== undefined) body.locationBias = { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 30000 } };
   const r = await f('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': FIELDS }, body: JSON.stringify(body), signal: AbortSignal.timeout(8000),
@@ -82,4 +85,9 @@ export async function placeLogo(placeId: string, f: typeof fetch = fetch): Promi
   logos.set(placeId, out);
   if (logos.size > 3000) logos.delete(logos.keys().next().value!);
   return out;
+}
+
+/** Freight forwarders in a city or country anywhere (e.g. "Shenzhen, China"), for the freight page. */
+export function forwardersOnGoogle(place: string, country: string, f: typeof fetch = fetch) {
+  return nearbyOnGoogle('forwarder', { label: place }, f, { query: `freight forwarder in ${place}`, region: country.toLowerCase() === 'je' ? 'gb' : country.toLowerCase() });
 }
