@@ -170,3 +170,10 @@ textarea.inp { min-height: 96px; padding: 10px 12px; resize: vertical; line-heig
 @media (max-width: 760px) { body[data-page="quote"] .m-side > a.m-quote { display: none !important; } .m-main > #root { padding: 0 !important; } }
 .noff { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; border-radius: 14px; background: #FFFFFF; border: 1px dashed #C9D6EA; color: #3E4A5C; font-size: 14px; }
 .noff b { font: 600 18px 'Outfit', sans-serif; color: #1F2A3C; }
+.g-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.g-attr { font-size: 12px; color: #586579; display: inline-flex; align-items: center; gap: 6px; }
+.g-logo { font: 600 15px 'Plus Jakarta Sans', Arial, sans-serif; letter-spacing: -.2px; }
+.g-logo i { font-style: normal; }
+.g-logo i:nth-child(1), .g-logo i:nth-child(4) { color: #4285F4; } .g-logo i:nth-child(2), .g-logo i:nth-child(6) { color: #EA4335; }
+.g-logo i:nth-child(3) { color: #FBBC05; } .g-logo i:nth-child(5) { color: #34A853; }
+.gplace { background: #FCFDFE; }

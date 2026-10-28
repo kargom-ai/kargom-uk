@@ -4,6 +4,7 @@ import { AppError } from '../core/errors.ts';
 import { newId } from '../core/ids.ts';
 import type { AuthService } from '../auth/auth.ts';
 import { haversineMiles, outcodeCoords } from './route.ts';
+import { nearbyOnGoogle, placesEnabled } from './places.ts';
 
 /**
  * Moving & road-freight requests.
@@ -360,6 +361,41 @@ export class Market {
       out.push({ ...prof, reviews: prof.reviews.slice(0, 3), milesAway: miles });
     }
     return { near: j.from_area, partners: out };
+  }
+
+  /** Companies on Google near the start of the job that are not on Kargom yet. */
+  async googleNearby(customerId: string, jobId: string, f?: typeof fetch) {
+    const j = await this.ownJob(customerId, jobId);
+    if (!placesEnabled()) return { enabled: false, places: [], invited: [] };
+    const from = JSON.parse(j.from_addr) as Addr;
+    const oc = from.country === 'GB' ? outward(from.postcode) : '';
+    const c = oc ? await outcodeCoords(oc, f) : null;
+    const label = oc ? `${from.city} ${oc}` : `${from.city} ${from.postcode}`;
+    let places: Awaited<ReturnType<typeof nearbyOnGoogle>> = [];
+    try { places = await nearbyOnGoogle(j.kind, c ? { label, lat: c.lat, lng: c.lng } : { label }, f); } catch (e) { console.warn(`[places] ${(e as Error).message}`); }
+    const ours = new Set((await this.db.all<{ company: string }>('SELECT company FROM partners')).map((p) => p.company.toLowerCase().replace(/\W+/g, '')));
+    const invited = (await this.db.all<{ place_id: string }>('SELECT place_id FROM partner_invites WHERE job_id = $1', [j.id])).map((r) => r.place_id);
+    return { enabled: true, places: places.filter((p) => !ours.has(p.name.toLowerCase().replace(/\W+/g, ''))), invited };
+  }
+
+  /** The customer asks us to invite a company they saw on Google. We record it and tell the Kargom team. */
+  async invite(customerId: string, jobId: string, v: Record<string, unknown>) {
+    const j = await this.ownJob(customerId, jobId);
+    const placeId = s(v.placeId, 300), name = s(v.name, 160);
+    if (!placeId || !name) throw new AppError('bad_request', 'Choose a company to invite');
+    try {
+      await this.db.run('INSERT INTO partner_invites (id, job_id, customer_id, place_id, name, website, area, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [newId('inv'), j.id, customerId, placeId, name, s(v.website, 300) || null, s(v.address, 200) || null, this.now()]);
+    } catch { return { ok: true, already: true }; }
+    for (const to of (process.env.ADMIN_EMAILS ?? '').split(',').map((x) => x.trim()).filter(Boolean)) {
+      this.send(to, `Partner lead: ${name}`, 'A customer wants this company on Kargom',
+        [`${name}${v.address ? `, ${s(v.address, 200)}` : ''}`, `${s(v.website, 300) || 'No website listed'}`, `For request #${j.ref}: ${j.title}, ${j.from_area} → ${j.to_area}, on ${j.move_date}.`]);
+    }
+    return { ok: true };
+  }
+
+  async adminInvites() {
+    return this.db.all('SELECT i.name, i.website, i.area, i.created_at, j.ref, j.title, j.from_area FROM partner_invites i JOIN jobs j ON j.id = i.job_id ORDER BY i.created_at DESC LIMIT 500');
   }
 
   /* ---------------- partner: find work, send offers ---------------- */

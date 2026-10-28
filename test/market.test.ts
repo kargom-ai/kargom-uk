@@ -97,6 +97,35 @@ test('market: customers see companies based nearest to the start of their move',
   assert.ok(near.partners[0]!.milesAway! < 5 && near.partners[1]!.milesAway! > 100);
 });
 
+test('market: companies from Google appear when there are no offers, and customers can invite them', async () => {
+  const { app } = await makeApp();
+  const m = app.market;
+  process.env.GOOGLE_PLACES_API_KEY = 'test-key';
+  let asked: Record<string, any> | null = null;
+  const fake = (async (url: string, init?: RequestInit) => {
+    if (String(url).includes('postcodes.io')) return new Response(JSON.stringify({ result: { latitude: 53.48, longitude: -2.24 } }));
+    asked = { url, headers: init?.headers, body: JSON.parse(String(init?.body)) };
+    return new Response(JSON.stringify({ places: [
+      { id: 'p1', displayName: { text: 'Best Movers Manchester' }, formattedAddress: '5 Road, Manchester M4 1AA, UK', rating: 4.8, userRatingCount: 212, websiteUri: 'https://best.example', nationalPhoneNumber: '0161 234 5678', location: { latitude: 53.49, longitude: -2.23 } },
+      { id: 'p2', displayName: { text: 'Kargom Partner Co' }, formattedAddress: 'x', location: { latitude: 53.5, longitude: -2.2 } },
+      { id: 'p3', displayName: { text: 'Gone Ltd' }, businessStatus: 'CLOSED_PERMANENTLY' },
+    ] }));
+  }) as typeof fetch;
+  try {
+    const customer = await app.auth.register({ email: 'g@example.com', password: 'correct-horse-1', name: 'Gee Bee', accountType: 'personal' });
+    await m.registerPartner({ email: 'k@p.co.uk', password: 'correct-horse-1', name: 'K', company: 'Kargom Partner Co', phone: '0161 000 0000', kind: 'removals' });
+    const job = await m.createJob(customer, { kind: 'removals', from: home('1 High St', 'Manchester', 'M1 1AE'), to: home('2 Park Rd', 'Leeds', 'LS1 5HD'), date: tomorrow(), phone: '07700 900123', details: { moveType: 'home', size: '1' } });
+    const g = await m.googleNearby(customer, job.id, fake);
+    assert.equal(asked!.body.textQuery, 'removal company near Manchester M1, UK');
+    assert.deepEqual(g.places.map((p) => p.name), ['Best Movers Manchester'], 'partners and closed businesses are left out');
+    assert.equal(g.places[0]!.milesAway, 1);
+    assert.equal(g.places[0]!.phone, '0161 234 5678');
+    await m.invite(customer, job.id, { placeId: 'p1', name: 'Best Movers Manchester', website: 'https://best.example' });
+    assert.equal((await m.invite(customer, job.id, { placeId: 'p1', name: 'Best Movers Manchester' })).already, true);
+    assert.deepEqual((await m.googleNearby(customer, job.id, fake)).invited, ['p1']);
+  } finally { delete process.env.GOOGLE_PLACES_API_KEY; }
+});
+
 test('market: straight-line distance is sensible', () => {
   const manchester = { lat: 53.4808, lng: -2.2426 }, leeds = { lat: 53.8008, lng: -1.5491 };
   const miles = haversineMiles(manchester, leeds);

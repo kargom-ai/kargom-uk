@@ -292,6 +292,9 @@ export function buildRouter(app: App) {
   on('GET', '/api/jobs', 'customer', async (c) => ({ jobs: await app.market.listJobs(me(c)) }));
   on('GET', '/api/jobs/:id', 'customer', async (c) => app.market.customerJob(me(c), c.params.id!));
   on('GET', '/api/jobs/:id/partners', 'customer', async (c) => app.market.nearbyPartners(me(c), c.params.id!));
+  on('GET', '/api/jobs/:id/google', 'customer', async (c) => { marketLimiter.check(me(c)); return app.market.googleNearby(me(c), c.params.id!); });
+  on('POST', '/api/jobs/:id/invite', 'customer', async (c) => app.market.invite(me(c), c.params.id!, c.body));
+  on('GET', '/api/admin/partner-invites', 'admin', async () => ({ invites: await app.market.adminInvites() }));
   on('POST', '/api/jobs/:id/cancel', 'customer', async (c) => app.market.cancelJob(me(c), c.params.id!));
   on('POST', '/api/jobs/:id/offers/:offer/accept', 'customer', async (c) => app.market.acceptOffer(me(c), c.params.id!, c.params.offer!));
   on('POST', '/api/jobs/:id/review', 'customer', async (c) => app.market.review(me(c), c.params.id!, c.body.rating, c.body.comment));

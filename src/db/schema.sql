@@ -254,3 +254,16 @@ CREATE TABLE IF NOT EXISTS partner_reviews (
   created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS partner_reviews_partner ON partner_reviews(partner_id, created_at);
+
+-- Customers asking us to bring a company they found on Google onto Kargom (partner leads).
+CREATE TABLE IF NOT EXISTS partner_invites (
+  id          TEXT PRIMARY KEY,
+  job_id      TEXT NOT NULL REFERENCES jobs(id),
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  place_id    TEXT NOT NULL,                  -- Google place ID (allowed to keep)
+  name        TEXT NOT NULL,
+  website     TEXT,
+  area        TEXT,
+  created_at  TEXT NOT NULL,
+  UNIQUE (job_id, place_id)
+);

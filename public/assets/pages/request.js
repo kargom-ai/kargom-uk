@@ -46,18 +46,35 @@ function noOffersHtml(j) {
     : !near.partners.length ? `<p class="muted" style="margin:0">No ${who} have joined near ${esc(j.fromArea)} yet. Your request is still open to every ${j.kind === 'removals' ? 'removal company' : 'haulier'} on Kargom.</p>`
     : near.partners.map((p) => `<article class="offer">
         <div class="offer-top"><div class="co">${logoHtml(p)}<div class="co-t"><b>${esc(p.company)}</b><span>${ratingHtml(p)}</span>
-          <span class="muted" style="font-size:13px">${p.basedIn ? `Based in ${esc(p.basedIn)}` : 'UK'}${p.milesAway !== null && p.milesAway !== undefined ? ` · ${p.milesAway} miles from you` : ''}${p.jobsWon ? ` · ${p.jobsWon} job${p.jobsWon > 1 ? 's' : ''} won` : ''}</span></div></div></div>
+          <span class="muted" style="font-size:13px">${p.basedIn ? `Based in ${esc(p.basedIn)}` : 'UK'}${p.milesAway !== null && p.milesAway !== undefined ? ` · ${p.milesAway} mile${p.milesAway === 1 ? '' : 's'} from you` : ''}${p.jobsWon ? ` · ${p.jobsWon} job${p.jobsWon > 1 ? 's' : ''} won` : ''}</span></div></div></div>
         ${p.areas ? `<span class="muted" style="font-size:14px">Covers: ${esc(p.areas)}</span>` : ''}
         <div class="acts"><a class="btn ghost" href="tel:${esc(p.phone.replace(/[^\d+]/g, ''))}">📞 ${esc(p.phone)}</a><button type="button" class="btn ghost" data-near="${esc(p.id)}">Profile and reviews</button></div>
       </article>`).join('');
+  const g = S.google;
+  const gHtml = !g || !g.enabled || !g.places.length ? '' : `<div class="g-head"><h3 style="margin:0;font-size:18px">Other companies near you</h3><span class="g-attr">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></span></div>
+    <p class="muted" style="margin:0;font-size:14px">These companies are not on Kargom yet, so they cannot send you an offer here. You can call them directly.</p>
+    ${g.places.map((p) => `<article class="offer gplace">
+      <div class="offer-top"><div class="co">${logoHtml({ company: p.name })}<div class="co-t"><b>${esc(p.name)}</b>
+        <span>${p.rating ? `${stars(p.rating)}<span class="stars-n">${p.rating.toFixed(1)} · ${p.reviews} Google review${p.reviews === 1 ? '' : 's'}</span>` : '<span class="stars-n">No Google reviews yet</span>'}</span>
+        <span class="muted" style="font-size:13px">${esc(p.address)}${p.milesAway !== null ? ` · ${p.milesAway} mile${p.milesAway === 1 ? '' : 's'} from you` : ''}</span></div></div>
+        <span class="badge cancelled">Not on Kargom yet</span></div>
+      <div class="acts">${p.phone ? `<a class="btn ghost" href="tel:${esc(p.phone.replace(/[^\d+]/g, ''))}">📞 ${esc(p.phone)}</a>` : ''}
+        ${p.website ? `<a class="btn ghost" href="${esc(p.website)}" target="_blank" rel="noopener nofollow">Website</a>` : ''}
+        ${p.mapsUrl ? `<a class="btn ghost" href="${esc(p.mapsUrl)}" target="_blank" rel="noopener nofollow">View on Google Maps</a>` : ''}</div>
+    </article>`).join('')}`;
   return `<div class="noff"><b>No offers yet</b><span>Your request has gone to ${who} on Kargom. Each offer appears here and in your email.</span></div>
     <h3 style="margin:8px 0 0;font-size:18px">${j.kind === 'removals' ? 'Removal companies' : 'Hauliers'} near ${esc(j.fromArea)}</h3>
-    ${list}`;
+    ${list}
+    ${gHtml}`;
 }
 async function loadNear() {
   if (S.near || S.nearBusy) return;
   S.nearBusy = true;
-  try { S.near = await api(`/api/jobs/${S.job.id}/partners`); } catch { S.near = { near: S.job.fromArea, partners: [] }; }
+  const [near, google] = await Promise.all([
+    api(`/api/jobs/${S.job.id}/partners`).catch(() => ({ near: S.job.fromArea, partners: [] })),
+    api(`/api/jobs/${S.job.id}/google`).catch(() => null),
+  ]);
+  S.near = near; S.google = google;
   S.nearBusy = false;
   if (S.tab === 'offers') jobView();
 }
@@ -106,10 +123,16 @@ function jobView() {
 }
 
 root.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-tab],[data-profile],[data-near],[data-accept],[data-cancel],[data-star],[data-review]');
+  const t = e.target.closest('[data-tab],[data-profile],[data-near],[data-invite],[data-accept],[data-cancel],[data-star],[data-review]');
   if (!t || S.busy) return;
   const j = S.job;
   if (t.dataset.tab) { S.tab = t.dataset.tab; jobView(); if (S.tab === 'offers' && !S.job.offers.length) loadNear(); return; }
+  if (t.dataset.invite) {
+    const p = S.google?.places.find((x) => x.placeId === t.dataset.invite);
+    if (!p) return;
+    try { await api(`/api/jobs/${S.job.id}/invite`, { method: 'POST', body: { placeId: p.placeId, name: p.name, website: p.website, address: p.address } }); S.google.invited.push(p.placeId); jobView(); toast(`Thanks. We will invite ${p.name} to quote.`); } catch (err) { toast(err.message); }
+    return;
+  }
   if (t.dataset.near) { const p = S.near?.partners.find((x) => x.id === t.dataset.near); if (p) profileDrawer(p); return; }
   if (t.dataset.profile) { const o = j.offers.find((x) => x.id === t.dataset.profile); if (o) profileDrawer(o.partner); return; }
   if (t.dataset.star) { S.rating = Number(t.dataset.star); const txt = document.getElementById('rv')?.value; jobView(); if (txt) document.getElementById('rv').value = txt; return; }
