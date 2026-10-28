@@ -53,7 +53,7 @@ export function estimatePrice(kind: string, d: Record<string, any>, miles: numbe
     if (LONDON.test(fromPostcode.toUpperCase()) || LONDON.test(toPostcode.toUpperCase())) mid *= 1.15;
     return { lowPence: round10(mid * 0.8) * 100, highPence: round10(mid * 1.25) * 100, basis: 'UK average removal prices for this size and distance' };
   }
-  if (!miles) return null;
+  if (!miles || d.load === 'air' || d.load === 'sea') return null;
   if (d.load === 'ftl') {
     const t = TRUCK[d.vehicle] ?? TRUCK['18t']!;
     mid = Math.max(t.min, 60 + miles * t.perMile);

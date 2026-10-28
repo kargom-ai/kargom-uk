@@ -30,7 +30,9 @@ type Offer = { id: string; job_id: string; partner_id: string; price_pence: numb
 export type Notice = (to: string, subject: string, heading: string, lines: string[], link?: { href: string; text: string }) => Promise<unknown>;
 
 const KINDS: Kind[] = ['removals', 'freight'];
-const COUNTRIES = ['GB', 'IE', 'FR', 'DE', 'NL', 'BE', 'ES', 'IT', 'PL', 'PT', 'AT', 'DK', 'SE', 'CZ'];
+const COUNTRIES = ['GB', 'IE', 'FR', 'DE', 'NL', 'BE', 'ES', 'IT', 'PL', 'PT', 'AT', 'DK', 'SE', 'CZ', 'CH', 'GR',
+  'US', 'CN', 'HK', 'TW', 'VN', 'IN', 'BD', 'PK', 'TR', 'AE', 'SA', 'JP', 'KR', 'SG', 'TH', 'MY', 'ID', 'CA', 'MX', 'BR', 'AU', 'NZ', 'ZA', 'NG'];
+const NO_POSTCODE = ['HK', 'AE', 'SA', 'NG'];
 const MAX_PHOTOS = 4;
 const MAX_PHOTO_CHARS = 420_000;   // ~300 KB JPEG as base64
 const MAX_LOGO_CHARS = 200_000;
@@ -70,7 +72,7 @@ function address(v: unknown, who: string): Addr {
   if (out.line1.length < 2) throw new AppError('bad_request', `Enter the first line of the ${who} address`);
   if (out.city.length < 2) throw new AppError('bad_request', `Enter the town or city for the ${who} address`);
   if (out.country === 'GB' && !/^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/.test(out.postcode)) throw new AppError('bad_request', `Enter a full UK postcode for the ${who} address`);
-  if (out.country !== 'GB' && out.postcode.length < 3) throw new AppError('bad_request', `Enter the postcode for the ${who} address`);
+  if (out.country !== 'GB' && !NO_POSTCODE.includes(out.country) && out.postcode.length < 3) throw new AppError('bad_request', `Enter the postcode for the ${who} address`);
   return out;
 }
 
@@ -99,9 +101,27 @@ export function cleanDetails(kind: Kind, d: Record<string, unknown>) {
       : moveType === 'office' ? `${SIZE_LABEL[size]} move` : size === 'studio' ? 'Studio flat move' : `${SIZE_LABEL[size]} home move`;
     return { details, title };
   }
-  const load = oneOf(d.load, ['ftl', 'ltl'] as const);
+  const load = oneOf(d.load, ['ftl', 'ltl', 'air', 'sea'] as const);
   const goods = s(d.goods, 200);
   if (goods.length < 3) throw new AppError('bad_request', 'Describe the goods (at least 3 characters)');
+  if (load === 'air' || load === 'sea') {
+    const shipUnit = oneOf(d.shipUnit, ['boxes', 'pallets', 'container20', 'container40', 'container40HC'] as const, load === 'sea' ? 'container20' : 'boxes');
+    const container = shipUnit.startsWith('container');
+    if (load === 'air' && container) throw new AppError('bad_request', 'Containers go by sea. Choose boxes or pallets for air freight');
+    const units = Math.round(n(d.units) || 1);
+    if (!(units >= 1 && units <= 500)) throw new AppError('bad_request', 'Enter how many (1 to 500)');
+    const weightKg = Math.round(n(d.weightKg));
+    if (!container && !(weightKg > 0 && weightKg <= 100_000)) throw new AppError('bad_request', 'Enter the total weight in kg');
+    const cbm = Math.round(n(d.cbm) * 100) / 100;
+    const details = {
+      load, goods, shipUnit, units, weightKg: weightKg > 0 ? weightKg : 0, cbm: cbm > 0 && cbm < 1000 ? cbm : 0,
+      destType: oneOf(d.destType, ['business', 'home', 'amazon', 'tiktok'] as const, 'business'), fbaCode: s(d.fbaCode, 40),
+      stackable: b(d.stackable), adr: b(d.adr), tempControlled: b(d.tempControlled), notes: s(d.notes, 1000),
+    };
+    const UNIT: Record<string, [string, string]> = { boxes: ['box', 'boxes'], pallets: ['pallet', 'pallets'], container20: ['20 ft container', '20 ft containers'], container40: ['40 ft container', '40 ft containers'], container40HC: ['40 ft High Cube', '40 ft High Cubes'] };
+    const title = `${load === 'air' ? 'Air' : 'Sea'} freight · ${units} ${UNIT[shipUnit]![units > 1 ? 1 : 0]}`;
+    return { details, title };
+  }
   const weightKg = Math.round(n(d.weightKg));
   if (!(weightKg > 0 && weightKg <= 44_000)) throw new AppError('bad_request', 'Enter the total weight in kg (up to 44,000)');
   const vehicle = load === 'ftl' ? oneOf(d.vehicle, ['van', '7.5t', '18t', '26t', 'artic'] as const) : '';

@@ -16,6 +16,7 @@ import { AddressLookup } from '../address/lookup.ts';
 import { GuestCheckout } from '../guest/guest.ts';
 import { routeInfo } from '../market/route.ts';
 import { placeLogo } from '../market/places.ts';
+import { freightRates, parseFreightQuery } from '../freight/freightos.ts';
 
 type Ctx = {
   req: IncomingMessage;
@@ -303,6 +304,8 @@ export function buildRouter(app: App) {
   on('GET', '/r/:token', 'public', async (c) => sendPdf(c, await app.market.sharedPdf(c.params.token!.replace(/\.pdf$/, '')), false));
   const publicLimiter = new RateLimiter(15, 60_000);
   on('GET', '/api/public/movers', 'public', async (c) => { publicLimiter.check(ip(c)); return app.market.publicNearby(c.query.get('from'), c.query.get('kind') ?? 'removals', undefined, c.query.get('to'), c.query.get('size')); });
+  const freightLimiter = new RateLimiter(12, 60_000);
+  on('GET', '/api/freight/rates', 'public', async (c) => { freightLimiter.check(ip(c)); return freightRates(parseFreightQuery(c.query)); });
   on('GET', '/api/gplace/:id/logo', 'public', async (c) => {
     const img = await placeLogo(c.params.id!);
     if (!img) throw new AppError('not_found', 'No logo');

@@ -208,3 +208,36 @@ textarea.inp { min-height: 96px; padding: 10px 12px; resize: vertical; line-heig
 .est-l { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #15803D; }
 .est b { font: 700 26px 'Outfit', sans-serif; color: #14532D; }
 .est-n { font-size: 12.5px; color: #3E4A5C; line-height: 1.45; }
+
+/* compare freight rates */
+.fr-cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; margin-top: 16px; }
+.fr-form { display: flex; flex-direction: column; gap: 18px; }
+.fr-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.fr-side, .fr-what { display: flex; flex-direction: column; gap: 10px; }
+.fr-dims { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) repeat(3, minmax(0, .8fr)); gap: 10px; align-items: end; }
+.fr-tot { font-size: 13px; min-height: 18px; }
+.fr-form .chip svg { width: 16px; height: 16px; }
+.fr-res { display: flex; flex-direction: column; gap: 12px; }
+.fr-tips .tip { display: flex; gap: 12px; align-items: flex-start; font-size: 13px; color: #586579; line-height: 1.45; }
+.fr-tips .tip b { display: block; font-size: 14px; color: #1F2A3C; }
+.fr-tips .tip .ic { flex: none; width: 38px; height: 38px; border-radius: 10px; background: #EAF2FE; color: #2463DB; display: grid; place-items: center; }
+.fr-ic { width: 48px; height: 48px; }
+.fr-price { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; margin-left: auto; text-align: right; }
+.fr-price b { font: 700 22px 'Outfit', sans-serif; white-space: nowrap; }
+.fr-price .muted { font-size: 13px; }
+.fr-rate .acts { display: flex; justify-content: flex-end; }
+.ldr { display: flex; gap: 12px; align-items: center; }
+.ldr > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+@media (max-width: 900px) {
+  .fr-cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .fr-row { grid-template-columns: minmax(0, 1fr); }
+  .fr-dims { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fr-dims .fld:nth-child(n+3) { grid-column: span 1; }
+  .fr-dims { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .fr-dims .fld:nth-child(-n+2) { grid-column: span 3; }
+  .fr-dims .fld:nth-child(n+3) { grid-column: span 2; }
+  .fr-price { align-items: flex-start; margin-left: 0; text-align: left; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .fr-rate .acts .btn { width: 100%; }
+}

@@ -17,10 +17,11 @@ const S = {
   d: {
     moveType: 'home', itemsText: '', size: ['studio', '1', '2', '3', '4', '5'].includes(qs.get('size')) ? qs.get('size') : '', items: [], packing: false, dismantling: false, storage: false,
     fromPlace: { floor: 'ground', lift: false, parking: 'easy' }, toPlace: { floor: 'ground', lift: false, parking: 'easy' }, dateFlex: 'exact',
-    load: 'ftl', vehicle: '', pallets: '', palletType: 'uk', goods: '', weightKg: '', stackable: false, adr: false, tempControlled: false,
+    load: ['ftl', 'ltl', 'air', 'sea'].includes(qs.get('load')) ? qs.get('load') : 'ftl', vehicle: '', pallets: qs.get('pallets') || '', palletType: 'uk', goods: '', weightKg: qs.get('weightKg') || '', stackable: false,
+    shipUnit: qs.get('load') === 'sea' ? 'container20' : 'boxes', units: qs.get('pallets') || '1', cbm: '', destType: 'business', fbaCode: '', adr: false, tempControlled: false,
     tailLiftCollection: false, tailLiftDelivery: false, collectWindow: 'any', deliverBy: '', notes: '',
   },
-  from: { ...blankAddr(), postcode: (qs.get('from') || '').toUpperCase() }, to: { ...blankAddr(), postcode: (qs.get('to') || '').toUpperCase() },
+  from: { ...blankAddr(), postcode: (qs.get('from') || '').toUpperCase(), country: qs.get('fromCountry') || 'GB' }, to: { ...blankAddr(), postcode: (qs.get('to') || '').toUpperCase(), country: qs.get('toCountry') || 'GB' },
   date: '', phone: '', photos: [], route: null,
   lk: { from: { items: [], msg: '', busy: false, pc: '' }, to: { items: [], msg: '', busy: false, pc: '' } },
 };
@@ -94,34 +95,47 @@ const removalSteps = () => [
   },
 ];
 
+const intl = () => S.d.load === 'air' || S.d.load === 'sea';
+const loadSum = () => (S.d.load === 'ftl' ? `FTL · ${L.vehicle[S.d.vehicle] || ''}` : S.d.load === 'ltl' ? `LTL · ${S.d.pallets || '?'} pallets`
+  : `${L.load[S.d.load]} · ${S.d.units || 1} × ${L.shipUnit[S.d.shipUnit]}`);
 const freightSteps = () => [
   {
-    t: 'Your load', sum: () => [S.d.load === 'ftl' ? `FTL · ${L.vehicle[S.d.vehicle] || ''}` : `LTL · ${S.d.pallets || '?'} pallets`, S.d.weightKg && `${S.d.weightKg} kg`].filter(Boolean).join(' · '),
+    t: 'Your load', sum: () => [loadSum(), S.d.weightKg && `${S.d.weightKg} kg`].filter(Boolean).join(' · '),
     body: () => `<div class="tiles sm">
       <button type="button" class="tile" data-set="d.load" data-v="ftl" aria-pressed="${S.d.load === 'ftl'}"><b>Full truck load (FTL)</b><span>A whole vehicle just for your goods</span></button>
-      <button type="button" class="tile" data-set="d.load" data-v="ltl" aria-pressed="${S.d.load === 'ltl'}"><b>Part load (LTL)</b><span>Pallets sharing a lorry: cheaper</span></button></div>
-      ${S.d.load === 'ftl' ? `<div><span class="lbl">Vehicle</span>${chips('d.vehicle', L.vehicle, S.d.vehicle)}</div>`
+      <button type="button" class="tile" data-set="d.load" data-v="ltl" aria-pressed="${S.d.load === 'ltl'}"><b>Part load (LTL)</b><span>Pallets sharing a lorry: cheaper</span></button>
+      <button type="button" class="tile" data-set="d.load" data-v="air" aria-pressed="${S.d.load === 'air'}"><b>Air freight</b><span>Fast, for boxes and pallets worldwide</span></button>
+      <button type="button" class="tile" data-set="d.load" data-v="sea" aria-pressed="${S.d.load === 'sea'}"><b>Sea freight</b><span>Containers or shared container (LCL)</span></button></div>
+      ${intl() ? `<div><span class="lbl">What are you shipping?</span>${chips('d.shipUnit', Object.entries(L.shipUnit).filter(([k]) => S.d.load === 'sea' || !k.startsWith('container')), S.d.shipUnit)}</div>
+        <div class="row"><label class="fld">How many? <i>*</i><input class="inp" type="number" min="1" inputmode="numeric" data-k="d.units" value="${esc(S.d.units)}"></label>
+          <label class="fld">Total volume (m³) <em>(optional)</em><input class="inp" inputmode="decimal" data-k="d.cbm" value="${esc(S.d.cbm)}" placeholder="e.g. 2.5"></label></div>`
+      : S.d.load === 'ftl' ? `<div><span class="lbl">Vehicle</span>${chips('d.vehicle', L.vehicle, S.d.vehicle)}</div>`
         : `<div class="row"><label class="fld">Number of pallets <i>*</i><input class="inp" type="number" min="1" max="26" inputmode="numeric" data-k="d.pallets" value="${esc(S.d.pallets)}"></label></div>
            <div><span class="lbl">Pallet size</span>${chips('d.palletType', L.palletType, S.d.palletType)}</div>`}
-      <div class="row"><label class="fld" style="flex:2 1 260px">What are the goods? <i>*</i><input class="inp" data-k="d.goods" value="${esc(S.d.goods)}" placeholder="e.g. boxed books, machine parts"></label>
-        <label class="fld">Total weight (kg) <i>*</i><input class="inp" type="number" min="1" inputmode="numeric" data-k="d.weightKg" value="${esc(S.d.weightKg)}"></label></div>
-      <div class="toggles">${sw('d.stackable', 'Stackable', S.d.stackable)}${sw('d.adr', 'Hazardous goods (ADR)', S.d.adr)}${sw('d.tempControlled', 'Needs temperature control', S.d.tempControlled)}</div>`,
+      <div class="row"><label class="fld" style="flex:2 1 260px">What are the goods? <i>*</i><input class="inp" data-k="d.goods" value="${esc(S.d.goods)}" placeholder="${intl() ? 'e.g. phone cases, cotton t-shirts' : 'e.g. boxed books, machine parts'}"></label>
+        <label class="fld">Total weight (kg) ${intl() && String(S.d.shipUnit).startsWith('container') ? '<em>(optional)</em>' : '<i>*</i>'}<input class="inp" type="number" min="1" inputmode="numeric" data-k="d.weightKg" value="${esc(S.d.weightKg)}"></label></div>
+      <div class="toggles">${sw('d.stackable', 'Stackable', S.d.stackable)}${sw('d.adr', intl() ? 'Hazardous goods (batteries, liquids…)' : 'Hazardous goods (ADR)', S.d.adr)}${sw('d.tempControlled', 'Needs temperature control', S.d.tempControlled)}</div>`,
     check: () => (S.d.load === 'ftl' && !S.d.vehicle ? 'Choose a vehicle' : S.d.load === 'ltl' && !(Number(S.d.pallets) >= 1) ? 'Enter the number of pallets'
-      : String(S.d.goods).trim().length < 3 ? 'Describe the goods' : !(Number(S.d.weightKg) > 0) ? 'Enter the total weight' : ''),
+      : intl() && !(Number(S.d.units) >= 1) ? 'Enter how many'
+      : intl() && S.d.load === 'air' && String(S.d.shipUnit).startsWith('container') ? 'Containers go by sea. Choose boxes or pallets'
+      : String(S.d.goods).trim().length < 3 ? 'Describe the goods'
+      : !(Number(S.d.weightKg) > 0) && !(intl() && String(S.d.shipUnit).startsWith('container')) ? 'Enter the total weight' : ''),
   },
   {
     t: 'Collection', sum: () => [addrSum('from'), niceDate(S.date)].filter(Boolean).join(' · '),
     body: () => `${addressFields('from')}
-      <div class="row"><label class="fld">Collection date <i>*</i><input class="inp" type="date" min="${todayIso}" data-k="date" value="${esc(S.date)}"></label></div>
-      <div><span class="lbl">Collection time</span>${chips('d.collectWindow', L.collectWindow, S.d.collectWindow)}</div>
-      <div class="toggles">${sw('d.tailLiftCollection', 'Needs a tail lift (no forklift on site)', S.d.tailLiftCollection)}</div>`,
+      <div class="row"><label class="fld">${intl() ? 'Goods ready on' : 'Collection date'} <i>*</i><input class="inp" type="date" min="${todayIso}" data-k="date" value="${esc(S.date)}"></label></div>
+      ${intl() ? '' : `<div><span class="lbl">Collection time</span>${chips('d.collectWindow', L.collectWindow, S.d.collectWindow)}</div>
+      <div class="toggles">${sw('d.tailLiftCollection', 'Needs a tail lift (no forklift on site)', S.d.tailLiftCollection)}</div>`}`,
     check: () => addrCheck('from', 'collection') || (!S.date ? 'Choose the collection date' : S.date < todayIso ? 'The date is in the past' : ''),
   },
   {
     t: 'Delivery', sum: () => [addrSum('to'), S.d.deliverBy && `by ${niceDate(S.d.deliverBy)}`].filter(Boolean).join(' · '),
-    body: () => `${addressFields('to')}
-      <div class="row"><label class="fld">Deliver by <em>(optional)</em><input class="inp" type="date" min="${S.date || todayIso}" data-k="d.deliverBy" value="${esc(S.d.deliverBy)}"></label></div>
-      <div class="toggles">${sw('d.tailLiftDelivery', 'Needs a tail lift at delivery', S.d.tailLiftDelivery)}</div>`,
+    body: () => `${intl() ? `<div><span class="lbl">Delivering to</span>${chips('d.destType', L.destType, S.d.destType)}</div>
+      ${S.d.destType === 'amazon' || S.d.destType === 'tiktok' ? `<label class="fld">${S.d.destType === 'amazon' ? 'Fulfilment centre code' : 'Warehouse'} <em>(optional)</em><input class="inp up" data-k="d.fbaCode" value="${esc(S.d.fbaCode)}" placeholder="${S.d.destType === 'amazon' ? 'e.g. LTN7 or BHX4' : 'e.g. Rugby'}"></label>` : ''}` : ''}
+      ${addressFields('to')}
+      ${intl() ? '' : `<div class="row"><label class="fld">Deliver by <em>(optional)</em><input class="inp" type="date" min="${S.date || todayIso}" data-k="d.deliverBy" value="${esc(S.d.deliverBy)}"></label></div>
+      <div class="toggles">${sw('d.tailLiftDelivery', 'Needs a tail lift at delivery', S.d.tailLiftDelivery)}</div>`}`,
     check: () => addrCheck('to', 'delivery'),
   },
   {
@@ -135,7 +149,7 @@ const steps = () => [...(S.type === 'removals' ? removalSteps() : freightSteps()
   t: 'Send to companies', sum: () => '',
   body: () => `<label class="fld">Your phone number <i>*</i><input class="inp" type="tel" data-k="phone" value="${esc(S.phone)}" autocomplete="tel" placeholder="07…"></label>
     <div class="noteb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2463DB" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="flex:none;margin-top:2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg>
-    <span>Your request goes to every ${S.type === 'removals' ? 'removal company' : 'road haulier'} on Kargom. They see the area and the details, <b>not</b> your phone number or exact address. You get each offer by email and on your request page, then you choose. Your details are shared only with the company you pick. It is free and you do not have to accept any offer.</span></div>`,
+    <span>Your request goes to every ${S.type === 'removals' ? 'removal company' : intl() ? 'freight forwarder' : 'road haulier'} on Kargom. They see the area and the details, <b>not</b> your phone number or exact address. You get each offer by email and on your request page, then you choose. Your details are shared only with the company you pick. It is free and you do not have to accept any offer.</span></div>`,
   check: () => (String(S.phone).replace(/\D/g, '').length < 7 ? 'Enter your phone number' : ''),
 }];
 
@@ -145,7 +159,7 @@ function addrCheck(w, label) {
   if (String(a.line1).trim().length < 2) return `Enter the first line of the ${label} address`;
   if (String(a.city).trim().length < 2) return `Enter the town or city for the ${label} address`;
   if (a.country === 'GB' && !UK_PC.test(String(a.postcode).trim())) return `Enter a full UK postcode for the ${label} address`;
-  if (a.country !== 'GB' && String(a.postcode).trim().length < 3) return `Enter the postcode for the ${label} address`;
+  if (a.country !== 'GB' && !['HK', 'AE', 'SA', 'NG'].includes(a.country) && String(a.postcode).trim().length < 3) return `Enter the postcode for the ${label} address`;
   return '';
 }
 
@@ -158,7 +172,7 @@ function render() {
     root.innerHTML = `<div class="steps-head"><h1>Get a quote</h1><span class="muted">Free · companies send you prices · you choose</span></div>
       <div class="tiles" style="margin-top:16px">
         <a class="tile" href="?type=removals" data-type="removals"><span class="ic">${ic.home}</span><b>Get a moving quote</b><span>Home or office removals, or just a few big items. Local removal companies send you prices.</span></a>
-        <a class="tile" href="?type=freight" data-type="freight"><span class="ic">${ic.truck}</span><b>Road freight: FTL / LTL</b><span>A full lorry or a few pallets, in the UK and to Europe. Hauliers send you prices.</span></a>
+        <a class="tile" href="?type=freight" data-type="freight"><span class="ic">${ic.truck}</span><b>Freight: road, air and sea</b><span>A lorry or pallets in the UK and Europe, or air and sea freight worldwide. Freight companies send you prices.</span></a>
       </div>
       <p class="muted" style="margin-top:18px">Sending a parcel instead? <a href="/app/send">Book a parcel</a> for an instant price.</p>`;
     return;
@@ -167,7 +181,7 @@ function render() {
   const cur = Math.min(S.step, list.length);
   root.className = 'wrap cols';
   root.innerHTML = wrapLabels(`<div class="steps">
-    <div class="steps-head"><h1>${S.type === 'removals' ? 'Get a moving quote' : 'Road freight quote'}</h1><a class="muted" href="/app/quote">Change type</a></div>
+    <div class="steps-head"><h1>${S.type === 'removals' ? 'Get a moving quote' : 'Freight quote'}</h1><a class="muted" href="/app/quote">Change type</a></div>
     ${list.map((st, i) => {
       const n = i + 1, state = n === cur ? 'open' : n < cur ? 'done' : 'todo';
       return `<section class="step" data-state="${state}">
@@ -267,7 +281,7 @@ async function next() {
   S.busy = true; render();
   try {
     const items = S.d.moveType === 'items' ? String(S.d.itemsText).split(/[,\n]+| and /).map((x) => x.trim()).filter(Boolean) : [];
-    const d = { ...S.d, items, pallets: Number(S.d.pallets) || 0, weightKg: Number(S.d.weightKg) || 0, deliverBy: S.d.deliverBy || null };
+    const d = { ...S.d, items, pallets: Number(S.d.pallets) || 0, weightKg: Number(S.d.weightKg) || 0, units: Number(S.d.units) || 1, cbm: Number(String(S.d.cbm).replace(',', '.')) || 0, deliverBy: S.d.deliverBy || null };
     const job = await api('/api/jobs', { method: 'POST', body: { kind: S.type, from: S.from, to: S.to, date: S.date, phone: S.phone, photos: S.photos, details: d, distanceMiles: S.route?.miles } });
     location.href = `/app/requests/${job.id}?new=1`;
   } catch (err) { S.busy = false; S.err = err.message; render(); }

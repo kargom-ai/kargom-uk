@@ -14,7 +14,11 @@ export const ago = (iso) => {
 export const stars = (r) => { const n = Math.round(r || 0); return `<span class="stars" aria-label="${r ? `${r} out of 5` : 'No reviews yet'}">${'★'.repeat(n)}${'☆'.repeat(5 - n)}</span>`; };
 export const UK_PC = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
 export const COUNTRIES = [['GB', 'United Kingdom'], ['IE', 'Ireland'], ['FR', 'France'], ['DE', 'Germany'], ['NL', 'Netherlands'], ['BE', 'Belgium'], ['ES', 'Spain'], ['IT', 'Italy'],
-  ['PL', 'Poland'], ['PT', 'Portugal'], ['AT', 'Austria'], ['DK', 'Denmark'], ['SE', 'Sweden'], ['CZ', 'Czechia']];
+  ['PL', 'Poland'], ['PT', 'Portugal'], ['AT', 'Austria'], ['DK', 'Denmark'], ['SE', 'Sweden'], ['CZ', 'Czechia'], ['CH', 'Switzerland'], ['GR', 'Greece'],
+  ['US', 'United States'], ['CN', 'China'], ['HK', 'Hong Kong'], ['TW', 'Taiwan'], ['VN', 'Vietnam'], ['IN', 'India'], ['BD', 'Bangladesh'], ['PK', 'Pakistan'], ['TR', 'Turkey'],
+  ['AE', 'United Arab Emirates'], ['SA', 'Saudi Arabia'], ['JP', 'Japan'], ['KR', 'South Korea'], ['SG', 'Singapore'], ['TH', 'Thailand'], ['MY', 'Malaysia'], ['ID', 'Indonesia'],
+  ['CA', 'Canada'], ['MX', 'Mexico'], ['BR', 'Brazil'], ['AU', 'Australia'], ['NZ', 'New Zealand'], ['ZA', 'South Africa'], ['NG', 'Nigeria']];
+export const ROAD_COUNTRIES = ['GB', 'IE', 'FR', 'DE', 'NL', 'BE', 'ES', 'IT', 'PL', 'PT', 'AT', 'DK', 'SE', 'CZ', 'CH'];
 export const cname = (c) => (COUNTRIES.find((x) => x[0] === c) || [c, c])[1];
 
 /** Keep "Label *" or "Label (optional)" on one line above its input (labels are flex columns). */
@@ -132,7 +136,7 @@ export function profileDrawer(p) {
   const since = new Date(p.memberSince).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   bg.innerHTML = `<div class="drawer" role="dialog" aria-modal="true" aria-label="${esc(p.company)}">
     <button type="button" class="x" aria-label="Close">×</button>
-    <div class="co">${logoHtml(p, '72px')}<div class="co-t"><b style="font-size:22px;font-family:Outfit,sans-serif">${esc(p.company)}</b><span>${ratingHtml(p)}</span><span class="muted" style="font-size:13px">${p.kind === 'removals' ? 'Removal company' : 'Road freight company'} · on Kargom since ${esc(since)}</span></div></div>
+    <div class="co">${logoHtml(p, '72px')}<div class="co-t"><b style="font-size:22px;font-family:Outfit,sans-serif">${esc(p.company)}</b><span>${ratingHtml(p)}</span><span class="muted" style="font-size:13px">${p.kind === 'removals' ? 'Removal company' : 'Freight company'} · on Kargom since ${esc(since)}</span></div></div>
     <div class="acts"><a class="btn" href="tel:${esc(p.phone.replace(/[^\d+]/g, ''))}">📞 ${esc(p.phone)}</a><a class="btn ghost" href="mailto:${esc(p.email)}">Email</a>${p.website ? `<a class="btn ghost" href="${esc(p.website)}" target="_blank" rel="noopener nofollow">Website</a>` : ''}</div>
     <div class="kvs"><div><span>Jobs won on Kargom</span><b>${p.jobsWon}</b></div><div><span>Average rating</span><b>${p.reviewCount ? `${p.rating.toFixed(1)} / 5` : '—'}</b></div></div>
     ${p.about ? `<div><b>About</b><p style="margin:6px 0 0;line-height:1.55;color:#3E4A5C">${esc(p.about)}</p></div>` : ''}
@@ -155,7 +159,9 @@ export const L = {
   floor: { ground: 'Ground floor', 1: '1st floor', 2: '2nd floor', 3: '3rd floor', '4+': '4th floor or higher' },
   parking: { easy: 'Easy parking outside', permit: 'Permit or paid parking', hard: 'Hard to park nearby' },
   dateFlex: { exact: 'This date only', week: 'Within a few days', flexible: 'Flexible' },
-  load: { ftl: 'Full truck load (FTL)', ltl: 'Part load / pallets (LTL)' },
+  load: { ftl: 'Full truck load (FTL)', ltl: 'Part load / pallets (LTL)', air: 'Air freight', sea: 'Sea freight' },
+  shipUnit: { boxes: 'Boxes / cartons', pallets: 'Pallets', container20: '20 ft container', container40: '40 ft container', container40HC: '40 ft High Cube' },
+  destType: { business: 'Business address', home: 'Home address', amazon: 'Amazon FBA warehouse', tiktok: 'TikTok Shop warehouse' },
   vehicle: { van: 'Large van (up to 1.2 t)', '7.5t': '7.5 tonne lorry', '18t': '18 tonne rigid', '26t': '26 tonne rigid', artic: 'Articulated lorry (13.6 m)' },
   palletType: { uk: 'UK standard (120 × 100 cm)', euro: 'Euro (120 × 80 cm)', half: 'Half pallet', quarter: 'Quarter pallet', other: 'Other / mixed' },
   collectWindow: { any: 'Any time', am: 'Morning', pm: 'Afternoon' },
@@ -176,6 +182,17 @@ export function detailsHtml(job) {
     ${d.items?.length ? `<div><span class="lbl">Items</span><div class="tags" style="margin-top:6px">${d.items.map((i) => `<span>${esc(i)}</span>`).join('')}</div></div>` : ''}
     ${d.packing || d.dismantling || d.storage ? `<div><span class="lbl">Extra services</span><div class="tags" style="margin-top:6px">${yes(d.packing, 'Packing')}${yes(d.dismantling, 'Dismantle and reassemble furniture')}${yes(d.storage, 'Storage')}</div></div>` : ''}
     ${d.notes ? `<div><span class="lbl">Notes</span><p style="margin:6px 0 0;line-height:1.55">${esc(d.notes)}</p></div>` : ''}`;
+  }
+  if (d.load === 'air' || d.load === 'sea') {
+    const ctr = String(d.shipUnit).startsWith('container');
+    return `<div class="kvs">
+    <div><span>Shipping</span><b>${esc(L.load[d.load])}</b><span>${d.units} × ${esc(L.shipUnit[d.shipUnit])}</span></div>
+    <div><span>Goods</span><b>${esc(d.goods)}</b><span>${[d.weightKg ? `${d.weightKg.toLocaleString('en-GB')} kg` : '', d.cbm ? `${d.cbm} m³` : ''].filter(Boolean).join(' · ') || (ctr ? 'Weight not given' : '')}</span></div>
+    <div><span>Ready to collect</span><b>${esc(niceDate(job.date))}</b></div>
+    <div><span>Delivering to</span><b>${esc(L.destType[d.destType] || 'Business address')}</b>${d.fbaCode ? `<span>${esc(d.fbaCode)}</span>` : ''}</div>
+  </div>
+  ${d.stackable || d.adr || d.tempControlled ? `<div class="tags">${yes(d.stackable, 'Stackable')}${yes(d.adr, 'Hazardous goods')}${yes(d.tempControlled, 'Temperature controlled')}</div>` : ''}
+  ${d.notes ? `<div><span class="lbl">Notes</span><p style="margin:6px 0 0;line-height:1.55">${esc(d.notes)}</p></div>` : ''}`;
   }
   return `<div class="kvs">
     <div><span>Load</span><b>${esc(L.load[d.load])}</b><span>${d.load === 'ftl' ? esc(L.vehicle[d.vehicle]) : `${d.pallets} × ${esc(L.palletType[d.palletType])}`}</span></div>

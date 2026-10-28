@@ -84,7 +84,7 @@ input:focus,select:focus{outline:none}
               </sc-if>
               <sc-if value="{{f.isSelect}}" hint-placeholder-val="{{ false }}">
                 <select aria-label="{{f.label}}" style="border: 0; padding: 0; font-weight: 600; font-size: 15px; color: #1F2A3C; background: transparent; margin-left: -2px">
-                  <sc-for list="{{f.options}}" as="o" hint-placeholder-count="3"><option>{{o}}</option></sc-for>
+                  <sc-for list="{{f.options}}" as="o" hint-placeholder-count="3"><option disabled="{{o.sep}}" selected="{{o.sel}}">{{o.t}}</option></sc-for>
                 </select>
               </sc-if>
               <sc-if value="{{f.isInput}}" hint-placeholder-val="{{ true }}">

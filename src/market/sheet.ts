@@ -18,11 +18,13 @@ const L = {
   floor: { ground: 'Ground floor', 1: '1st floor', 2: '2nd floor', 3: '3rd floor', '4+': '4th floor or higher' },
   parking: { easy: 'Easy parking outside', permit: 'Permit or paid parking', hard: 'Hard to park nearby' },
   dateFlex: { exact: 'This date only', week: 'Within a few days', flexible: 'Flexible' },
-  load: { ftl: 'Full truck load (FTL)', ltl: 'Part load / pallets (LTL)' },
+  load: { ftl: 'Full truck load (FTL)', ltl: 'Part load / pallets (LTL)', air: 'Air freight', sea: 'Sea freight' },
+  shipUnit: { boxes: 'boxes / cartons', pallets: 'pallets', container20: '20 ft container', container40: '40 ft container', container40HC: '40 ft High Cube' },
+  destType: { business: 'Business address', home: 'Home address', amazon: 'Amazon FBA warehouse', tiktok: 'TikTok Shop warehouse' },
   vehicle: { van: 'Large van (up to 1.2 t)', '7.5t': '7.5 tonne lorry', '18t': '18 tonne rigid', '26t': '26 tonne rigid', artic: 'Articulated lorry (13.6 m)' },
   palletType: { uk: 'UK standard 120 x 100 cm', euro: 'Euro 120 x 80 cm', half: 'Half pallet', quarter: 'Quarter pallet', other: 'Other / mixed' },
   collectWindow: { any: 'Any time', am: 'Morning', pm: 'Afternoon' },
-} as Record<string, Record<string, string>> & { floor: Record<string, string>; parking: Record<string, string>; collectWindow: Record<string, string>; moveType: Record<string, string>; size: Record<string, string>; dateFlex: Record<string, string>; load: Record<string, string>; vehicle: Record<string, string>; palletType: Record<string, string> };
+} as Record<string, Record<string, string>> & { floor: Record<string, string>; parking: Record<string, string>; collectWindow: Record<string, string>; shipUnit: Record<string, string>; destType: Record<string, string>; moveType: Record<string, string>; size: Record<string, string>; dateFlex: Record<string, string>; load: Record<string, string>; vehicle: Record<string, string>; palletType: Record<string, string> };
 const day = (iso: string | null) => (iso ? new Date(`${iso.slice(0, 10)}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '-');
 const place = (a: Addr) => [a.city, a.postcode, a.country !== 'GB' ? a.country : ''].filter(Boolean).join(' ');
 const yes = (b: unknown) => (b ? 'Yes' : 'No');
@@ -61,8 +63,8 @@ export function requestSheet(job: SheetJob, photos: Buffer[]): Buffer {
     card(M, 'A', '#2463DB', 'MOVING FROM', job.from, p('fromPlace'));
     card(M + half + 14, 'B', '#16A34A', 'MOVING TO', job.to, p('toPlace'));
   } else {
-    card(M, 'A', '#2463DB', 'COLLECTION', job.from, [`${day(job.date)} · ${L.collectWindow[d.collectWindow] ?? 'Any time'}`, `Tail lift needed: ${yes(d.tailLiftCollection)}`]);
-    card(M + half + 14, 'B', '#16A34A', 'DELIVERY', job.to, [`Deliver by: ${d.deliverBy ? day(d.deliverBy) : 'Flexible'}`, `Tail lift needed: ${yes(d.tailLiftDelivery)}`]);
+    card(M, 'A', '#2463DB', 'COLLECTION', job.from, d.load === 'air' || d.load === 'sea' ? [`Ready ${day(job.date)}`] : [`${day(job.date)} · ${L.collectWindow[d.collectWindow] ?? 'Any time'}`, `Tail lift needed: ${yes(d.tailLiftCollection)}`]);
+    card(M + half + 14, 'B', '#16A34A', 'DELIVERY', job.to, d.load === 'air' || d.load === 'sea' ? [L.destType[d.destType] ?? 'Business address'] : [`Deliver by: ${d.deliverBy ? day(d.deliverBy) : 'Flexible'}`, `Tail lift needed: ${yes(d.tailLiftDelivery)}`]);
   }
   y += 130;
 
@@ -78,6 +80,14 @@ export function requestSheet(job: SheetJob, photos: Buffer[]): Buffer {
     ['Dismantle and reassemble furniture', yes(d.dismantling)],
     ['Storage needed', yes(d.storage)],
     ...(job.distanceMiles ? [['Distance', `About ${job.distanceMiles} miles by road`] as [string, string]] : []),
+  ] : d.load === 'air' || d.load === 'sea' ? [
+    ['Shipping', `${L.load[d.load]} · ${d.units} x ${L.shipUnit[d.shipUnit] ?? ''}`],
+    ['Goods', String(d.goods ?? '-')],
+    ...(d.weightKg ? [['Total weight', `${Number(d.weightKg).toLocaleString('en-GB')} kg`] as [string, string]] : []),
+    ...(d.cbm ? [['Total volume', `${d.cbm} m3`] as [string, string]] : []),
+    ['Delivering to', `${L.destType[d.destType] ?? 'Business address'}${d.fbaCode ? ` (${d.fbaCode})` : ''}`],
+    ['Hazardous goods', yes(d.adr)],
+    ['Temperature controlled', yes(d.tempControlled)],
   ] : [
     ['Load', `${L.load[d.load] ?? '-'}${d.load === 'ftl' ? ` · ${L.vehicle[d.vehicle] ?? ''}` : ` · ${d.pallets} x ${L.palletType[d.palletType] ?? ''}`}`],
     ['Goods', String(d.goods ?? '-')],

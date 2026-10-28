@@ -1,7 +1,10 @@
 import { DCLogic, mount, field, api } from '../dc.js';
 
-const UK_AREAS = ['United Kingdom', 'Northern Ireland', 'Channel Islands', 'Scottish Highlands & Islands'];
-const COUNTRIES = ['United States', 'Germany', 'France', 'Ireland', 'Netherlands', 'Spain', 'Italy', 'Australia', 'Canada', 'Turkey'];
+import { OPTIONS, SEP, isUk } from '../countries.js';
+
+/** Country list for a <select>: the UK first, a gap, then the world. `sel` is pre-selected. */
+const countryOpts = (sel = 'United Kingdom') => OPTIONS.map((t) => ({ t, sep: t === SEP, sel: t === sel }));
+const LOADS = { Boxes: 'boxes', Pallets: 'pallets', Container: 'container' };
 const LOGOS = { 'Royal Mail': 'royalmail', Evri: 'evri', DPD: 'dpd', InPost: 'inpost', UPS: 'ups', DHL: 'dhl', FedEx: 'fedex', Parcelforce: 'parcelforce', Yodel: 'yodel' };
 
 function toast(text) {
@@ -44,26 +47,34 @@ class Component extends DCLogic {
       location.href = st.me ? `/app/quote?${q}` : `/movers?${q}`;
       return;
     }
-    if (st.mode !== 'uk' && st.mode !== 'intl') return;
-    e.preventDefault();
-    const kg = Number(String(field('Parcel weight')).replace(',', '.'));
-    if (!(kg > 0 && kg <= 70)) { toast('Enter the parcel weight in kg (up to 70 kg).'); return; }
-    const q = new URLSearchParams({
-      mode: st.mode,
-      from: st.mode === 'uk' ? field('Collect from') : 'United Kingdom',
-      to: field('Delivering to'),
-      kg: String(kg),
-    });
-    if (st.dims) {
-      const l = Number(field('Length (cm)')), w = Number(field('Width (cm)')), h = Number(field('Height (cm)'));
-      if (l > 0 && w > 0 && h > 0) { q.set('l', String(l)); q.set('w', String(w)); q.set('h', String(h)); }
+    if (st.mode === 'freight') {
+      e.preventDefault();
+      const q = new URLSearchParams({ from: field('Shipping from'), to: field('Shipping to'), load: LOADS[field('What are you shipping?')] || 'boxes' });
+      location.href = `/freight?${q}`;
+      return;
     }
+    if (st.mode !== 'uk') return;
+    e.preventDefault();
+    const from = field('Collect from'), to = field('Delivering to');
+    const kg = Number(String(field('Parcel weight')).replace(',', '.'));
+    const dims = st.dims ? [Number(field('Length (cm)')), Number(field('Width (cm)')), Number(field('Height (cm)'))] : [];
+    // Parcels are collected in the UK. From abroad (e.g. stock from China) the freight page prices it.
+    if (!isUk(from)) {
+      const q = new URLSearchParams({ from, to, load: 'boxes', qty: field('Parcels') || '1' });
+      if (kg > 0) q.set('kg', String(kg));
+      if (dims.length && dims.every((x) => x > 0)) { q.set('l', String(dims[0])); q.set('w', String(dims[1])); q.set('h', String(dims[2])); }
+      location.href = `/freight?${q}`;
+      return;
+    }
+    if (!(kg > 0 && kg <= 70)) { toast('Enter the parcel weight in kg (up to 70 kg).'); return; }
+    const q = new URLSearchParams({ mode: isUk(to) ? 'uk' : 'intl', from, to, kg: String(kg) });
+    if (dims.length && dims.every((x) => x > 0)) { q.set('l', String(dims[0])); q.set('w', String(dims[1])); q.set('h', String(dims[2])); }
     location.href = `/quotes?${q}`;
   }
 
   renderVals() {
     const st = this.state;
-    const MODES = [['uk', 'UK to UK'], ['intl', 'International'], ['move', 'Removals'], ['track', 'Tracking']];
+    const MODES = [['uk', 'Send a Parcel'], ['freight', 'Compare Freight Rates'], ['move', 'Removals'], ['track', 'Tracking']];
     const modes = MODES.map(([id, label], i) => ({ label, on: st.mode === id ? 'true' : 'false',
       bg: st.mode === id ? '#FFFFFF' : '#1F2A3C', fg: st.mode === id ? '#1F2A3C' : '#FFFFFF',
       radius: i === 0 ? '6px 0 0 0' : i === MODES.length - 1 ? '0 6px 0 0' : '0',
@@ -72,18 +83,19 @@ class Component extends DCLogic {
     const weight = { ...b, label: 'Parcel weight', isInput: true, placeholder: 'e.g. 1', unit: 'kg', mode: 'decimal', flex: '1 1 140px' };
     const dims = { ...b, label: 'I will fill in dimensions', isRadio: true, flex: '1 1 170px' };
     const F = {
-      uk: [{ ...b, label: 'Collect from', isSelect: true, options: UK_AREAS }, { ...b, label: 'Delivering to', isSelect: true, options: UK_AREAS }, weight, dims],
-      intl: [{ ...b, label: 'Collect from', isLocked: true, value: 'United Kingdom', flex: '1 1 170px', bg: '#F7F9FC' }, { ...b, label: 'Delivering to', isSelect: true, options: COUNTRIES }, weight, dims],
+      uk: [{ ...b, label: 'Collect from', isSelect: true, options: countryOpts() }, { ...b, label: 'Delivering to', isSelect: true, options: countryOpts() }, weight, dims],
+      freight: [{ ...b, label: 'Shipping from', isSelect: true, options: countryOpts('China') }, { ...b, label: 'Shipping to', isSelect: true, options: countryOpts() },
+        { ...b, label: 'What are you shipping?', isSelect: true, options: Object.keys(LOADS).map((t) => ({ t, sep: false, sel: false })), flex: '1 1 150px' }],
       move: [{ ...b, label: 'Moving from (postcode)', isInput: true, placeholder: 'e.g. M1 1AE' }, { ...b, label: 'Moving to (postcode)', isInput: true, placeholder: 'e.g. LS1 5HD' },
-        { ...b, label: 'Home size', isSelect: true, options: Object.keys(HOME_SIZE), flex: '1 1 150px' }],
+        { ...b, label: 'Home size', isSelect: true, options: Object.keys(HOME_SIZE).map((t) => ({ t, sep: false, sel: false })), flex: '1 1 150px' }],
       track: [{ ...b, label: 'Tracking number', isInput: true, placeholder: 'Enter your tracking number', flex: '999 1 400px' }],
     };
-    const CTA = { uk: ['Get quotes', '/quotes'], intl: ['Get quotes', '/quotes'], move: ['Get moving quotes', '/app/quote?type=removals'], track: ['Track', '/track'] };
+    const CTA = { uk: ['Get quotes', '/quotes'], freight: ['Compare rates', '/freight'], move: ['Get moving quotes', '/app/quote?type=removals'], track: ['Track', '/track'] };
     const L = (t, href) => ({ t, href });
     const LINKS = {
-      uk: [L('Cheapest way to send a parcel', '/guides/cheapest-way-to-send-a-parcel-uk'), L('Volumetric weight calculator', '/tools/volumetric-weight-calculator'), L('UK prices by weight', '/parcel-prices')],
-      intl: [L('Customs and duties explained', '/guides/sending-a-parcel-abroad-customs'), L('Sending to Turkey', '/send-parcel-to/turkey'), L('All destinations', '/send-parcel-to')],
-      move: [L('Road freight: FTL / LTL', '/app/quote?type=freight'), L('Removal or freight company? Join as a partner', '/partner')],
+      uk: [L('Cheapest way to send a parcel', '/guides/cheapest-way-to-send-a-parcel-uk'), L('Volumetric weight calculator', '/tools/volumetric-weight-calculator'), L('UK prices by weight', '/parcel-prices'), L('Customs and duties explained', '/guides/sending-a-parcel-abroad-customs'), L('All destinations', '/send-parcel-to')],
+      freight: [L('China to Amazon FBA UK', '/freight?from=China&to=United+Kingdom&toType=amazon'), L('UK to Amazon USA', '/freight?from=United+Kingdom&to=United+States&toType=amazon'), L('Road freight: FTL / LTL', '/app/quote?type=freight'), L('Freight company? Join as a partner', '/partner')],
+      move: [L('Removal company? Join as a partner', '/partner')],
       track: [L('Where is my tracking number?', '/track'), L('Royal Mail tracking', '/track/royal-mail'), L('Evri tracking', '/track/evri')],
     };
     const SLUG = { 'Royal Mail': 'royal-mail', Evri: 'evri', DPD: 'dpd', InPost: 'inpost', Yodel: 'yodel', Parcelforce: 'parcelforce', UPS: 'ups', DHL: 'dhl', FedEx: 'fedex' };
@@ -95,7 +107,7 @@ class Component extends DCLogic {
       { n: '2', t: 'Book and print', d: 'Pay securely, then print your label at home or show a QR code at the drop-off point.' },
       { n: '3', t: 'Drop off or get collected', d: 'Hand it to a local shop or locker, or book a collection from your door, and track it to delivery.' },
     ];
-    const isParcel = st.mode === 'uk' || st.mode === 'intl';
+    const isParcel = st.mode === 'uk';
     const me = st.me;
     return {
       modes, fields: F[st.mode], cta: { label: CTA[st.mode][0], href: CTA[st.mode][1], go: (e) => this.getQuotes(e) }, links: LINKS[st.mode],

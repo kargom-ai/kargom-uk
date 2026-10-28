@@ -10,7 +10,7 @@ const path = location.pathname.replace(/\/+$/, '');
 const reqId = (path.match(/^\/partner\/requests\/([\w-]+)/) || [])[1];
 const S = { me: null, profile: null, stats: null, tab: new URLSearchParams(location.search).get('tab') || 'open', list: null, job: null, busy: false, auth: 'join', kind: 'removals', err: '' };
 const html = (el, h) => { el.innerHTML = wrapLabels(h); };
-const KIND = { removals: 'Removal company', freight: 'Road freight company' };
+const KIND = { removals: 'Removal company', freight: 'Freight company' };
 
 /* ---------------- sign up / sign in ---------------- */
 function authView() {
@@ -27,7 +27,7 @@ function authView() {
     <div class="authcard">
       <div class="tabs" role="tablist"><button type="button" role="tab" data-auth="join" aria-selected="${join}">Join as a partner</button><button type="button" role="tab" data-auth="login" aria-selected="${!join}">Partner sign in</button></div>
       <form id="af" novalidate>
-        ${join ? `<div class="tiles sm">${Object.entries(KIND).map(([k, l]) => `<button type="button" class="tile" data-kind="${k}" aria-pressed="${S.kind === k}"><b>${l}</b><span>${k === 'removals' ? 'Home and office moves' : 'FTL, LTL and pallets'}</span></button>`).join('')}</div>
+        ${join ? `<div class="tiles sm">${Object.entries(KIND).map(([k, l]) => `<button type="button" class="tile" data-kind="${k}" aria-pressed="${S.kind === k}"><b>${l}</b><span>${k === 'removals' ? 'Home and office moves' : 'Road (FTL / LTL), air and sea freight'}</span></button>`).join('')}</div>
         <label class="fld">Company name<input class="inp" name="company" autocomplete="organization" required></label>
         <label class="fld">Your name<input class="inp" name="name" autocomplete="name" required></label>
         <div class="grid2"><label class="fld">Phone customers can call<input class="inp" name="phone" type="tel" autocomplete="tel" required></label>

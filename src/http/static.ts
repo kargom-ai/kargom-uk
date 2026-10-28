@@ -31,7 +31,9 @@ const SEO: Record<string, { title: string; description: string; path: string; fo
   'index.html': { title: 'Cheap Parcel Delivery UK: Compare Couriers and Save | Kargom', path: '/', footer: true, ld: true,
     description: 'Compare live prices from Royal Mail, Evri, DPD, InPost, Yodel, Parcelforce, UPS and DHL. Book in a minute, print your label and track it. No account needed.' },
   'partner.html': { title: 'Removal and Freight Companies: Join Kargom as a Partner', path: '/partner', footer: true,
-    description: 'Removal companies and road hauliers: see moving and freight jobs posted by customers across the UK and send your own price. Free to join.' },
+    description: 'Removal companies, hauliers and freight forwarders: see moving, road, air and sea freight jobs posted by customers across the UK and send your own price. Free to join.' },
+  'freight.html': { title: 'Compare Freight Rates: Air, Sea and Road from China, USA and Europe | Kargom', path: '/freight', footer: true,
+    description: 'Free air freight, sea freight (LCL and FCL) and pallet price estimates in seconds. Ship stock from China to the UK, or from the UK to Amazon FBA and TikTok Shop warehouses.' },
   'login.html': { title: 'Sign In or Create an Account | Kargom', path: '/login', footer: true,
     description: 'Sign in to Kargom or create a free account to save addresses, top up a wallet and manage all your parcels in one place.' },
 };
@@ -63,6 +65,7 @@ function pageFor(pathname: string): string | null {
   if (pathname === '/app/send') return 'send.html';
   if (pathname === '/app/quote') return 'quote.html';
   if (pathname === '/movers') return 'movers.html';
+  if (pathname === '/freight') return 'freight.html';
   if (pathname === '/app/requests' || pathname.startsWith('/app/requests/')) return 'request.html';
   if (pathname === '/partner' || pathname.startsWith('/partner/')) return 'partner.html';
   if (pathname === '/checkout') return 'checkout.html';
