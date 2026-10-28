@@ -19,6 +19,8 @@ class Component extends DCLogic {
     api('/api/me').then((me) => this.setState({ me })).catch(() => {});
     api('/api/guest/config').then((c) => this.setState({ vid: c.homeVideo || null })).catch(() => {});
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.state.video) this.setState({ video: false }); });
+    // Close the video window by itself when the video finishes ('ended' does not bubble, so listen in the capture phase).
+    document.addEventListener('ended', (e) => { if (e.target instanceof HTMLVideoElement && e.target.closest('[aria-label="Kargom video"]')) this.setState({ video: false }); }, true);
   }
 
   getQuotes(e) {
