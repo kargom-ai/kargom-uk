@@ -1,4 +1,5 @@
 import { readFile, stat } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
 import { join, normalize, extname } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
@@ -13,6 +14,10 @@ const TYPES: Record<string, string> = {
   '.json': 'application/json',
   '.png': 'image/png',
   '.webp': 'image/webp',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
+  '.m4v': 'video/mp4',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
@@ -38,7 +43,8 @@ const CSP = [
   "font-src https://fonts.gstatic.com",
   "img-src 'self' data: https://*.stripe.com",
   "connect-src 'self' https://api.stripe.com https://*.stripe.com",
-  "frame-src 'self' https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://*.stripe.com",
+  "media-src 'self' https:",
+  "frame-src 'self' https://www.youtube-nocookie.com https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://*.stripe.com",
   "base-uri 'self'",
   "form-action 'self'",
 ].join('; ');
@@ -61,6 +67,26 @@ export async function serveStatic(req: IncomingMessage, res: ServerResponse, pat
     if (!page && code && req.headers['if-none-match'] === etag) {
       res.writeHead(304, { ETag: etag, 'Cache-Control': 'no-cache' });
       res.end();
+      return true;
+    }
+    // Videos: stream with byte ranges (Safari and iPhones need this to play at all).
+    if (ext === '.mp4' || ext === '.webm' || ext === '.mov' || ext === '.m4v') {
+      const size = st.size;
+      const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
+      let start = 0, end = size - 1, status = 200;
+      if (m && (m[1] || m[2])) {
+        if (m[1]) { start = Number(m[1]); if (m[2]) end = Math.min(Number(m[2]), size - 1); }
+        else { start = Math.max(0, size - Number(m[2])); }
+        if (start > end || start >= size) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); res.end(); return true; }
+        status = 206;
+      }
+      res.writeHead(status, {
+        'Content-Type': TYPES[ext]!, 'Accept-Ranges': 'bytes', 'Content-Length': String(end - start + 1),
+        ...(status === 206 ? { 'Content-Range': `bytes ${start}-${end}/${size}` } : {}),
+        'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff',
+      });
+      if (req.method === 'HEAD') { res.end(); return true; }
+      createReadStream(file, { start, end }).on('error', () => res.destroy()).pipe(res);
       return true;
     }
     let body: Buffer | string = await readFile(file);

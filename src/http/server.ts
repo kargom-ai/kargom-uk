@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { AppError, isAppError } from '../core/errors.ts';
@@ -80,6 +81,34 @@ const previewKey = (r: ShipmentRequest) => JSON.stringify([String(r?.from?.postc
   r?.parcel?.weightGrams, r?.parcel?.lengthCm, r?.parcel?.widthCm, r?.parcel?.heightCm, r?.customs ?? null]);
 const previewCache = new Map<string, { at: number; value: { quotes: unknown[]; failures: number } }>();
 const previewInFlight = new Map<string, Promise<{ quotes: unknown[]; failures: number }>>();
+/**
+ * Homepage "Watch our video". Either:
+ *  - a video file put in public/assets/video/ (mp4 is best; the first one found is used), or
+ *  - HOME_VIDEO_URL: a YouTube link (any form) or a direct https video link (overrides the file).
+ */
+let videoCache: { at: number; file: string | null } = { at: 0, file: null };
+function videoFile(): string | null {
+  if (Date.now() - videoCache.at < 60_000) return videoCache.file;
+  let file: string | null = null;
+  try {
+    const dir = new URL('../../public/assets/video/', import.meta.url);
+    const names = readdirSync(dir).filter((n) => /\.(mp4|webm|mov|m4v)$/i.test(n)).sort((a, b) => Number(!/\.mp4$/i.test(a)) - Number(!/\.mp4$/i.test(b)) || a.localeCompare(b));
+    if (names[0]) file = `/assets/video/${encodeURIComponent(names[0])}`;
+  } catch { /* no folder */ }
+  videoCache = { at: Date.now(), file };
+  return file;
+}
+function homeVideo(): { kind: 'youtube' | 'file'; src: string } | null {
+  const u = (process.env.HOME_VIDEO_URL ?? '').trim();
+  if (u) {
+    const yt = u.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/);
+    if (yt) return { kind: 'youtube', src: `https://www.youtube-nocookie.com/embed/${yt[1]}?autoplay=1&rel=0&modestbranding=1&playsinline=1` };
+    if (/^(https:\/\/|\/assets\/)[^\s"'<>]+$/i.test(u)) return { kind: 'file', src: u };
+  }
+  const f = videoFile();
+  return f ? { kind: 'file', src: f } : null;
+}
+
 export async function previewQuotes(app: App, req: ShipmentRequest) {
   const key = previewKey(req);
   const hit = previewCache.get(key);
@@ -182,7 +211,7 @@ export function buildRouter(app: App) {
   /** Payment settings the guest page needs (the publishable key is public by design). */
   on('GET', '/api/guest/config', 'public', async () => {
     const demo = app.payments instanceof FakeGateway;
-    return { demoPayments: demo, stripePk: demo ? null : process.env.STRIPE_PUBLISHABLE_KEY ?? null, addressList: addresses.hasAddressList, notify: app.notifier.enabled };
+    return { demoPayments: demo, stripePk: demo ? null : process.env.STRIPE_PUBLISHABLE_KEY ?? null, addressList: addresses.hasAddressList, notify: app.notifier.enabled, homeVideo: homeVideo() };
   });
   on('POST', '/api/guest/book', 'public', async (c) => {
     guestLimiter.check(ip(c));

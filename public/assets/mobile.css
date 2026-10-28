@@ -38,6 +38,8 @@ div[style*="overflow-x: auto"] { position: relative; }
   [role="tablist"] > button { flex: none !important; white-space: nowrap; }
   [role="dialog"] { padding: 12px !important; align-items: flex-end !important; }
   [role="dialog"] > div { max-height: 92vh; overflow-y: auto; }
+  /* The video plays in the middle of the screen, not as a bottom sheet. */
+  [role="dialog"][aria-label="Kargom video"] { align-items: center !important; }
 
   /* ---------- public header (home, quotes, login) ---------- */
   .m-topnav { gap: 12px !important; }
