@@ -150,3 +150,24 @@ test('market: the request PDF opens for the owner and by its secret link, with p
   await assert.rejects(m.sharedPdf('not-a-real-token-123456'), /no longer|not found/i);
   assert.equal((await m.customerJob(customer, job.id)).sharePath, full.sharePath, 'the link stays the same');
 });
+
+test('market: visitors see nearby companies with phone numbers partly hidden', async () => {
+  const { app } = await makeApp();
+  const m = app.market;
+  process.env.GOOGLE_PLACES_API_KEY = 'test-key';
+  const fake = (async (url: string) => {
+    if (String(url).includes('postcodes.io')) return new Response(JSON.stringify({ result: { latitude: 52.48, longitude: -1.86 } }));
+    return new Response(JSON.stringify({ places: [{ id: 'p1', displayName: { text: 'Brum Movers' }, formattedAddress: '1 Road, Birmingham B8 1AA, UK', nationalPhoneNumber: '0121 496 0123', internationalPhoneNumber: '+44 121 496 0123', websiteUri: 'https://x.example', rating: 4.6, userRatingCount: 80, location: { latitude: 52.49, longitude: -1.85 } }] }));
+  }) as typeof fetch;
+  try {
+    await m.registerPartner({ email: 'b@m.co.uk', password: 'correct-horse-1', name: 'B', company: 'Kargom Movers', phone: '07700 900456', kind: 'removals', basePostcode: 'B8 2AA' });
+    const r = await m.publicNearby('b8 1aa', 'removals', fake);
+    assert.equal(r.near, 'B8');
+    assert.equal(r.partners[0]!.phone, '07700 90****');
+    assert.equal(r.google[0]!.phone, '0121 496 ****');
+    assert.equal(r.google[0]!.whatsapp, true);
+    assert.equal(JSON.stringify(r).includes('0123'), false, 'no full number anywhere');
+    assert.equal(JSON.stringify(r).includes('x.example'), false, 'no website link');
+    await assert.rejects(m.publicNearby('nowhere', 'removals', fake), /postcode/);
+  } finally { delete process.env.GOOGLE_PLACES_API_KEY; }
+});

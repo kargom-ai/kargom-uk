@@ -35,7 +35,7 @@ const SEO: Record<string, { title: string; description: string; path: string; fo
   'login.html': { title: 'Sign In or Create an Account | Kargom', path: '/login', footer: true,
     description: 'Sign in to Kargom or create a free account to save addresses, top up a wallet and manage all your parcels in one place.' },
 };
-const PRIVATE = new Set(['app.html', 'admin.html', 'checkout.html', 'label.html', 'send.html', 'quotes.html', 'quote.html', 'request.html']);
+const PRIVATE = new Set(['app.html', 'admin.html', 'checkout.html', 'label.html', 'send.html', 'quotes.html', 'quote.html', 'request.html', 'movers.html']);
 const SITE_LD = () => {
   const base = (process.env.PUBLIC_URL || 'https://kargom.co.uk').replace(/\/+$/, '');
   return `<script type="application/ld+json">${JSON.stringify([
@@ -62,6 +62,7 @@ function pageFor(pathname: string): string | null {
   if (pathname === '/quotes') return 'quotes.html';
   if (pathname === '/app/send') return 'send.html';
   if (pathname === '/app/quote') return 'quote.html';
+  if (pathname === '/movers') return 'movers.html';
   if (pathname === '/app/requests' || pathname.startsWith('/app/requests/')) return 'request.html';
   if (pathname === '/partner' || pathname.startsWith('/partner/')) return 'partner.html';
   if (pathname === '/checkout') return 'checkout.html';

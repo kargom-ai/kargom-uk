@@ -182,3 +182,24 @@ textarea.inp { min-height: 96px; padding: 10px 12px; resize: vertical; line-heig
 .sheet-ic { flex: none; width: 44px; height: 52px; border-radius: 8px; background: #E5484D; color: #FFFFFF; display: grid; place-items: center; font: 800 12px 'Plus Jakarta Sans', sans-serif; }
 .sheet-t { flex: 1 1 240px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: #3E4A5C; }
 .sheet-t b { font-size: 15px; color: #1F2A3C; }
+.cta-move { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 20px; padding: 20px 22px; border-radius: 18px; color: #FFFFFF; background: linear-gradient(110deg, #3D6DEB 0%, #2A4FC8 55%, #1D3593 100%); }
+.cta-move > div { flex: 1 1 320px; display: flex; flex-direction: column; gap: 4px; }
+.cta-move b { font: 600 20px 'Outfit', sans-serif; }
+.cta-move span { color: #DCE4F2; font-size: 14px; line-height: 1.5; }
+.cta-move .btn { background: #FFFFFF; color: #1D3593; align-self: center; }
+.cta-move .btn:hover { background: #EAF2FE; color: #1D3593; }
+
+/* Phones: pack the request details two by two instead of one long column. */
+@media (max-width: 760px) {
+  .kvs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kvs div { padding: 10px 12px; }
+  .kvs b { font-size: 14px; }
+  .kvs span { font-size: 11.5px; }
+  .card .addr, .addr { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px; font-size: 13px; }
+  .tags span { font-size: 12px; padding: 3px 8px; }
+  .sheet-box .acts { width: 100%; }
+  .sheet-box .acts .btn { flex: 1; }
+  .cta-move { padding: 16px; }
+  .cta-move .btn { width: 100%; }
+  .offer { padding: 14px; gap: 10px; }
+}

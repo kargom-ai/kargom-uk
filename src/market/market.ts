@@ -346,7 +346,12 @@ export class Market {
   async nearbyPartners(customerId: string, jobId: string, f?: typeof fetch) {
     const j = await this.ownJob(customerId, jobId);
     const from = JSON.parse(j.from_addr) as Addr;
-    const ps = await this.db.all<Partner>("SELECT * FROM partners WHERE kind = $1 AND status = 'active' LIMIT 300", [j.kind]);
+    return { near: j.from_area, partners: await this.rankPartners(j.kind, from, f) };
+  }
+
+  /** Active partners of a kind, closest to `from` first. */
+  private async rankPartners(kind: Kind, from: { postcode: string; city: string; country: string }, f?: typeof fetch) {
+    const ps = await this.db.all<Partner>("SELECT * FROM partners WHERE kind = $1 AND status = 'active' LIMIT 300", [kind]);
     const here = from.country === 'GB' ? await outcodeCoords(outward(from.postcode), f) : null;
     const area = (pc: string) => (/^[A-Z]+/.exec(pc.toUpperCase()) ?? [''])[0];
     const scored = await Promise.all(ps.map(async (p) => {
@@ -354,7 +359,7 @@ export class Market {
       const there = here && pc ? await outcodeCoords(outward(pc), f) : null;
       const miles = here && there ? Math.round(haversineMiles(here, there)) : null;
       const rank = miles !== null ? miles : !pc ? 9e6 : outward(pc) === outward(from.postcode) ? 0 : area(pc) === area(from.postcode) ? 15
-        : (p.areas ?? '').toLowerCase().includes(from.city.toLowerCase()) ? 30 : 5e6;
+        : from.city && (p.areas ?? '').toLowerCase().includes(from.city.toLowerCase()) ? 30 : 5e6;
       return { p, miles, rank };
     }));
     scored.sort((a, b) => a.rank - b.rank);
@@ -363,7 +368,37 @@ export class Market {
       const prof = await this.profile(p.id);
       out.push({ ...prof, reviews: prof.reviews.slice(0, 3), milesAway: miles });
     }
-    return { near: j.from_area, partners: out };
+    return out;
+  }
+
+  /**
+   * For visitors who are not signed in (homepage "Removals" search): companies near a postcode,
+   * with phone numbers partly hidden and no links, so they sign up to contact them.
+   */
+  async publicNearby(postcodeIn: unknown, kindIn: unknown, f?: typeof fetch) {
+    const kind = oneOf(kindIn, KINDS, 'removals');
+    const raw = s(postcodeIn, 10).toUpperCase().replace(/\s+/g, ' ');
+    const m = /^([A-Z]{1,2}\d[A-Z\d]?)(?:\s*(\d[A-Z]{2}))?$/.exec(raw);
+    if (!m) throw new AppError('bad_request', 'Enter a UK postcode, e.g. B8 1AA');
+    const oc = m[1]!;
+    const mask = (ph: string | null | undefined) => {
+      if (!ph) return null;
+      let seen = 0;
+      return ph.split('').reverse().map((ch) => (/\d/.test(ch) && seen < 4 ? (seen++, '*') : ch)).reverse().join('');
+    };
+    const partners = (await this.rankPartners(kind, { postcode: m[2] ? `${oc} ${m[2]}` : oc, city: '', country: 'GB' }, f)).slice(0, 8)
+      .map((p) => ({ company: p.company, logoUrl: p.logoUrl, rating: p.rating, reviewCount: p.reviewCount, basedIn: p.basedIn, milesAway: p.milesAway, phone: mask(p.phone), onKargom: true }));
+    let google: Array<Record<string, unknown>> = [];
+    if (placesEnabled()) {
+      const c = await outcodeCoords(oc, f);
+      try {
+        const ours = new Set(partners.map((p) => p.company.toLowerCase().replace(/\W+/g, '')));
+        google = (await nearbyOnGoogle(kind, c ? { label: oc, lat: c.lat, lng: c.lng } : { label: oc }, f))
+          .filter((p) => !ours.has(p.name.toLowerCase().replace(/\W+/g, '')))
+          .map((p) => ({ company: p.name, rating: p.rating, reviewCount: p.reviews, area: p.address.split(',').slice(-2).join(',').trim(), milesAway: p.milesAway, phone: mask(p.phone), whatsapp: Boolean(p.intlPhone) }));
+      } catch (e) { console.warn(`[places] ${(e as Error).message}`); }
+    }
+    return { near: oc, kind, partners, google };
   }
 
   /** Companies on Google near the start of the job that are not on Kargom yet. */

@@ -39,7 +39,9 @@ class Component extends DCLogic {
       const a = String(field('Moving from (postcode)') ?? '').trim(), b = String(field('Moving to (postcode)') ?? '').trim();
       if (a) q.set('from', a); if (b) q.set('to', b);
       const size = HOME_SIZE[field('Home size')]; if (size) q.set('size', size);
-      location.href = `/app/quote?${q}`;
+      if (!a) { toast('Enter the postcode you are moving from.'); return; }
+      // Visitors first see the companies near them; members go straight to the quote form.
+      location.href = st.me ? `/app/quote?${q}` : `/movers?${q}`;
       return;
     }
     if (st.mode !== 'uk' && st.mode !== 'intl') return;

@@ -300,6 +300,8 @@ export function buildRouter(app: App) {
   };
   on('GET', '/api/jobs/:id/pdf', 'customer', async (c) => sendPdf(c, await app.market.customerPdf(me(c), c.params.id!), Boolean(c.query.get('download'))));
   on('GET', '/r/:token', 'public', async (c) => sendPdf(c, await app.market.sharedPdf(c.params.token!.replace(/\.pdf$/, '')), false));
+  const publicLimiter = new RateLimiter(15, 60_000);
+  on('GET', '/api/public/movers', 'public', async (c) => { publicLimiter.check(ip(c)); return app.market.publicNearby(c.query.get('from'), c.query.get('kind') ?? 'removals'); });
   on('GET', '/api/jobs/:id/google', 'customer', async (c) => { marketLimiter.check(me(c)); return app.market.googleNearby(me(c), c.params.id!); });
   on('POST', '/api/jobs/:id/invite', 'customer', async (c) => app.market.invite(me(c), c.params.id!, c.body));
   on('GET', '/api/admin/partner-invites', 'admin', async () => ({ invites: await app.market.adminInvites() }));

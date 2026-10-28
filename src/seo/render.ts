@@ -376,6 +376,7 @@ Disallow: /l/
 Disallow: /api/
 Disallow: /quotes
 Disallow: /partner/
+Disallow: /movers
 
 Sitemap: ${base()}/sitemap.xml
 `;
