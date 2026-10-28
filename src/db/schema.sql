@@ -146,3 +146,13 @@ CREATE TABLE IF NOT EXISTS provider_configs (
   secrets_enc TEXT,                            -- AES-256-GCM encrypted JSON
   updated_at  TEXT NOT NULL
 );
+
+-- Guest checkout: a secret link per shipment, so someone without an account can
+-- view, print and share their label. Only the hash of the link token is stored.
+CREATE TABLE IF NOT EXISTS guest_links (
+  token_hash  TEXT PRIMARY KEY,
+  shipment_id TEXT NOT NULL REFERENCES shipments(id),
+  email       TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS guest_links_shipment ON guest_links(shipment_id);

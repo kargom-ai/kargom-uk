@@ -24,6 +24,7 @@ const T = { drop: 'Drop-off at a shop', coll: 'Collected from your door', locker
 class Component extends DCLogic {
   constructor(p) { super(p); this.state = { sort: 'cheap', speed: 'all', toff: {}, coff: {}, data: null, error: '', filters: false }; }
   async mounted() {
+    api('/api/me').then(() => { this.signedIn = true; }, () => { this.signedIn = false; });
     try {
       const { quotes } = await api('/api/quotes/preview', { method: 'POST', body: request() });
       this.setState({ data: quotes.map((q) => ({
@@ -39,6 +40,14 @@ class Component extends DCLogic {
   book(r, e) {
     e.preventDefault();
     const req = request();
+    // Not signed in and UK to UK: buy straight away as a guest, no account needed.
+    if (!this.signedIn && req.from.country === 'GB' && req.to.country === 'GB') {
+      const q = r.q;
+      sessionStorage.setItem('kg_guest', JSON.stringify({ carrier: q.carrier, carrierName: q.carrierName, serviceCode: q.serviceCode, serviceName: q.serviceName,
+        price: q.price, priceExVat: q.priceExVat, transitDays: q.transitDays, type: r.t, parcel: req.parcel, backUrl: location.pathname + location.search }));
+      location.href = '/checkout';
+      return;
+    }
     sessionStorage.setItem('kg_pending', JSON.stringify({ parcel: req.parcel, toCountry: req.to.country, serviceName: r.s, carrier: r.carrier }));
     location.href = '/app/send';
   }

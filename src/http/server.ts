@@ -10,6 +10,7 @@ import { parseGbp } from '../core/money.ts';
 import { serveStatic } from './static.ts';
 import { FakeGateway } from '../payments/stripe.ts';
 import { AddressLookup } from '../address/lookup.ts';
+import { GuestCheckout } from '../guest/guest.ts';
 
 type Ctx = {
   req: IncomingMessage;
@@ -95,6 +96,8 @@ export function buildRouter(app: App) {
   const quoteLimiter = new RateLimiter(60, 60_000);
   const addressLimiter = new RateLimiter(30, 60_000);
   const addresses = new AddressLookup(process.env.IDEAL_POSTCODES_API_KEY);
+  const guest = new GuestCheckout(app);
+  const guestLimiter = new RateLimiter(12, 60_000);
   const ip = (c: Ctx) => (c.req.socket.remoteAddress ?? 'unknown');
   const me = (c: Ctx) => c.user!.customerId;
 
@@ -129,6 +132,35 @@ export function buildRouter(app: App) {
     quoteLimiter.check(ip(c));
     const { quotes, failures } = await app.quotes.quote('anonymous', c.body as ShipmentRequest);
     return { quotes: quotes.map(({ token: _t, ...q }) => q), failures: failures.length };
+  });
+  // ---------- guest checkout (no account)
+  /** Payment settings the guest page needs (the publishable key is public by design). */
+  on('GET', '/api/guest/config', 'public', async () => {
+    const demo = app.payments instanceof FakeGateway;
+    return { demoPayments: demo, stripePk: demo ? null : process.env.STRIPE_PUBLISHABLE_KEY ?? null, addressList: addresses.hasAddressList };
+  });
+  on('POST', '/api/guest/book', 'public', async (c) => {
+    guestLimiter.check(ip(c));
+    if (c.req.headers['x-requested-with'] !== 'kargom') throw new AppError('forbidden', 'Missing X-Requested-With header');
+    const b = c.body;
+    return guest.book({ email: b.email, name: b.name, from: b.from, to: b.to, parcel: b.parcel, contents: b.contents, valuePence: Number(b.valuePence) || 0,
+      carrier: String(b.carrier ?? ''), serviceCode: String(b.serviceCode ?? ''), expectedPricePence: Number(b.expectedPricePence) || 0,
+      idempotencyKey: String(c.req.headers['idempotency-key'] ?? '') || String(Date.now()) });
+  });
+  on('GET', '/api/guest/address', 'public', async (c) => {
+    guestLimiter.check(ip(c));
+    return { ...(await addresses.byPostcode(c.query.get('postcode') ?? '')), fullList: addresses.hasAddressList };
+  });
+  on('GET', '/api/guest/label/:token', 'public', async (c) => guest.view(c.params.token!));
+  on('GET', '/api/guest/label/:token/pdf', 'public', async (c) => {
+    const pdf = await guest.labelPdf(c.params.token!);
+    c.res.writeHead(200, {
+      'Content-Type': 'application/pdf', 'Content-Length': String(pdf.length),
+      'Content-Disposition': `${c.query.get('download') ? 'attachment' : 'inline'}; filename="kargom-label.pdf"`,
+      'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',
+    });
+    c.res.end(pdf);
+    return null;
   });
   on('GET', '/api/me', 'customer', async (c) => {
     const u = await app.db.get<Record<string, unknown>>(
@@ -351,7 +383,7 @@ export function buildRouter(app: App) {
         }
       }
       const out = await route.handler({ req, res, params, query: url.searchParams, raw, body, user });
-      send(res, 200, out);
+      if (!res.headersSent) send(res, 200, out);
     } catch (e) {
       if (isAppError(e)) return send(res, e.status, { error: { code: e.code, message: e.message, ...(e.details ? { details: e.details } : {}) } });
       console.error('[unhandled]', e);

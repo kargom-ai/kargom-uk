@@ -20,6 +20,7 @@ function render() {
 document.getElementById('t-login').addEventListener('click', () => { mode = 'login'; msg.replaceChildren(); render(); });
 document.getElementById('t-register').addEventListener('click', () => { mode = 'register'; msg.replaceChildren(); render(); });
 render();
+if (params.get('email')) document.querySelector('[name=email]').value = params.get('email');
 
 f.addEventListener('submit', async (e) => {
   e.preventDefault();

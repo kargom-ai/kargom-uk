@@ -397,7 +397,7 @@ class Component extends DCLogic {
     const custRows = C.filter((c) => st.custTab === 'all' || (st.custTab === 'biz' && c.account_type === 'business') || (st.custTab === 'pers' && c.account_type !== 'business') || (st.custTab === 'owe' && c.owed_pence > 0))
       .filter((c) => !q || `${c.name} ${c.email} ${c.company || ''}`.toLowerCase().includes(q))
       .map((c) => { const s = c.bookings_paused ? 'paused' : c.shipments === 0 ? 'new' : 'active';
-        return { name: c.name, openCust: oc(c.id), email: c.email, type: c.account_type === 'business' ? 'Business' : 'Personal', joined: new Date(c.created_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }),
+        return { name: c.name, openCust: oc(c.id), email: c.account_type === 'guest' ? c.company : c.email, type: c.account_type === 'business' ? 'Business' : c.account_type === 'guest' ? 'Guest checkout' : 'Personal', joined: new Date(c.created_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }),
           n: int(c.shipments), spend: P(c.spend_pence), wallet: P(c.wallet_pence), owed: c.owed_pence ? P(c.owed_pence) : '–', owFg: c.owed_pence ? '#B42318' : '#8593A8',
           status: CS[s][0], sBg: CS[s][1], sFg: CS[s][2], color: colorFor(c.id), ini: ini(c.name) }; });
     const custTabs = [['all', 'All'], ['biz', 'Business'], ['pers', 'Personal'], ['owe', 'Owes money']].map(([id, label]) => ({ label, ...chip(st.custTab === id), pick: () => this.setState({ custTab: id }) }));
@@ -432,8 +432,8 @@ class Component extends DCLogic {
     const owed = (pr?.adjustments || []).filter((a) => ['pending', 'failed'].includes(a.status)).reduce((x, a) => x + a.diff_pence, 0);
     const totalCarrier = (pr?.carriers || []).reduce((x, c) => x + c.n, 0) || 1;
     const pf = {
-      name: pc.name, ini: ini(pc.name), color: colorFor(pc.id), email: pc.email, phone: pc.phone || '–', company: pc.company || 'No company',
-      type: pc.account_type === 'business' ? 'Business' : 'Personal', joined: new Date(pc.created_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }),
+      name: pc.name, ini: ini(pc.name), color: colorFor(pc.id), email: pc.account_type === 'guest' ? pc.company : pc.email, phone: pc.phone || '–', company: pc.company || 'No company',
+      type: pc.account_type === 'business' ? 'Business' : pc.account_type === 'guest' ? 'Guest checkout' : 'Personal', joined: new Date(pc.created_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }),
       status: paused ? 'Bookings paused' : pShips.length ? 'Active' : 'New', sBg: paused ? '#FDECEC' : '#E6F4EA', sFg: paused ? '#B42318' : '#166534', pauseTxt: paused ? 'Unpause bookings' : 'Pause bookings',
       tags: [pc.account_type === 'business' ? 'Business' : 'Personal', ...(pc.default_payment_method ? ['Saved card'] : []), ...(pc.pricing_discount_bp ? [`−${pc.pricing_discount_bp / 100}% markup`] : [])],
       kpis: [{ label: 'Shipments', value: int(pShips.length), fg: '#1F2A3C' }, { label: 'This month', value: String(monthN), fg: '#1F2A3C' }, { label: 'Total spend', value: P(spend), fg: '#1F2A3C' },

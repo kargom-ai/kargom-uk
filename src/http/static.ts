@@ -24,6 +24,8 @@ function pageFor(pathname: string): string | null {
   if (pathname === '/login' || pathname === '/register') return 'login.html';
   if (pathname === '/quotes') return 'quotes.html';
   if (pathname === '/app/send') return 'send.html';
+  if (pathname === '/checkout') return 'checkout.html';
+  if (pathname.startsWith('/l/')) return 'label.html';
   if (pathname === '/app' || pathname.startsWith('/app/')) return 'app.html';
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'admin.html';
   return null;
@@ -36,7 +38,7 @@ const CSP = [
   "font-src https://fonts.gstatic.com",
   "img-src 'self' data: https://*.stripe.com",
   "connect-src 'self' https://api.stripe.com https://*.stripe.com",
-  "frame-src https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://*.stripe.com",
+  "frame-src 'self' https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://*.stripe.com",
   "base-uri 'self'",
   "form-action 'self'",
 ].join('; ');
