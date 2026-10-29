@@ -45,7 +45,34 @@ const shareText = (j, to) => {
   const when = j.date ? ` on ${niceDate(j.date)}` : '';
   return `Hi${to ? ` ${to}` : ''}, I'm looking for a price for my ${j.title.toLowerCase()} from ${j.fromArea} to ${j.toArea}${when}. All the details${j.photos.length ? ' and photos' : ''} are in this PDF: ${shareUrl(j)}\nCould you send me your best price? Thanks${first ? `, ${first}` : ''}`;
 };
+/** Which companies the customer already messaged for this request (this browser only). */
+const sentKey = (j) => `kg_wa_${j.id}`;
+const sentList = (j) => { try { return JSON.parse(localStorage.getItem(sentKey(j)) || '[]'); } catch { return []; } };
+const markSent = (j, placeId) => { try { const l = sentList(j); if (!l.includes(placeId)) localStorage.setItem(sentKey(j), JSON.stringify([...l, placeId])); } catch { /* private mode */ } };
 const waLink = (p, j) => `https://wa.me/${p.intlPhone.replace(/\D/g, '')}?text=${encodeURIComponent(shareText(j, p.name))}`;
+
+/**
+ * "Ask them all": WhatsApp only lets a person send their own messages, one chat at a time,
+ * so we line the companies up. Each tap opens the next chat with the PDF link written in;
+ * the customer taps Send in WhatsApp and comes back for the next one.
+ */
+function waAllHtml(j, places) {
+  const list = places.filter((p) => p.intlPhone);
+  if (list.length < 2) return '';
+  const sent = sentList(j);
+  const done = list.filter((p) => sent.includes(p.placeId)).length;
+  const nextP = list.find((p) => !sent.includes(p.placeId));
+  const pct = Math.round((done / list.length) * 100);
+  return `<div class="wa-all" style="display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:12px;background:#ECFDF3;border:1px solid #86EFAC">
+    <b style="font-size:16px">Ask all ${list.length} companies for a price on WhatsApp</b>
+    <span style="font-size:14px;color:#3E4A5C">Your request PDF is in every message. WhatsApp opens one company at a time: tap <b>Send</b> there, then come back and tap the next one.</span>
+    <div style="height:8px;border-radius:99px;background:#FFFFFF;overflow:hidden" aria-hidden="true"><div style="height:100%;width:${pct}%;background:#16A34A"></div></div>
+    <span style="font-size:13px;font-weight:700;color:#166534">${done} of ${list.length} sent</span>
+    ${nextP ? `<a class="btn wa" data-wa="${esc(nextP.placeId)}" href="${esc(waLink(nextP, j))}" target="_blank" rel="noopener" style="align-self:flex-start">${WA}${done ? 'Next' : 'Start'}: ${esc(nextP.name)} (${done + 1} of ${list.length})</a>`
+      : '<b style="color:#166534">✓ Sent to every company. Their replies come to your WhatsApp.</b>'}
+    ${done ? '<button type="button" class="btn ghost sm" data-wareset style="align-self:flex-start">Start again</button>' : ''}
+  </div>`;
+}
 
 /* No offers yet: say so plainly, and list companies based near the start of the job. */
 function noOffersHtml(j) {
@@ -62,12 +89,13 @@ function noOffersHtml(j) {
   const g = S.google;
   const gHtml = g && g.enabled && g.error ? `<p class="hint" style="margin:8px 0 0">Google listings could not load: ${esc(g.error)}</p>` : !g || !g.enabled || !g.places.length ? '' : `<div class="g-head"><h3 style="margin:0;font-size:18px">Other companies near you</h3><span class="g-attr">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></span></div>
     <p class="muted" style="margin:0;font-size:14px">These companies are not on Kargom yet, so they cannot send you an offer here. Call them, or send your request PDF on WhatsApp in one tap.</p>
+    ${waAllHtml(j, g.places)}
     ${g.places.map((p) => `<article class="offer gplace">
       <div class="offer-top"><div class="co">${logoHtml({ company: p.name, logoUrl: p.hasLogo ? `/api/gplace/${encodeURIComponent(p.placeId)}/logo` : null })}<div class="co-t"><b>${esc(p.name)}</b>
         <span>${p.rating ? `${stars(p.rating)}<span class="stars-n">${p.rating.toFixed(1)} · ${p.reviews} Google review${p.reviews === 1 ? '' : 's'}</span>` : '<span class="stars-n">No Google reviews yet</span>'}</span>
         <span class="muted" style="font-size:13px">${esc(p.address)}${p.milesAway !== null ? ` · ${p.milesAway} mile${p.milesAway === 1 ? '' : 's'} from you` : ''}</span></div></div>
         <span class="badge cancelled">Not on Kargom yet</span></div>
-      <div class="acts">${p.intlPhone ? `<a class="btn wa" href="${esc(waLink(p, j))}" target="_blank" rel="noopener" title="Send your request PDF on WhatsApp">${WA}WhatsApp</a>` : ''}
+      <div class="acts">${p.intlPhone ? `<a class="btn wa" data-wa="${esc(p.placeId)}" href="${esc(waLink(p, j))}" target="_blank" rel="noopener" title="Send your request PDF on WhatsApp">${WA}${sentList(j).includes(p.placeId) ? 'Sent ✓' : 'WhatsApp'}</a>` : ''}
         ${p.phone ? `<a class="btn ghost" href="tel:${esc(p.phone.replace(/[^\d+]/g, ''))}">📞 ${esc(p.phone)}</a>` : ''}
         ${p.website ? `<a class="btn ghost" href="${esc(p.website)}" target="_blank" rel="noopener nofollow">Website</a>` : ''}
         ${p.mapsUrl ? `<a class="btn ghost" href="${esc(p.mapsUrl)}" target="_blank" rel="noopener nofollow">View on Google Maps</a>` : ''}</div>
@@ -77,6 +105,13 @@ function noOffersHtml(j) {
     ${list}
     ${gHtml}`;
 }
+// mark a company as messaged when its WhatsApp opens, then move the queue on
+root.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-wa]');
+  if (a && S.job) { markSent(S.job, a.dataset.wa); setTimeout(() => { if (S.tab === 'offers') jobView(); }, 400); return; }
+  if (e.target.closest('[data-wareset]') && S.job) { try { localStorage.removeItem(sentKey(S.job)); } catch { /* ok */ } jobView(); }
+});
+
 async function loadNear() {
   if (S.near || S.nearBusy) return;
   S.nearBusy = true;

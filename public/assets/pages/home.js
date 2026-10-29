@@ -29,6 +29,20 @@ class Component extends DCLogic {
     document.addEventListener('ended', (e) => { if (e.target instanceof HTMLVideoElement && e.target.closest('[aria-label="Kargom video"]')) this.setState({ video: false }); }, true);
   }
 
+  /** "Locate": phone position → nearest postcode in the box. */
+  async locate(label) {
+    if (this.state.locBusy) return;
+    this.setState({ locBusy: true });
+    try {
+      const { postcodeHere } = await import('../here.js');
+      const r = await postcodeHere();
+      const el = document.querySelector(`[aria-label="${label}"]`);
+      if (el) { el.value = r.postcode; el.dataset.dirty = '1'; }
+      toast(`You are near ${r.postcode}.`);
+    } catch (err) { toast(err.message); }
+    this.setState({ locBusy: false });
+  }
+
   getQuotes(e) {
     const st = this.state;
     if (st.mode === 'track') {
@@ -89,14 +103,15 @@ class Component extends DCLogic {
       bg: st.mode === id ? '#FFFFFF' : '#1F2A3C', fg: st.mode === id ? '#1F2A3C' : '#FFFFFF',
       radius: i === 0 ? '6px 0 0 0' : i === MODES.length - 1 ? '0 6px 0 0' : '0',
       pick: () => this.setState({ mode: id, dims: false }) }));
-    const b = { isSelect: false, isLocked: false, isInput: false, isRadio: false, options: [], value: '', placeholder: '', unit: '', mode: 'text', flex: '1 1 170px', bg: '#FFFFFF' };
+    const b = { isSelect: false, isLocked: false, isInput: false, isRadio: false, loc: false, locate: () => {}, locTxt: '', options: [], value: '', placeholder: '', unit: '', mode: 'text', flex: '1 1 170px', bg: '#FFFFFF' };
+    const here = { loc: true, locTxt: st.locBusy ? '…' : 'Locate', locate: () => this.locate('Moving from (postcode)') };
     const weight = { ...b, label: 'Parcel weight', isInput: true, placeholder: 'e.g. 1', unit: 'kg', mode: 'decimal', flex: '1 1 140px' };
     const dims = { ...b, label: 'I will fill in dimensions', isRadio: true, flex: '1 1 170px' };
     const F = {
       uk: [{ ...b, label: 'Collect from', isSelect: true, options: countryOpts() }, { ...b, label: 'Delivering to', isSelect: true, options: countryOpts() }, weight, dims],
       freight: [{ ...b, label: 'Shipping from', isSelect: true, options: countryOpts('China') }, { ...b, label: 'Shipping to', isSelect: true, options: countryOpts() },
         { ...b, label: 'Load', isSelect: true, options: Object.keys(LOADS).map((t) => ({ t, sep: false, sel: false })), flex: '1 1 150px' }],
-      move: [{ ...b, label: 'Moving from (postcode)', isInput: true, placeholder: 'e.g. M1 1AE' }, { ...b, label: 'Moving to (postcode)', isInput: true, placeholder: 'e.g. LS1 5HD' },
+      move: [{ ...b, ...here, label: 'Moving from (postcode)', isInput: true, placeholder: 'e.g. M1 1AE' }, { ...b, label: 'Moving to (postcode)', isInput: true, placeholder: 'e.g. LS1 5HD' },
         { ...b, label: 'Home size', isSelect: true, options: Object.keys(HOME_SIZE).map((t) => ({ t, sep: false, sel: false })), flex: '1 1 150px' }],
       track: [{ ...b, label: 'Tracking number', isInput: true, placeholder: 'Enter your tracking number', flex: '999 1 400px' }],
       fwd: [{ ...b, label: 'Shop in', isSelect: true, options: SHOP_IN.map((t) => ({ t, sep: false, sel: false })) }, { ...b, label: 'Deliver to', isSelect: true, options: countryOpts() },

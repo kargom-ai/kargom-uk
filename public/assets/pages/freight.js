@@ -78,6 +78,7 @@ function formHtml() {
       <div class="fr-side"><span class="lbl">From</span>
         <label class="fld">Country${countrySel('from', S.from)}</label>
         <label class="fld">Town, port or postcode <em>(optional)</em><input class="inp" data-k="fromCity" value="${esc(S.fromCity)}" placeholder="e.g. ${esc(place(S.from)?.city || '')}"></label>
+        ${isUk(S.from) ? `<button type="button" class="btn ghost sm" data-here style="align-self:flex-start">📍 ${S.locating ? 'Finding you…' : 'Use my location'}</button>` : ''}
       </div>
       <div class="fr-side"><span class="lbl">To</span>
         <label class="fld">Country${countrySel('to', S.to)}</label>
@@ -224,9 +225,22 @@ root.addEventListener('input', (e) => {
   if (k === 'from' || k === 'to' || k === 'fc' || k === 'box') { if (k === 'to') S.fc = ''; render(); return; }
   const t = document.getElementById('tot'); if (t) t.textContent = totals();
 });
+/** "Use my location" for UK collections: phone position → nearest postcode. */
+async function locate() {
+  if (S.locating) return;
+  S.locating = true; render();
+  try {
+    const { postcodeHere } = await import('../here.js');
+    const r = await postcodeHere();
+    S.fromCity = r.postcode; toast(`You are near ${r.postcode}.`);
+  } catch (err) { toast(err.message); }
+  S.locating = false; render();
+}
+
 root.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-set],[data-go]');
+  const t = e.target.closest('[data-set],[data-go],[data-here]');
   if (!t) return;
+  if (t.dataset.here !== undefined) { locate(); return; }
   if (t.dataset.go !== undefined) { go(); return; }
   S[t.dataset.set] = t.dataset.v;
   if (t.dataset.set === 'toType') S.fc = '';

@@ -9,8 +9,35 @@ import { haversineMiles } from './route.ts';
  */
 export type GooglePlace = { placeId: string; name: string; address: string; phone: string | null; intlPhone: string | null; rating: number | null; reviews: number; website: string | null; mapsUrl: string | null; milesAway: number | null; hasLogo: boolean };
 
-const FIELDS = ['places.id', 'places.displayName', 'places.formattedAddress', 'places.rating', 'places.userRatingCount', 'places.websiteUri', 'places.nationalPhoneNumber', 'places.internationalPhoneNumber', 'places.googleMapsUri', 'places.location', 'places.businessStatus', 'places.photos'].join(',');
+const FIELDS = ['places.id', 'places.displayName', 'places.formattedAddress', 'places.rating', 'places.userRatingCount', 'places.websiteUri', 'places.nationalPhoneNumber', 'places.internationalPhoneNumber', 'places.googleMapsUri', 'places.location', 'places.businessStatus', 'places.photos', 'places.types', 'places.primaryType'].join(',');
 const QUERY: Record<string, string> = { removals: 'removal company', freight: 'haulage company road freight' };
+/** Google place type that must match, so a "removals" search lists only moving companies. */
+const TYPE: Record<string, string> = { removals: 'moving_company' };
+/** Names that are clearly removal firms, and names that are clearly something else (van hire, storage only, skips). */
+const MOVING_NAME = /remov|moving|movers|man (?:and|&|with) (?:a )?van|relocat|house ?move|home ?move|office ?move/i;
+const NOT_MOVING = /self[- ]?storage|storage (?:centre|center|units?)|van (?:hire|rental)|car (?:hire|rental)|u-?haul|enterprise|hertz|europcar|skip hire|waste|clearance only|parcel|post office|estate agent/i;
+const FREIGHT_NAME = /haul|freight|logistic|transport|lorr|truck|carrier|forward|shipping|cargo|distribution|courier|express/i;
+
+/**
+ * Best first: a high rating backed by many reviews. A Bayesian average pulls a 5.0 from
+ * 2 reviews below a 4.8 from 300, then the review count breaks ties. No reviews go last.
+ */
+export function rankPlaces<T extends { rating: number | null; reviews: number }>(list: T[]): T[] {
+  const PRIOR = 4.2, WEIGHT = 15;
+  const score = (p: T) => (p.rating === null || !p.reviews ? -1 : (p.rating * p.reviews + PRIOR * WEIGHT) / (p.reviews + WEIGHT));
+  return [...list].sort((a, b) => score(b) - score(a) || b.reviews - a.reviews);
+}
+
+/** Keep only companies that do the job asked for. */
+export function relevant(kind: string, p: { name: string; types?: string[] }) {
+  const types = p.types ?? [];
+  if (kind === 'removals') {
+    if (NOT_MOVING.test(p.name) && !MOVING_NAME.test(p.name)) return false;
+    return types.includes('moving_company') || MOVING_NAME.test(p.name);
+  }
+  if (kind === 'freight' || kind === 'forwarder') return FREIGHT_NAME.test(p.name) || types.includes('moving_company') || types.includes('storage');
+  return true;
+}
 /** What we need to fetch a company's picture later: its website (for its own icon) and first Google photo. */
 const meta = new Map<string, { website: string | null; photo: string | null; by: string | null }>();
 const cache = new Map<string, { at: number; v: GooglePlace[] }>();
@@ -22,24 +49,29 @@ export async function nearbyOnGoogle(kind: string, near: { label: string; lat: n
   opts: { query?: string; region?: string } = {}): Promise<GooglePlace[]> {
   const key = process.env.GOOGLE_PLACES_API_KEY;
   if (!key) return [];
-  const ck = `${kind}|${near.label}|${opts.query ?? ''}|${opts.region ?? ''}`.toUpperCase();
+  const ck = `v2|${kind}|${near.label}|${opts.query ?? ''}|${opts.region ?? ''}`.toUpperCase();
   const hit = cache.get(ck);
   if (hit && Date.now() - hit.at < TTL) return hit.v;
   const body: Record<string, unknown> = opts.query
-    ? { textQuery: opts.query, ...(opts.region ? { regionCode: opts.region } : {}), languageCode: 'en', pageSize: 10 }
-    : { textQuery: `${QUERY[kind] ?? QUERY.removals} near ${near.label}, UK`, regionCode: 'GB', languageCode: 'en-GB', pageSize: 10 };
+    ? { textQuery: opts.query, ...(opts.region ? { regionCode: opts.region } : {}), languageCode: 'en', pageSize: 20 }
+    : { textQuery: `${QUERY[kind] ?? QUERY.removals} near ${near.label}, UK`, regionCode: 'GB', languageCode: 'en-GB', pageSize: 20,
+      ...(TYPE[kind] ? { includedType: TYPE[kind], strictTypeFiltering: true } : {}) };
   if (near.lat !== undefined) body.locationBias = { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 30000 } };
   const r = await f('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': FIELDS }, body: JSON.stringify(body), signal: AbortSignal.timeout(8000),
   });
   const j = (await r.json().catch(() => ({}))) as { places?: Array<Record<string, any>>; error?: { message?: string } };
   if (!r.ok) throw new AppError('provider_failed', `Google Places: ${j.error?.message ?? r.status}`);
-  const v = (j.places ?? []).filter((p) => p.businessStatus !== 'CLOSED_PERMANENTLY').map((p) => ({
+  const found = (j.places ?? []).filter((p) => p.businessStatus !== 'CLOSED_PERMANENTLY').map((p) => ({
     placeId: String(p.id), name: String(p.displayName?.text ?? ''), address: String(p.formattedAddress ?? '').replace(/, UK$|, United Kingdom$/, ''),
     phone: p.nationalPhoneNumber ?? null, intlPhone: p.internationalPhoneNumber ?? null, rating: typeof p.rating === 'number' ? p.rating : null, reviews: Number(p.userRatingCount ?? 0), website: p.websiteUri ?? null, mapsUrl: p.googleMapsUri ?? null,
     milesAway: near.lat !== undefined && p.location ? Math.round(haversineMiles({ lat: near.lat, lng: near.lng! }, { lat: p.location.latitude, lng: p.location.longitude })) : null,
     hasLogo: Boolean(p.websiteUri || p.photos?.length),
-  })).filter((p) => p.name);
+    types: Array.isArray(p.types) ? p.types.map(String) : [],
+  })).filter((p) => p.name && relevant(kind, p))
+    // removal firms must be local: drop anything far from the customer
+    .filter((p) => kind !== 'removals' || p.milesAway === null || p.milesAway <= 40);
+  const v = rankPlaces(found).slice(0, 12).map(({ types: _t, ...p }) => p);
   for (const p of j.places ?? []) {
     meta.set(String(p.id), { website: p.websiteUri ?? null, photo: p.photos?.[0]?.name ?? null, by: p.photos?.[0]?.authorAttributions?.[0]?.displayName ?? null });
     if (meta.size > 5000) meta.delete(meta.keys().next().value!);

@@ -66,15 +66,4 @@ export async function clipboardText() {
   try { return (await navigator.clipboard?.readText?.()) || ''; } catch { return ''; }
 }
 
-/** Phone location → nearest UK postcode. Asks the browser for permission; nothing is stored. */
-export async function postcodeHere() {
-  if (!navigator.geolocation) throw new Error('This browser cannot share your location. Type the postcode instead.');
-  const pos = await new Promise((ok, bad) => navigator.geolocation.getCurrentPosition(ok, bad, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }))
-    .catch((e) => {
-      throw new Error(e && e.code === 1
-        ? 'Location is turned off for this site. Allow location in your browser settings, or type the postcode.'
-        : 'We could not get your location. Try again outside, or type the postcode.');
-    });
-  const { latitude: lat, longitude: lng } = pos.coords;
-  return api(`/api/address/near?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}`);
-}
+export { postcodeHere } from './here.js';

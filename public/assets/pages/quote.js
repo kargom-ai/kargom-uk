@@ -48,6 +48,7 @@ function addressFields(who) {
   ${gb ? `<div class="finder">
     <label class="fld grow">Postcode<input class="inp up" data-k="lk.${who}.pc" value="${esc(lk.pc || a.postcode)}" placeholder="e.g. M1 1AE" autocomplete="postal-code" data-enter="find:${who}"></label>
     <button type="button" class="btn" data-act="find:${who}">${lk.busy ? 'Searching…' : 'Find address'}</button>
+    ${who === 'from' ? `<button type="button" class="btn ghost" data-act="here:${who}">📍 ${lk.locating ? 'Finding you…' : 'Use my location'}</button>` : ''}
     ${lk.items.length ? `<label class="fld full">${lk.items.length} addresses found: choose one<select class="inp" data-pick="${who}"><option value="">Choose your address…</option>${lk.items.map((x, i) => `<option value="${i}">${esc(x.label)}</option>`).join('')}</select></label>` : ''}
     <span class="hint full">${esc(lk.msg || 'Or type the address in the boxes below.')}</span>
   </div>` : ''}
@@ -270,6 +271,20 @@ async function find(who) {
   lk.busy = false; render();
 }
 
+/** "Use my location": phone position → nearest postcode → address list. */
+async function here(who) {
+  const lk = S.lk[who];
+  if (lk.locating) return;
+  lk.locating = true; lk.msg = ''; render();
+  try {
+    const { postcodeHere } = await import('../here.js');
+    const r = await postcodeHere();
+    lk.pc = r.postcode; lk.locating = false;
+    await find(who);
+    if (lk.items.length) { lk.msg = `You are near ${r.postcode}. Choose your address from the list.`; render(); }
+  } catch (e) { lk.locating = false; lk.msg = e.message; render(); }
+}
+
 async function next() {
   if (S.busy) return;
   const list = steps();
@@ -300,6 +315,7 @@ root.addEventListener('click', (e) => {
   const [act, arg] = t.dataset.act.split(':');
   if (act === 'next') next();
   if (act === 'find') find(arg);
+  if (act === 'here') here(arg);
   if (act === 'rmphoto') { S.photos.splice(Number(arg), 1); render(); }
 });
 root.addEventListener('input', (e) => {
