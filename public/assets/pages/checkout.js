@@ -1,6 +1,6 @@
 import { DCLogic, mount, field, api, uid, CARRIER_LOGO, CARRIER_NAME } from '../dc.js';
 import { openPaySheet } from '../pay.js';
-import { fillFromPhoto, fillFromText, clipboardText } from '../photo-address.js';
+import { fillFromPhoto, fillFromText, clipboardText, postcodeHere } from '../photo-address.js';
 
 /**
  * Guest checkout: buy one label without an account.
@@ -97,7 +97,16 @@ class Component extends DCLogic {
     const P = this.state.ph[px];
     const set = (patch) => this.setState({ ph: { ...this.state.ph, [px]: { ...this.state.ph[px], ...patch } } });
     return {
-      btn: P.busy ? 'Reading the address…' : 'Fill from a photo', msg: P.msg, msgFg: P.bad ? '#B42318' : '#166534', pasteOpen: Boolean(P.paste),
+      btn: P.busy ? 'Reading the address…' : 'Fill from a photo', locBtn: P.locating ? 'Finding you…' : 'Use my location', msg: P.msg,
+      locate: async () => {
+        if (P.locating) return;
+        set({ locating: true, msg: '', bad: false });
+        try {
+          const r = await postcodeHere();
+          set({ locating: false, msg: `You are near ${r.postcode}. Choose your address from the list.`, bad: false });
+          setField(`${px}_find`, r.postcode); this.lookup(px).find();
+        } catch (err) { set({ locating: false, msg: err.message, bad: true }); }
+      }, msgFg: P.bad ? '#B42318' : '#166534', pasteOpen: Boolean(P.paste),
       togglePaste: async () => {
         if (P.paste) { set({ paste: false }); return; }
         set({ paste: true, msg: '', bad: false });

@@ -74,6 +74,24 @@ export class AddressLookup {
   }
 }
 
+/**
+ * Phone location → the nearest UK postcode (postcodes.io reverse lookup, free, no key).
+ * Coordinates are used once for this lookup and never stored.
+ */
+export async function nearestPostcode(lat: number, lng: number, f: typeof fetch = fetch): Promise<{ postcode: string; town: string }> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new AppError('bad_request', 'We could not read your location.');
+  // the UK sits roughly inside this box; anywhere else has no UK postcode
+  if (lat < 49.8 || lat > 60.9 || lng < -8.7 || lng > 1.8) throw new AppError('bad_request', 'Your location is outside the UK. Type the postcode instead.');
+  for (const q of [`radius=300&limit=1`, `radius=2000&limit=1`, `widesearch=true&limit=1`]) {
+    const res = await f(`https://api.postcodes.io/postcodes?lon=${lng.toFixed(6)}&lat=${lat.toFixed(6)}&${q}`, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) throw new AppError('provider_failed', `Postcode search failed (${res.status})`);
+    const body = (await res.json()) as { result?: { postcode: string; admin_district?: string }[] | null };
+    const hit = body.result?.[0];
+    if (hit?.postcode) return { postcode: hit.postcode, town: hit.admin_district ?? '' };
+  }
+  throw new AppError('not_found', 'We could not find a postcode near you. Type it instead.');
+}
+
 /** PAF post towns come in capitals ("MANCHESTER"); labels read better as "Manchester". */
 function titleCase(s: string) {
   return s.toLowerCase().replace(/(^|[\s-])([a-z])/g, (_m, p: string, c: string) => p + c.toUpperCase()).replace(/\bUpon\b/g, 'upon').replace(/\bOn\b/g, 'on');

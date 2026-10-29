@@ -12,7 +12,7 @@ import { serveStatic } from './static.ts';
 import { serveSeo } from '../seo/routes.ts';
 import { seoPricesFor } from '../seo/prices.ts';
 import { FakeGateway } from '../payments/stripe.ts';
-import { AddressLookup } from '../address/lookup.ts';
+import { AddressLookup, nearestPostcode } from '../address/lookup.ts';
 import { addressFromImage, addressFromText } from '../address/fromImage.ts';
 import { chatTurn } from '../chat/agent.ts';
 import { GuestCheckout } from '../guest/guest.ts';
@@ -389,6 +389,8 @@ export function buildRouter(app: App) {
   /** UK postcode → delivery addresses. Signed-in only, so strangers cannot spend our lookup credits. */
   const photoLimiter = new RateLimiter(10, 60_000);
   on('POST', '/api/address/from-image', 'public', async (c) => { photoLimiter.check(ip(c)); return addressFromImage(c.body?.image); });
+  /** "Use my location": phone GPS → nearest postcode. Coordinates are not stored. */
+  on('GET', '/api/address/near', 'public', async (c) => { photoLimiter.check(ip(c)); return nearestPostcode(Number(c.query.get('lat')), Number(c.query.get('lng'))); });
   on('POST', '/api/address/from-text', 'public', async (c) => { photoLimiter.check(ip(c)); return addressFromText(c.body?.text); });
   on('GET', '/api/address/lookup', 'customer', async (c) => {
     addressLimiter.check(me(c));
