@@ -18,6 +18,8 @@ import { routeInfo } from '../market/route.ts';
 import { placeLogo } from '../market/places.ts';
 import { freightRates, parseFreightQuery } from '../freight/rates.ts';
 import { freightForwarders } from '../freight/forwarders.ts';
+import { forwardingEstimate, joinForwardingWaitlist } from '../forwarding/forwarding.ts';
+import { eurosenderTestOrder } from '../freight/eurosender.ts';
 import type { PacklinkProvider } from '../providers/packlink.ts';
 
 type Ctx = {
@@ -327,7 +329,13 @@ export function buildRouter(app: App) {
     }
     return { ok: true, results: out };
   });
+  /** Admin, sandbox only: place Eurosender test orders so they can review us. Open /api/admin/eurosender-test?kind=package (or pallet). */
+  on('GET', '/api/admin/eurosender-test', 'admin', async (c) => eurosenderTestOrder(c.query.get('kind') === 'pallet' ? 'pallet' : 'package', {
+    name: 'Kargom Test', email: process.env.EUROSENDER_CONTACT_EMAIL || 'orders@kargom.co.uk', phone: process.env.EUROSENDER_CONTACT_PHONE || '+447700900123',
+  }));
   const freightLimiter = new RateLimiter(12, 60_000);
+  on('GET', '/api/forwarding/estimate', 'public', async (c) => { freightLimiter.check(ip(c)); return forwardingEstimate(c.query.get('from'), c.query.get('to'), c.query.get('kg')); });
+  on('POST', '/api/forwarding/waitlist', 'public', async (c) => { publicLimiter.check(ip(c)); return joinForwardingWaitlist(app.db, c.body ?? {}, c.user?.customerId ?? null, new Date().toISOString()); });
   on('GET', '/api/freight/forwarders', 'public', async (c) => { publicLimiter.check(ip(c)); return freightForwarders(c.query.get('place'), c.query.get('country'), Boolean(c.user)); });
   on('GET', '/api/freight/rates', 'public', async (c) => { freightLimiter.check(ip(c)); return freightRates(parseFreightQuery(c.query)); });
   on('GET', '/api/gplace/:id/logo', 'public', async (c) => {

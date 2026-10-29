@@ -79,3 +79,76 @@ test('freight forwarders: Google search anywhere, numbers hidden for visitors', 
   await assert.rejects(freightForwarders('x', 'CN', false, f), /place/);
   delete process.env.GOOGLE_PLACES_API_KEY;
 });
+
+test('forwarding: estimate for a US pair of shoes to the UK, and the waiting list', async () => {
+  const { forwardingEstimate, joinForwardingWaitlist } = await import('../src/forwarding/forwarding.ts');
+  const r = await forwardingEstimate('US', 'GB', '2');
+  assert.ok(r.estimate && r.estimate.totalLowPence > 2000 && r.estimate.totalHighPence < 15000, JSON.stringify(r));
+  await assert.rejects(forwardingEstimate('US', 'US', '2'), /different/);
+  const { app } = await makeApp();
+  assert.equal((await joinForwardingWaitlist(app.db, { email: 'A@b.co', from: 'US', to: 'GB' }, null, new Date().toISOString())).position, 1);
+  assert.equal((await joinForwardingWaitlist(app.db, { email: 'a@b.co', from: 'US', to: 'TR' }, null, new Date().toISOString())).position, 1, 'same email once');
+  await assert.rejects(joinForwardingWaitlist(app.db, { email: 'nope' }, null, ''), /email/);
+});
+
+test('cargoboard: live pallet prices for UK to Europe replace our road estimate', async () => {
+  process.env.CARGOBOARD_API_KEY = 'k'; process.env.CARGOBOARD_ENV = 'sandbox';
+  const seen: any[] = [];
+  const f = (async (u: string, init: any) => {
+    if (u.includes('cargoboard')) {
+      const b = JSON.parse(init.body); seen.push({ u, b, key: init.headers['X-API-KEY'] });
+      return new Response(JSON.stringify({ data: { id: 'q1', price: { amount: 200, grossAmount: 238, currency: 'EUR' }, runtime: { daysMin: 3, daysMax: 5 }, product: b.product } }), { status: 201 });
+    }
+    throw new Error('no network');
+  }) as typeof fetch;
+  const q = parseFreightQuery(new URLSearchParams({ load: 'pallets', qty: '2', kg: '300', origin: 'Manchester', destination: 'Berlin', fromCountry: 'GB', toCountry: 'DE', fromPostcode: 'M1 1AE', toPostcode: '10115', fromTown: 'Manchester', toTown: 'Berlin' }));
+  const r = await freightRates(q, f);
+  assert.equal(seen.length, 2);
+  assert.match(seen[0].u, /^https:\/\/api-sandbox\.cargoboard\.com\/v1\/quotations$/);
+  assert.equal(seen[0].key, 'k');
+  assert.deepEqual(seen.map((x) => x.b.product).sort(), ['EXPRESS', 'STANDARD']);
+  assert.equal(seen[0].b.lines[0].unitPackageType, 'EP');
+  assert.equal(seen[0].b.lines[0].unitQuantity, 2);
+  assert.equal(seen[0].b.consignee.address.postCode, '10115');
+  const live = r.rates.filter((x) => x.live);
+  assert.equal(live.length, 2);
+  assert.equal(live[0]!.minPence, Math.round(238 * 0.85 * 100));
+  assert.ok(!r.rates.some((x) => x.mode === 'LTL' && !x.live), 'our LTL estimate is replaced');
+  // not used inside the UK, nor for Turkey
+  seen.length = 0;
+  await freightRates(parseFreightQuery(new URLSearchParams({ load: 'pallets', qty: '1', kg: '300', origin: 'a b', destination: 'c d', fromCountry: 'GB', toCountry: 'GB' })), f);
+  await freightRates(parseFreightQuery(new URLSearchParams({ load: 'pallets', qty: '1', kg: '300', origin: 'a b', destination: 'c d', fromCountry: 'TR', toCountry: 'DE' })), f);
+  assert.equal(seen.length, 0);
+  delete process.env.CARGOBOARD_API_KEY; delete process.env.CARGOBOARD_ENV;
+});
+
+test('eurosender: live parcel and pallet prices, sandbox URL, no customer data in quotes', async () => {
+  process.env.EUROSENDER_API_KEY = 'k'; process.env.EUROSENDER_ENV = 'sandbox';
+  const seen: any[] = [];
+  const f = (async (u: string, init: any) => {
+    if (u.includes('eurosender')) {
+      const b = JSON.parse(init.body); seen.push({ u, b, key: init.headers['x-api-key'] });
+      const pal = Boolean(b.parcels.pallets);
+      return new Response(JSON.stringify({ options: { serviceTypes: pal
+        ? [{ name: 'freight', edt: '3-5', price: { original: { currencyCode: 'EUR', gross: 180, net: 150 } } }, { name: 'freight_priority_express', edt: '1-2', price: { original: { currencyCode: 'EUR', gross: 320, net: 266 } } }]
+        : [{ name: 'selection', edt: '2-4', price: { original: { currencyCode: 'EUR', gross: 24.5, net: 20 } } }, { name: 'express', edt: '1', price: { original: { currencyCode: 'EUR', gross: 61, net: 50 } } }] } }), { status: 200 });
+    }
+    throw new Error('no network');
+  }) as typeof fetch;
+  const pal = await freightRates(parseFreightQuery(new URLSearchParams({ load: 'pallets', qty: '1', kg: '300', origin: 'a b', destination: 'c d', fromCountry: 'GB', toCountry: 'FR', fromPostcode: 'M1 1AE', toPostcode: '75001', fromTown: 'Manchester', toTown: 'Paris' })), f);
+  assert.match(seen[0].u, /^https:\/\/sandbox-api\.eurosender\.com\/v1\/quotes$/);
+  assert.equal(seen[0].key, 'k');
+  assert.equal(seen[0].b.serviceType, 'freight');
+  assert.ok(!JSON.stringify(seen[0].b).includes('@'), 'no email in quotes');
+  const live = pal.rates.filter((x) => x.source === 'eurosender');
+  assert.deepEqual(live.map((x) => x.label), ['Pallet · Standard', 'Pallet · Priority Express']);
+  assert.deepEqual([live[0]!.minPence, live[0]!.daysMin, live[0]!.daysMax], [Math.round(180 * 0.85 * 100), 3, 5]);
+  assert.ok(!pal.rates.some((x) => x.mode === 'LTL' && !x.live), 'estimate replaced');
+  const box = await freightRates(parseFreightQuery(new URLSearchParams({ load: 'boxes', qty: '1', kg: '5', l: '40', w: '30', h: '20', origin: 'a b', destination: 'c d', fromCountry: 'GB', toCountry: 'DE' })), f);
+  assert.ok(box.rates.some((x) => x.source === 'eurosender' && x.label === 'Standard' && x.mode === 'express'));
+  assert.ok(!box.rates.some((x) => x.mode === 'express' && !x.live));
+  seen.length = 0;
+  await freightRates(parseFreightQuery(new URLSearchParams({ load: 'boxes', qty: '1', kg: '5', l: '40', w: '30', h: '20', origin: 'a b', destination: 'c d', fromCountry: 'CN', toCountry: 'GB' })), f);
+  assert.equal(seen.length, 0, 'not called outside Europe');
+  delete process.env.EUROSENDER_API_KEY; delete process.env.EUROSENDER_ENV;
+});

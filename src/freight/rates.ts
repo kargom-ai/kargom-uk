@@ -1,6 +1,8 @@
 import { AppError } from '../core/errors.ts';
 import { estimatePrice } from '../market/estimate.ts';
 import { routeInfo } from '../market/route.ts';
+import { cargoboardRates } from './cargoboard.ts';
+import { eurosenderRates } from './eurosender.ts';
 
 /**
  * Air, sea, express and road freight price ranges, worked out from published market indices.
@@ -17,10 +19,10 @@ import { routeInfo } from '../market/route.ts';
  */
 
 export type FreightLoad = 'boxes' | 'pallets' | 'container20' | 'container40' | 'container40HC';
-export type FreightRate = { mode: string; label: string; minPence: number; maxPence: number; currency: string; daysMin: number | null; daysMax: number | null; source: 'kargom' };
+export type FreightRate = { mode: string; label: string; minPence: number; maxPence: number; currency: string; daysMin: number | null; daysMax: number | null; source: 'kargom' | 'cargoboard' | 'eurosender'; carrier?: string; live?: boolean };
 export type FreightQuery = {
   origin: string; destination: string; fromCountry: string; toCountry: string; fromPostcode?: string; toPostcode?: string;
-  load: FreightLoad; quantity: number; weightKg: number; lengthCm: number; widthCm: number; heightCm: number;
+  load: FreightLoad; quantity: number; weightKg: number; lengthCm: number; widthCm: number; heightCm: number; fromTown?: string; toTown?: string;
 };
 
 const LOADS: FreightLoad[] = ['boxes', 'pallets', 'container20', 'container40', 'container40HC'];
@@ -91,6 +93,7 @@ export function parseFreightQuery(q: URLSearchParams): FreightQuery {
     origin, destination, load, quantity, weightKg, lengthCm: l, widthCm: w, heightCm: h,
     fromCountry: str(q.get('fromCountry'), 2).toUpperCase() || 'GB', toCountry: str(q.get('toCountry'), 2).toUpperCase() || 'GB',
     fromPostcode: str(q.get('fromPostcode'), 10).toUpperCase(), toPostcode: str(q.get('toPostcode'), 10).toUpperCase(),
+    fromTown: str(q.get('fromTown'), 60), toTown: str(q.get('toTown'), 60),
   };
 }
 
@@ -148,10 +151,14 @@ export async function freightRates(q: FreightQuery, f: typeof fetch = fetch): Pr
       if (cbm >= 12) out.push(row('FCL', (L.fcl * (cbm > 33 ? 1 : 0.62) + FCL_EXTRAS) * Math.max(1, Math.ceil(cbm / (cbm > 33 ? 67 : 33))), L.sea));
     } else if (q.load === 'pallets' || expKg > 70) out.push(...(await road(q, near, f)));
   }
-  out.sort((a, b) => ORDER.indexOf(a.mode) - ORDER.indexOf(b.mode));
+  // live pallet-network prices replace our road estimate where Cargoboard covers the route
+  const live = (await Promise.all([cargoboardRates(q, f), eurosenderRates(q, f)])).flat();
+  const liveModes = new Set(live.map((r) => r.mode));
+  const all = [...out.filter((r) => !liveModes.has(r.mode)), ...live];
+  all.sort((a, b) => ORDER.indexOf(a.mode) - ORDER.indexOf(b.mode) || Number(Boolean(b.live)) - Number(Boolean(a.live)) || a.minPence - b.minPence);
   return {
-    rates: out,
-    note: out.length ? null : 'We could not estimate this one. Freight companies can still price it for you.',
+    rates: all,
+    note: all.length ? null : 'We could not estimate this one. Freight companies can still price it for you.',
     basis: near ? 'typical UK and European haulage rates' : 'Drewry and Freightos market indices (October 2026) plus typical collection, customs clearance and delivery charges',
   };
 }
