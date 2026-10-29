@@ -10,10 +10,10 @@ import { shrinkPhoto } from './photo-address.js';
 
 const KEY = 'kg_chat';
 const load = () => { try { return JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch { return null; } };
-const save = (s) => { try { sessionStorage.setItem(KEY, JSON.stringify({ messages: s.messages, draft: s.draft, ready: s.ready, showQuotes: s.showQuotes })); } catch { /* private mode */ } };
+const save = (s) => { try { sessionStorage.setItem(KEY, JSON.stringify({ messages: s.messages, draft: s.draft, ready: s.ready })); } catch { /* private mode */ } };
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const HELLO = 'Hi! I can book your parcel label right here. What are you sending, and from which postcode to which postcode?';
-const HELLO_TR = 'Merhaba! Kargo etiketini buradan alabilirsin. Ne gönderiyorsun, hangi posta kodundan hangi posta koduna?';
+const HELLO = 'Hi! I can book your parcel label right here in a minute. What are you sending?';
+const HELLO_TR = 'Merhaba! Kargo etiketini bir dakikada buradan alabilirsin. Ne gönderiyorsun?';
 
 let S = null;
 let root = null;
@@ -61,10 +61,20 @@ function logo(carrier) {
 
 function view() {
   const d = S.draft || {};
-  const bubbles = S.messages.map((m) => `<div class="kc-b ${m.role === 'user' ? 'u' : 'a'}">${esc(m.text)}</div>`).join('');
-  const quotes = S.showQuotes && d.quotes?.length && !S.ready ? `<div class="kc-q">${d.quotes.slice(0, 5).map((q) => `
-      <button type="button" class="kc-qc ${d.choice?.serviceCode === q.serviceCode ? 'on' : ''}" data-q="${esc(q.serviceCode)}">${logo(q.carrier)}
-        <span class="t"><b>${esc(q.serviceName)}</b>${q.transitDays ? `${q.transitDays} day${q.transitDays > 1 ? 's' : ''} · ` : ''}${q.dropOff ? 'Drop off' : 'Collected'}</span><span class="p">${gbp(q.pricePence)}</span></button>`).join('')}</div>` : '';
+  const card = (q, on) => `<button type="button" class="kc-qc ${on ? 'on' : ''}" ${on ? 'disabled' : `data-q="${esc(q.serviceCode)}"`}>${logo(q.carrier)}
+      <span class="t"><b>${esc(q.serviceName)}</b>${on ? 'Selected · ' : ''}${q.transitDays ? `${q.transitDays} day${q.transitDays > 1 ? 's' : ''} · ` : ''}${q.dropOff ? 'Drop off' : 'Collected'}</span><span class="p">${gbp(q.pricePence)}</span></button>`;
+  const lastQ = S.messages.reduce((i, m, j) => (m.quotes ? j : i), -1);
+  const bubbles = S.messages.map((m, j) => {
+    let extra = '';
+    if (m.quotes?.length) {
+      const chosen = d.choice && m.quotes.find((q) => q.serviceCode === d.choice.serviceCode && q.carrier === d.choice.carrier);
+      // once chosen only the choice stays; older price lists disappear
+      if (chosen) extra = `<div class="kc-q">${card(chosen, true)}</div>`;
+      else if (j === lastQ && !S.ready) extra = `<div class="kc-q">${m.quotes.slice(0, 4).map((q) => card(q, false)).join('')}</div>`;
+    }
+    return `<div class="kc-b ${m.role === 'user' ? 'u' : 'a'}">${esc(m.text)}</div>${extra}`;
+  }).join('');
+  const quotes = '';
   const a = (x) => [x?.name, x?.line1, x?.line2, `${x?.city || ''} ${x?.postcode || ''}`.trim(), x?.phone].filter(Boolean).map(esc).join('<br>');
   const sum = S.ready && d.choice ? `<div class="kc-sum"><h4>Check and pay</h4>
       <div class="r"><span>From</span><div>${a(d.from)}</div><span>To</span><div>${a(d.to)}</div>
@@ -88,9 +98,9 @@ async function send(text) {
   S.messages.push({ role: 'user', text: t });
   S.busy = true; S.err = ''; render();
   try {
-    const r = await api('/api/chat', { method: 'POST', body: { messages: S.messages, draft: S.draft } });
-    S.messages.push({ role: 'assistant', text: r.reply });
-    S.draft = r.draft; S.ready = r.ready; S.showQuotes = r.showQuotes || (S.showQuotes && !r.ready);
+    const r = await api('/api/chat', { method: 'POST', body: { messages: S.messages.map(({ role, text }) => ({ role, text })), draft: S.draft } });
+    S.messages.push({ role: 'assistant', text: r.reply, ...(r.showQuotes && r.draft.quotes?.length ? { quotes: r.draft.quotes.slice(0, 4) } : {}) });
+    S.draft = r.draft; S.ready = r.ready;
   } catch (e) { S.err = e.message; S.messages.pop(); root.querySelector('textarea').value = t; }
   S.busy = false; save(S); render();
 }
@@ -109,31 +119,41 @@ async function photo(file) {
   } catch (e) { S.busy = false; S.err = e.message; render(); }
 }
 
+/** Back to the chat with a message (after a cancelled or failed payment). */
+function reopen(msg) {
+  openChat();
+  S.err = msg; render();
+}
+
 async function pay() {
   const d = S.draft;
   if (!d?.choice || S.paying) return;
-  S.paying = true; S.err = ''; render(false);
-  const key = S.payKey || (S.payKey = uid());
+  // the chat closes and the card form opens straight away
+  save(S); close();
+  const busy = document.createElement('div');
+  busy.style.cssText = 'position:fixed;inset:0;z-index:999;background:rgba(15,23,42,.35);display:grid;place-items:center';
+  busy.innerHTML = '<div style="background:#fff;border-radius:14px;padding:16px 20px;font:600 15px \'Plus Jakarta Sans\',sans-serif;color:#1F2A3C">Opening the secure payment…</div>';
+  document.body.append(busy);
   try {
-    const r = await api('/api/guest/book', { method: 'POST', idempotencyKey: key, body: {
+    const r = await api('/api/guest/book', { method: 'POST', idempotencyKey: uid(), body: {
       email: d.email, name: d.name, from: { ...d.from, country: 'GB' }, to: { ...d.to, country: 'GB' },
       parcel: { weightGrams: Math.round(d.parcel.weightKg * 1000), lengthCm: d.parcel.lengthCm, widthCm: d.parcel.widthCm, heightCm: d.parcel.heightCm },
       contents: d.contents, valuePence: Math.round((d.valueGbp || 0) * 100), carrier: d.choice.carrier, serviceCode: d.choice.serviceCode, expectedPricePence: d.choice.pricePence } });
     if (r.checkoutUrl) { location.href = r.checkoutUrl; return; }
     const cfg = await api('/api/guest/config');
+    busy.remove();
     if (r.clientSecret && (cfg.stripePk || cfg.demoPayments)) {
       const res = await openPaySheet({ publishableKey: cfg.stripePk, clientSecret: r.clientSecret, amountTxt: gbp(r.pricePence),
         title: 'Pay and get your label', subtitle: `${d.choice.serviceName} · ${d.from.postcode} → ${d.to.postcode}`, payLabel: `Pay ${gbp(r.pricePence)}`,
         returnUrl: `${location.origin}/l/${r.token}`,
         ...(cfg.demoPayments ? { demoPay: () => api(`/api/guest/demo-pay/${encodeURIComponent(r.token)}`, { method: 'POST', body: {} }) } : {}) });
-      if (res === 'cancelled') { S.payKey = null; S.paying = false; S.err = 'Payment cancelled. Nothing was charged.'; render(); return; }
+      if (res === 'cancelled') { reopen('Payment cancelled. Nothing was charged. Press Pay when you are ready.'); return; }
     } else if (r.clientSecret) throw new Error('Card payments are being set up. Please try again in a few minutes.');
     sessionStorage.removeItem(KEY);
     location.href = `/l/${r.token}`;
   } catch (e) {
-    S.payKey = null; S.paying = false;
-    S.err = e.code === 'quote_invalid' ? `${e.message} Tell me and I will get fresh prices.` : e.message;
-    render();
+    busy.remove();
+    reopen(e.code === 'quote_invalid' ? `${e.message} Tell me and I will get fresh prices.` : e.message);
   }
 }
 
