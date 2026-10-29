@@ -14,6 +14,7 @@ import { seoPricesFor } from '../seo/prices.ts';
 import { FakeGateway } from '../payments/stripe.ts';
 import { AddressLookup } from '../address/lookup.ts';
 import { addressFromImage, addressFromText } from '../address/fromImage.ts';
+import { chatTurn } from '../chat/agent.ts';
 import { GuestCheckout } from '../guest/guest.ts';
 import { routeInfo } from '../market/route.ts';
 import { placeLogo } from '../market/places.ts';
@@ -232,7 +233,7 @@ export function buildRouter(app: App) {
   /** Payment settings the guest page needs (the publishable key is public by design). */
   on('GET', '/api/guest/config', 'public', async () => {
     const demo = app.payments instanceof FakeGateway;
-    return { demoPayments: demo, stripePk: demo ? null : process.env.STRIPE_PUBLISHABLE_KEY ?? null, addressList: addresses.hasAddressList, notify: app.notifier.enabled, homeVideo: homeVideo() };
+    return { demoPayments: demo, stripePk: demo ? null : process.env.STRIPE_PUBLISHABLE_KEY ?? null, addressList: addresses.hasAddressList, notify: app.notifier.enabled, homeVideo: homeVideo(), chat: Boolean(process.env.ANTHROPIC_API_KEY) };
   });
   on('POST', '/api/guest/book', 'public', async (c) => {
     guestLimiter.check(ip(c));
@@ -243,6 +244,17 @@ export function buildRouter(app: App) {
       idempotencyKey: String(c.req.headers['idempotency-key'] ?? '') || String(Date.now()),
       // Stripe is on but the publishable key is missing: fall back to Stripe's hosted page so nobody is blocked.
       ...(!(app.payments instanceof FakeGateway) && !process.env.STRIPE_PUBLISHABLE_KEY ? { hostedReturnBase: siteBase(c.req) } : {}) });
+  });
+  /** "Chat with me": the booking assistant. It fills a draft; the customer pays through /api/guest/book. */
+  const chatLimiter = new RateLimiter(30, 60_000);
+  on('POST', '/api/chat', 'public', async (c) => {
+    chatLimiter.check(ip(c));
+    const q = (pc: string) => ({ name: 'Quote', line1: 'Quote', city: 'Quote', postcode: pc, country: 'GB' });
+    return chatTurn(c.body?.messages, c.body?.draft, {
+      quote: async (r) => (await previewQuotes(app, { from: q(r.from.postcode), to: q(r.to.postcode), parcel: r.parcel } as ShipmentRequest)).quotes
+        .map((x: any) => ({ carrier: x.carrier, carrierName: x.carrierName, serviceCode: x.serviceCode, serviceName: x.serviceName, pricePence: x.price, transitDays: x.transitDays, dropOff: x.dropOff })),
+      lookup: (pc) => addresses.byPostcode(pc),
+    });
   });
   on('GET', '/api/guest/address', 'public', async (c) => {
     guestLimiter.check(ip(c));

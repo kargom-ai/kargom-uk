@@ -50,12 +50,21 @@ input:focus,select:focus{outline:none}
             <span style="display: block; font-size: 48px; font-weight: 700">cheap parcel delivery</span>
           </h1>
           <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px 40px">
+            <sc-if value="{{chatOn}}" hint-placeholder-val="{{ false }}">
+              <button type="button" onClick="{{openChat}}" class="chat-cta" style="display: flex; align-items: center; gap: 12px; padding: 0 22px 0 8px; border: 0; border-radius: 999px; background: #FFFFFF; color: #1D3593; font: 700 16px 'Plus Jakarta Sans', sans-serif; cursor: pointer; min-height: 56px; box-shadow: 0 10px 24px rgba(10,20,60,.25)">
+                <span style="width: 42px; height: 42px; border-radius: 50%; background: #2463DB; display: grid; place-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>
+                <span style="display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2">Chat with me<span style="font-size: 12px; font-weight: 600; color: #586579">Book your label in the chat</span></span>
+              </button>
+              <button type="button" onClick="{{openVideo}}" style="display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: #DCE4F2; font: 600 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer; min-height: 44px"><svg width="14" height="14" viewBox="0 0 24 24" fill="#DCE4F2" aria-hidden="true"><path d="M7 4v16l13-8z"></path></svg>Watch our video</button>
+            </sc-if>
+            <sc-if value="{{noChat}}" hint-placeholder-val="{{ true }}">
             <button type="button" class="play" onClick="{{openVideo}}" style="display: flex; align-items: center; gap: 12px; padding: 0; border: 0; background: none; color: #FFFFFF; font: 600 16px 'Plus Jakarta Sans', sans-serif; cursor: pointer; min-height: 48px">
               <span class="dot" style="width: 46px; height: 46px; border-radius: 50%; background: #FFFFFF; display: grid; place-items: center; box-shadow: 0 6px 16px rgba(0,0,0,.2); transition: transform .15s">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="#2463DB" aria-hidden="true"><path d="M7 4v16l13-8z"></path></svg>
               </span>
               Watch our video
             </button>
+            </sc-if>
             <span style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 14px; color: #DCE4F2">Send from only <b style="font-family: 'Outfit', sans-serif; font-size: 24px; font-weight: 700; color: #FFFFFF">£2.39</b> (£1.99 exc VAT)</span>
           </div>
         </div>

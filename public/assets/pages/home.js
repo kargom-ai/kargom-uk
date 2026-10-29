@@ -23,7 +23,7 @@ class Component extends DCLogic {
   constructor(p) { super(p); this.state = { mode: 'uk', dims: false, video: false, me: null }; }
   mounted() {
     api('/api/me').then((me) => this.setState({ me })).catch(() => {});
-    api('/api/guest/config').then((c) => this.setState({ vid: c.homeVideo || null })).catch(() => {});
+    api('/api/guest/config').then((c) => this.setState({ vid: c.homeVideo || null, chat: Boolean(c.chat) })).catch(() => {});
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.state.video) this.setState({ video: false }); });
     // Close the video window by itself when the video finishes ('ended' does not bubble, so listen in the capture phase).
     document.addEventListener('ended', (e) => { if (e.target instanceof HTMLVideoElement && e.target.closest('[aria-label="Kargom video"]')) this.setState({ video: false }); }, true);
@@ -126,7 +126,7 @@ class Component extends DCLogic {
       modes, fields: F[st.mode], cta: { label: CTA[st.mode][0], href: CTA[st.mode][1], go: (e) => this.getQuotes(e) }, links: LINKS[st.mode],
       showDims: isParcel && st.dims, laterOn: !st.dims, nowOn: st.dims,
       dimsLater: () => this.setState({ dims: false }), dimsNow: () => this.setState({ dims: true }),
-      video: st.video, vidYt: st.vid?.kind === 'youtube', vidFile: st.vid?.kind === 'file', vidNone: !st.vid, vidSrc: st.vid?.src || '', openVideo: () => this.setState({ video: true }), closeVideo: () => this.setState({ video: false }),
+      video: st.video, vidYt: st.vid?.kind === 'youtube', vidFile: st.vid?.kind === 'file', vidNone: !st.vid, vidSrc: st.vid?.src || '', openVideo: () => this.setState({ video: true }), chatOn: Boolean(st.chat), noChat: !st.chat, openChat: () => import('../chat.js').then((m) => m.openChat()), closeVideo: () => this.setState({ video: false }),
       couriers, steps,
       nav1: me ? { href: me.role === 'admin' ? '/admin' : '/app', label: me.role === 'admin' ? 'Admin' : 'My account' } : { href: '/login?mode=register', label: 'Sign up' },
       nav2: me ? { href: '/app', label: me.name.split(' ')[0] } : { href: '/login', label: 'Log in' },
