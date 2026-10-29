@@ -42,10 +42,15 @@ div[style*="overflow-x: auto"] { position: relative; }
   [role="dialog"][aria-label="Kargom video"] { align-items: center !important; }
 
   /* ---------- public header (home, quotes, login) ---------- */
-  .m-topnav { gap: 12px !important; }
+  .m-topnav { gap: 12px !important; flex-wrap: nowrap !important; }
   .m-topnav a { white-space: nowrap; }
   header img { height: 24px !important; }
   header > div { padding-left: 16px !important; padding-right: 16px !important; }
+  /* home header: logo and the two account buttons on one row (sending starts from the search box) */
+  body[data-page="home"] header > div { flex-wrap: nowrap !important; gap: 10px !important; padding-top: 12px !important; padding-bottom: 12px !important; }
+  body[data-page="home"] header img { height: 22px !important; }
+  body[data-page="home"] .m-topnav > a:first-child { display: none !important; }
+  body[data-page="home"] .m-topnav > a[style*="background: #2463DB"] { padding: 8px 14px !important; font-size: 14px; }
 
   /* ---------- home ---------- */
   body[data-page="home"] section > div { padding-left: 16px !important; padding-right: 16px !important; }
