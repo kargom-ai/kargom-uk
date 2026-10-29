@@ -32,3 +32,28 @@ test('address from image: calls Vision with the image, never stores it', async (
   await assert.rejects(addressFromImage('data:application/pdf;base64,AAAA', f), /JPG/);
   delete process.env.GOOGLE_VISION_API_KEY;
 });
+
+test('address from image with AI (Claude): sends the picture, reads the JSON answer', async () => {
+  process.env.ANTHROPIC_API_KEY = 'a';
+  let sent: any = null;
+  const f = (async (u: string, init: any) => {
+    sent = { u, h: init.headers, b: JSON.parse(init.body) };
+    return new Response(JSON.stringify({ content: [{ type: 'text', text: 'Here you go:\n{"name":"Alice Brown","company":"","phone":"+447700900456","email":"","line1":"7 Rose Lane","line2":"","city":"Bristol","postcode":"bs1 4dj","country":"gb"}' }] }), { status: 200 });
+  }) as typeof fetch;
+  const r = await addressFromImage('data:image/png;base64,BBBB', f);
+  assert.equal(sent.u, 'https://api.anthropic.com/v1/messages');
+  assert.equal(sent.h['x-api-key'], 'a');
+  assert.equal(sent.b.messages[0].content[0].source.media_type, 'image/png');
+  assert.equal(sent.b.messages[0].content[0].source.data, 'BBBB');
+  assert.deepEqual([r.found, r.address.name, r.address.postcode, r.address.country, r.address.city], [true, 'Alice Brown', 'BS1 4DJ', 'GB', 'Bristol']);
+  const none = (async () => new Response(JSON.stringify({ content: [{ type: 'text', text: '{"none":true}' }] }), { status: 200 })) as typeof fetch;
+  assert.equal((await addressFromImage('data:image/png;base64,BBBB', none)).found, false);
+  delete process.env.ANTHROPIC_API_KEY;
+});
+
+test('address from image: a restricted Google key gives a clear message', async () => {
+  process.env.GOOGLE_VISION_API_KEY = 'v';
+  const f = (async () => new Response(JSON.stringify({ error: { message: 'Requests to this API vision.googleapis.com method google.cloud.vision.v1.ImageAnnotator.BatchAnnotateImages are blocked.' } }), { status: 403 })) as typeof fetch;
+  await assert.rejects(addressFromImage('data:image/jpeg;base64,AAAA', f), /restricted: add Cloud Vision API/);
+  delete process.env.GOOGLE_VISION_API_KEY;
+});

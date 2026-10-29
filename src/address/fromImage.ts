@@ -109,13 +109,60 @@ export async function readImageText(dataUrl: string, f: typeof fetch = fetch): P
   const err = j.error?.message ?? j.responses?.[0]?.error?.message;
   if (!r.ok || err) {
     console.warn(`[vision] ${r.status} ${err ?? ''}`);
-    throw new AppError('provider_failed', /not been used|disabled|not enabled/i.test(err ?? '') ? 'Reading photos is not switched on yet (Cloud Vision API)' : 'We could not read that image. Try a clearer photo.');
+    // say exactly what Google said, so setup problems are obvious (no customer data in these messages)
+    const why = /not been used|disabled|not enabled/i.test(err ?? '') ? 'Cloud Vision API is not switched on in Google Cloud'
+      : /not authorized|API_KEY_SERVICE_BLOCKED|blocked/i.test(err ?? '') ? 'the Google key is restricted: add Cloud Vision API to its allowed APIs'
+      : /billing/i.test(err ?? '') ? 'billing is not enabled on the Google Cloud project'
+      : (err ?? `HTTP ${r.status}`);
+    throw new AppError('provider_failed', `Photo reading is not working yet: ${why}`);
   }
   return j.responses?.[0]?.fullTextAnnotation?.text ?? '';
 }
 
+const FIELDS = ['name', 'company', 'phone', 'email', 'line1', 'line2', 'city', 'postcode', 'country'] as const;
+
+/**
+ * Read the address with an AI model that looks at the picture itself (Claude). Better than plain text
+ * reading for handwriting, crooked photos and busy screenshots, and it splits the fields itself.
+ * Used when ANTHROPIC_API_KEY is set; otherwise Google Cloud Vision + our parser.
+ */
+export async function aiReadAddress(dataUrl: string, f: typeof fetch = fetch): Promise<ParsedAddress> {
+  const key = process.env.ANTHROPIC_API_KEY!;
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!m) throw new AppError('bad_request', 'Choose a JPG, PNG or WebP image');
+  if (m[2]!.length > 1_600_000) throw new AppError('bad_request', 'That image is too large');
+  const prompt = `This image shows a postal address (a label, envelope, note, or a screenshot of a message or order page).
+Find the delivery address in it and reply with JSON only, no other text, using exactly these keys:
+{"name":"","company":"","phone":"","email":"","line1":"","line2":"","city":"","postcode":"","country":""}
+Rules: country is a 2-letter ISO code (GB for any UK address). line1 is the house number and street (include flat/unit). line2 is the district or second line. Phone with country code if shown. Use "" for anything not shown. Do not invent anything. If there is no address, reply {"none":true}.`;
+  const r = await f('https://api.anthropic.com/v1/messages', {
+    method: 'POST', signal: AbortSignal.timeout(25_000),
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-haiku-5-5', max_tokens: 400, messages: [{ role: 'user', content: [
+      { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } }, { type: 'text', text: prompt },
+    ] }] }),
+  });
+  const j = (await r.json().catch(() => ({}))) as { content?: Array<{ type: string; text?: string }>; error?: { message?: string } };
+  if (!r.ok) { console.warn(`[ai-address] ${r.status} ${j.error?.message ?? ''}`); throw new AppError('provider_failed', `Photo reading is not working yet: ${j.error?.message ?? `HTTP ${r.status}`}`); }
+  const text = (j.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join('');
+  const json = /\{[\s\S]*\}/.exec(text)?.[0];
+  let o: Record<string, unknown> = {};
+  try { o = JSON.parse(json ?? '{}'); } catch { /* treated as nothing found */ }
+  const out = { name: '', company: '', phone: '', email: '', line1: '', line2: '', city: '', postcode: '', country: '', lines: [] } as ParsedAddress;
+  if (o.none) return out;
+  for (const k of FIELDS) out[k] = typeof o[k] === 'string' ? String(o[k]).trim().slice(0, 120) : '';
+  out.country = out.country.toUpperCase().slice(0, 2);
+  if (out.country === 'GB') out.postcode = out.postcode.toUpperCase();
+  if (!out.name && out.company) out.name = out.company;
+  return out;
+}
+
 export async function addressFromImage(dataUrl: unknown, f?: typeof fetch) {
   if (typeof dataUrl !== 'string') throw new AppError('bad_request', 'Choose an image');
+  if (process.env.ANTHROPIC_API_KEY) {
+    const a = await aiReadAddress(dataUrl, f);
+    return { address: a, found: Boolean(a.line1 || a.postcode), by: 'ai' };
+  }
   const text = await readImageText(dataUrl, f);
   if (!text.trim()) throw new AppError('bad_request', 'We could not find any text in that image');
   const a = parseAddress(text);
