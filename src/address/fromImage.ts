@@ -100,7 +100,7 @@ export async function readImageText(dataUrl: string, f: typeof fetch = fetch): P
   if (!key) throw new AppError('provider_failed', 'Reading addresses from photos is not set up yet');
   const m = /^data:image\/(?:jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   if (!m) throw new AppError('bad_request', 'Choose a JPG, PNG or WebP image');
-  if (m[1]!.length > 1_600_000) throw new AppError('bad_request', 'That image is too large');
+  if (m[1]!.length > 4_500_000) throw new AppError('bad_request', 'That image is too large');
   const r = await f(`https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(key)}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15_000),
     body: JSON.stringify({ requests: [{ image: { content: m[1] }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }], imageContext: { languageHints: ['en', 'tr', 'de', 'fr'] } }] }),
@@ -119,7 +119,7 @@ export async function readImageText(dataUrl: string, f: typeof fetch = fetch): P
   return j.responses?.[0]?.fullTextAnnotation?.text ?? '';
 }
 
-const FIELDS = ['name', 'company', 'phone', 'email', 'line1', 'line2', 'city', 'postcode', 'country'] as const;
+export const FIELDS = ['name', 'company', 'phone', 'email', 'line1', 'line2', 'city', 'postcode', 'country'] as const;
 
 /**
  * Read the address with an AI model that looks at the picture itself (Claude). Better than plain text
@@ -130,15 +130,24 @@ export async function aiReadAddress(dataUrl: string, f: typeof fetch = fetch): P
   const key = process.env.ANTHROPIC_API_KEY!;
   const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   if (!m) throw new AppError('bad_request', 'Choose a JPG, PNG or WebP image');
-  if (m[2]!.length > 1_600_000) throw new AppError('bad_request', 'That image is too large');
-  const prompt = `This image shows a postal address (a label, envelope, note, or a screenshot of a message or order page).
-Find the delivery address in it and reply with JSON only, no other text, using exactly these keys:
-{"name":"","company":"","phone":"","email":"","line1":"","line2":"","city":"","postcode":"","country":""}
-Rules: country is a 2-letter ISO code (GB for any UK address). line1 is the house number and street (include flat/unit). line2 is the district or second line. Phone with country code if shown. Use "" for anything not shown. Do not invent anything. If there is no address, reply {"none":true}.`;
+  if (m[2]!.length > 4_500_000) throw new AppError('bad_request', 'That image is too large');
+  const prompt = `You are filling in a parcel delivery form from a picture a customer took or uploaded. It may be a shipping label, an envelope, a handwritten note, a business card, an invoice, or a screenshot of a chat, email, map or order page. It may be blurry, rotated, cropped, partly covered or in any language.
+
+Your job: get as much of the address into the form as you can. Partial is much better than nothing.
+- Fill every field you can read even partly. If you are fairly sure, fill it. Never leave a field empty just because you are not 100% sure.
+- If several addresses appear, use the delivery / recipient / "ship to" one; if unclear, use the most complete one that is not a company return address.
+- Put each piece in the most sensible field: person's name -> name; business name -> company; house/flat/unit number and street -> line1; second line, district, building or area -> line2; town or city -> city; postal code -> postcode; phone -> phone; email -> email.
+- If everything is on one line ("12 High St, Leeds LS1 5HD"), split it into the fields.
+- country: 2-letter ISO code. Work it out from the country name, the postcode format, the phone code, the language or the city if not written (a UK postcode like "M1 1AE" means GB).
+- Keep the original spelling of names and streets (including Turkish, German, etc. letters). Phone: keep digits and a leading + if present.
+- Do not make up a street, number or name that is not in the picture.
+
+Reply with only this JSON, nothing else:
+{"name":"","company":"","phone":"","email":"","line1":"","line2":"","city":"","postcode":"","country":""}`;
   const r = await f('https://api.anthropic.com/v1/messages', {
-    method: 'POST', signal: AbortSignal.timeout(25_000),
+    method: 'POST', signal: AbortSignal.timeout(40_000),
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-haiku-5-5', max_tokens: 400, messages: [{ role: 'user', content: [
+    body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5', max_tokens: 500, messages: [{ role: 'user', content: [
       { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } }, { type: 'text', text: prompt },
     ] }] }),
   });
@@ -149,7 +158,6 @@ Rules: country is a 2-letter ISO code (GB for any UK address). line1 is the hous
   let o: Record<string, unknown> = {};
   try { o = JSON.parse(json ?? '{}'); } catch { /* treated as nothing found */ }
   const out = { name: '', company: '', phone: '', email: '', line1: '', line2: '', city: '', postcode: '', country: '', lines: [] } as ParsedAddress;
-  if (o.none) return out;
   for (const k of FIELDS) out[k] = typeof o[k] === 'string' ? String(o[k]).trim().slice(0, 120) : '';
   out.country = out.country.toUpperCase().slice(0, 2);
   if (out.country === 'GB') out.postcode = out.postcode.toUpperCase();
@@ -161,10 +169,10 @@ export async function addressFromImage(dataUrl: unknown, f?: typeof fetch) {
   if (typeof dataUrl !== 'string') throw new AppError('bad_request', 'Choose an image');
   if (process.env.ANTHROPIC_API_KEY) {
     const a = await aiReadAddress(dataUrl, f);
-    return { address: a, found: Boolean(a.line1 || a.postcode), by: 'ai' };
+    return { address: a, found: FIELDS.some((k) => a[k]), by: 'ai' };
   }
   const text = await readImageText(dataUrl, f);
   if (!text.trim()) throw new AppError('bad_request', 'We could not find any text in that image');
   const a = parseAddress(text);
-  return { address: a, found: Boolean(a.line1 || a.postcode) };
+  return { address: a, found: FIELDS.some((k) => a[k]) };
 }

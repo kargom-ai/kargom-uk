@@ -32,15 +32,19 @@ function toast(text) {
 }
 
 /** Put a value into a form box and keep it through re-renders. */
-/** Shrink a photo before upload: long side 1600 px, JPEG. Keeps uploads small on mobile data. */
+/** Shrink a photo before upload: long side up to 2400 px, JPEG under ~2 MB. */
 async function shrinkPhoto(file) {
   const img = await createImageBitmap(file).catch(() => null);
   if (!img) throw new Error('That file is not an image we can read.');
-  const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+  // keep small text readable: tall phone screenshots keep their full height up to 2400 px
+  const k = Math.min(1, 2400 / Math.max(img.width, img.height));
   const c = document.createElement('canvas');
   c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  return c.toDataURL('image/jpeg', 0.82);
+  const g = c.getContext('2d');
+  g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(img, 0, 0, c.width, c.height);
+  for (const q of [0.9, 0.8, 0.7, 0.6]) { const d = c.toDataURL('image/jpeg', q); if (d.length < 3_000_000) return d; }
+  return c.toDataURL('image/jpeg', 0.5);
 }
 
 function setField(label, value) {
@@ -344,17 +348,21 @@ class Component extends DCLogic {
             const image = await shrinkPhoto(file);
             const r = await api('/api/address/from-image', { method: 'POST', body: { image } });
             const a = r.address;
-            if (!r.found) { set({ busy: false, msg: 'We could not find an address in that image. Try a closer, clearer photo.', bad: true }); return; }
-            if (a.name || a.company) setField(`${px}_name`, px === 'sa' ? (a.company || a.name) : (a.name || a.company));
-            if (a.phone) setField(`${px}_phone`, a.phone);
-            if (a.email && px === 'ra') setField('ra_email', a.email);
-            setField(`${px}_line1`, a.line1); setField(`${px}_line2`, a.line2); setField(`${px}_city`, a.city); setField(`${px}_postcode`, a.postcode);
+            if (!r.found) { set({ busy: false, msg: 'We could not read an address in that image. Try a closer photo, or type it below.', bad: true }); return; }
+            // fill only what was read, never wipe what the customer already typed
+            const put = (k, v) => { if (v) setField(k, v); };
+            put(`${px}_name`, px === 'sa' ? (a.company || a.name) : (a.name || a.company));
+            put(`${px}_phone`, a.phone);
+            if (px === 'ra') put('ra_email', a.email);
+            put(`${px}_line1`, a.line1); put(`${px}_line2`, a.line2); put(`${px}_city`, a.city); put(`${px}_postcode`, a.postcode);
             if (px === 'ra' && intl && a.country && a.country !== 'GB') {
               const sel = document.querySelector('[aria-label="ra_country"]');
               if (sel && [...sel.options].some((o) => o.value === a.country)) setField('ra_country', a.country);
             }
+            const got = ['name', 'phone', 'line1', 'city', 'postcode'].filter((k) => a[k] || (k === 'name' && a.company)).length;
             const ukMismatch = px === 'ra' && !intl && a.country && a.country !== 'GB';
-            set({ busy: false, bad: Boolean(ukMismatch), msg: ukMismatch ? 'This looks like an address outside the UK. Switch to International at the top to send there.' : 'Filled in from your photo. Please check the details.' });
+            set({ busy: false, bad: Boolean(ukMismatch), msg: ukMismatch ? 'This looks like an address outside the UK. Switch to International at the top to send there.'
+              : got >= 4 ? 'Filled in from your photo. Please check the details.' : 'We filled in what we could read. Please complete the rest.' });
             // UK: show the exact addresses at that postcode so a small reading error is easy to fix
             if (a.country === 'GB' && a.postcode && document.querySelector(`[aria-label="${px}_find"]`)) { setField(`${px}_find`, a.postcode); lookup(px).find(); }
           } catch (err) { set({ busy: false, msg: err.message, bad: true }); }

@@ -36,7 +36,7 @@ type Handler = (ctx: Ctx) => Promise<unknown>;
 type Access = 'public' | 'customer' | 'admin' | 'webhook';
 type Route = { method: string; pattern: RegExp; keys: string[]; access: Access; handler: Handler };
 
-const MAX_BODY = 2_000_000; // request photos are sent inline (resized in the browser)
+const MAX_BODY = 5_000_000; // request photos are sent inline (resized in the browser)
 
 function compile(path: string) {
   const keys: string[] = [];
