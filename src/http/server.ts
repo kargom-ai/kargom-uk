@@ -13,6 +13,7 @@ import { serveSeo } from '../seo/routes.ts';
 import { seoPricesFor } from '../seo/prices.ts';
 import { FakeGateway } from '../payments/stripe.ts';
 import { AddressLookup } from '../address/lookup.ts';
+import { addressFromImage } from '../address/fromImage.ts';
 import { GuestCheckout } from '../guest/guest.ts';
 import { routeInfo } from '../market/route.ts';
 import { placeLogo } from '../market/places.ts';
@@ -374,6 +375,8 @@ export function buildRouter(app: App) {
   on('GET', '/api/admin/partners', 'admin', async () => ({ partners: await app.market.adminPartners() }));
   on('POST', '/api/admin/partners/:id/status', 'admin', async (c) => app.market.adminSetPartnerStatus(c.params.id!, c.body.status));
   /** UK postcode → delivery addresses. Signed-in only, so strangers cannot spend our lookup credits. */
+  const photoLimiter = new RateLimiter(10, 60_000);
+  on('POST', '/api/address/from-image', 'public', async (c) => { photoLimiter.check(ip(c)); return addressFromImage(c.body?.image); });
   on('GET', '/api/address/lookup', 'customer', async (c) => {
     addressLimiter.check(me(c));
     return { ...(await addresses.byPostcode(c.query.get('postcode') ?? '')), fullList: addresses.hasAddressList };

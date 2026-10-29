@@ -32,6 +32,17 @@ function toast(text) {
 }
 
 /** Put a value into a form box and keep it through re-renders. */
+/** Shrink a photo before upload: long side 1600 px, JPEG. Keeps uploads small on mobile data. */
+async function shrinkPhoto(file) {
+  const img = await createImageBitmap(file).catch(() => null);
+  if (!img) throw new Error('That file is not an image we can read.');
+  const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.82);
+}
+
 function setField(label, value) {
   const el = document.querySelector(`[aria-label="${label}"]`);
   if (el) { el.value = value || ''; el.dataset.dirty = '1'; }
@@ -51,6 +62,7 @@ class Component extends DCLogic {
       me: null, bal: 0, history: [], parcels: [...custom, ...store.get('kg_parcels', []), ...PRESET_PARCELS],
       mySenders: store.get('kg_senders', []), myRecips: store.get('kg_recips', []), savedItems: store.get('kg_items', []),
       lk: { sa: { items: [], msg: '', bad: false, busy: false }, ra: { items: [], msg: '', bad: false, busy: false } },
+      ph: { sa: { busy: false, msg: '', bad: false }, ra: { busy: false, msg: '', bad: false } },
       quotes: null, quoteError: '', busy: false, preferService: pending?.serviceName || '',
     };
     this.key = uid();
@@ -317,6 +329,38 @@ class Component extends DCLogic {
       store.set('kg_senders', mine);
       this.setState({ mySenders: mine, sender: addrKey(a), newAddr: false, quotes: null });
     };
+    /** Photo or screenshot of an address: read it on the server and fill the boxes. */
+    const photo = (px) => {
+      const P = st.ph[px];
+      const set = (patch) => this.setState({ ph: { ...this.state.ph, [px]: { ...this.state.ph[px], ...patch } } });
+      return {
+        busy: P.busy, msg: P.msg, msgFg: P.bad ? '#B42318' : '#166534', btn: P.busy ? 'Reading the address…' : 'Fill from a photo',
+        pick: async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          set({ busy: true, msg: '', bad: false });
+          try {
+            const image = await shrinkPhoto(file);
+            const r = await api('/api/address/from-image', { method: 'POST', body: { image } });
+            const a = r.address;
+            if (!r.found) { set({ busy: false, msg: 'We could not find an address in that image. Try a closer, clearer photo.', bad: true }); return; }
+            if (a.name || a.company) setField(`${px}_name`, px === 'sa' ? (a.company || a.name) : (a.name || a.company));
+            if (a.phone) setField(`${px}_phone`, a.phone);
+            if (a.email && px === 'ra') setField('ra_email', a.email);
+            setField(`${px}_line1`, a.line1); setField(`${px}_line2`, a.line2); setField(`${px}_city`, a.city); setField(`${px}_postcode`, a.postcode);
+            if (px === 'ra' && intl && a.country && a.country !== 'GB') {
+              const sel = document.querySelector('[aria-label="ra_country"]');
+              if (sel && [...sel.options].some((o) => o.value === a.country)) setField('ra_country', a.country);
+            }
+            const ukMismatch = px === 'ra' && !intl && a.country && a.country !== 'GB';
+            set({ busy: false, bad: Boolean(ukMismatch), msg: ukMismatch ? 'This looks like an address outside the UK. Switch to International at the top to send there.' : 'Filled in from your photo. Please check the details.' });
+            // UK: show the exact addresses at that postcode so a small reading error is easy to fix
+            if (a.country === 'GB' && a.postcode && document.querySelector(`[aria-label="${px}_find"]`)) { setField(`${px}_find`, a.postcode); lookup(px).find(); }
+          } catch (err) { set({ busy: false, msg: err.message, bad: true }); }
+        },
+      };
+    };
     const saveRecip = () => {
       if (!need([['ra_name', 'the name'], ['ra_line1', 'the address'], ['ra_city', 'the town'], ['ra_postcode', 'the postcode']])) return;
       const a = { name: field('ra_name'), phone: field('ra_phone'), email: field('ra_email'), line1: field('ra_line1'), line2: field('ra_line2'), city: field('ra_city'),
@@ -348,7 +392,7 @@ class Component extends DCLogic {
       quoteHead: st.quotes === null ? 'Finding the best prices for your parcel…' : st.quoteError ? 'No services could quote. ' + st.quoteError : `${Q.length} services compared for your parcel. Prices include VAT.`,
       quoteCount: st.quotes === null ? 'Comparing' : st.quoteError ? 'No' : Q.length,
       newParcel: st.newParcel, toggleNewParcel: () => this.setState({ newParcel: !st.newParcel }), saveParcel,
-      lk: { sa: lookup('sa'), ra: lookup('ra') }, ukRecip: !intl,
+      lk: { sa: lookup('sa'), ra: lookup('ra') }, ph: { sa: photo('sa'), ra: photo('ra') }, ukRecip: !intl,
       newAddr: st.newAddr, toggleNewAddr: () => this.setState({ newAddr: !st.newAddr }), saveSender, saveRecip,
       newItem: st.newItem, toggleNewItem: () => this.setState({ newItem: !st.newItem }), saveItem,
       itemsNote: st.savedItems.length ? `${st.savedItems.length} saved item${st.savedItems.length > 1 ? 's' : ''}` : 'Add your first item with New item',
