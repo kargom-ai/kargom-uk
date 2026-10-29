@@ -18,6 +18,7 @@ import { routeInfo } from '../market/route.ts';
 import { placeLogo } from '../market/places.ts';
 import { freightRates, parseFreightQuery } from '../freight/rates.ts';
 import { freightForwarders } from '../freight/forwarders.ts';
+import type { PacklinkProvider } from '../providers/packlink.ts';
 
 type Ctx = {
   req: IncomingMessage;
@@ -305,6 +306,27 @@ export function buildRouter(app: App) {
   on('GET', '/r/:token', 'public', async (c) => sendPdf(c, await app.market.sharedPdf(c.params.token!.replace(/\.pdf$/, '')), false));
   const publicLimiter = new RateLimiter(15, 60_000);
   on('GET', '/api/public/movers', 'public', async (c) => { publicLimiter.check(ip(c)); return app.market.publicNearby(c.query.get('from'), c.query.get('kind') ?? 'removals', undefined, c.query.get('to'), c.query.get('size')); });
+  /** Admin check: does our Packlink account return pallet / heavy freight services? Open /api/admin/packlink-test in the browser. */
+  on('GET', '/api/admin/packlink-test', 'admin', async () => {
+    const pl = app.registry.all().find((p) => p.id === 'packlink') as unknown as { rawServices?: PacklinkProvider['rawServices'] } | undefined;
+    if (!pl?.rawServices) return { ok: false, error: 'Packlink is not connected (no PACKLINK_API_KEY and no Packlink connection in Admin → Connections)' };
+    const pallet = { weight: 300, length: 120, width: 100, height: 150 };
+    const cases: Array<[string, { country: string; zip: string }, { country: string; zip: string }, typeof pallet[]]> = [
+      ['UK→UK · 1 pallet 300 kg', { country: 'GB', zip: 'M1 1AE' }, { country: 'GB', zip: 'B8 1AA' }, [pallet]],
+      ['UK→UK · 2 pallets', { country: 'GB', zip: 'M1 1AE' }, { country: 'GB', zip: 'B8 1AA' }, [pallet, pallet]],
+      ['UK→UK · half pallet 150 kg', { country: 'GB', zip: 'M1 1AE' }, { country: 'GB', zip: 'LS1 5HD' }, [{ weight: 150, length: 120, width: 100, height: 80 }]],
+      ['UK→Germany · 1 pallet 300 kg', { country: 'GB', zip: 'M1 1AE' }, { country: 'DE', zip: '10115' }, [pallet]],
+      ['UK→France · heavy box 70 kg', { country: 'GB', zip: 'M1 1AE' }, { country: 'FR', zip: '75001' }, [{ weight: 70, length: 80, width: 60, height: 60 }]],
+    ];
+    const out = [];
+    for (const [name, from, to, pk] of cases) {
+      try {
+        const list = await pl.rawServices(from, to, pk);
+        out.push({ case: name, found: list.length, services: list.map((s) => ({ carrier: s.carrier_name, service: s.name, category: s.category ?? null, price: s.price?.base_price ?? s.price?.total_price ?? null, currency: s.currency ?? null, days: s.transit_time ?? s.transit_hours ?? null, collection: !s.dropoff })) });
+      } catch (e) { out.push({ case: name, error: (e as Error).message }); }
+    }
+    return { ok: true, results: out };
+  });
   const freightLimiter = new RateLimiter(12, 60_000);
   on('GET', '/api/freight/forwarders', 'public', async (c) => { publicLimiter.check(ip(c)); return freightForwarders(c.query.get('place'), c.query.get('country'), Boolean(c.user)); });
   on('GET', '/api/freight/rates', 'public', async (c) => { freightLimiter.check(ip(c)); return freightRates(parseFreightQuery(c.query)); });

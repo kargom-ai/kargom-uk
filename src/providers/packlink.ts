@@ -95,6 +95,14 @@ export class PacklinkProvider implements ShippingProvider {
       });
   }
 
+  /** Everything Packlink offers for a route and a set of packages, unfiltered (admin diagnostics). */
+  async rawServices(from: { country: string; zip: string }, to: { country: string; zip: string }, packages: Array<{ weight: number; length: number; width: number; height: number }>) {
+    const q = new URLSearchParams({ 'from[country]': from.country, 'from[zip]': from.zip, 'to[country]': to.country, 'to[zip]': to.zip, source: 'PRO' });
+    packages.forEach((p, i) => { for (const [k, v] of Object.entries(p)) q.set(`packages[${i}][${k}]`, String(v)); });
+    const list = await this.call<Array<Record<string, any>>>('GET', `services?${q}`);
+    return Array.isArray(list) ? list : [];
+  }
+
   async buyLabel(rate: ProviderRate, req: ShipmentRequest, idempotencyKey: string): Promise<Label> {
     if (this.cfg.sell === false) throw new AppError('provider_failed', 'Packlink is set to show prices only');
     const p = req.parcel;
