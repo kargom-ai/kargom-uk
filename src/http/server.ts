@@ -329,7 +329,7 @@ export function buildRouter(app: App) {
     }
     return { ok: true, results: out };
   });
-  /** Admin, sandbox only: place Eurosender test orders so they can review us. Open /api/admin/eurosender-test?kind=package (or pallet). */
+  /** Admin, sandbox only: place Eurosender test orders so they can review us. Open /api/admin/eurosender-test (a small parcel, Paris → Berlin; ?kind=pallet for a pallet). */
   on('GET', '/api/admin/eurosender-test', 'admin', async (c) => eurosenderTestOrder(c.query.get('kind') === 'pallet' ? 'pallet' : 'package', {
     name: 'Kargom Test', email: process.env.EUROSENDER_CONTACT_EMAIL || 'orders@kargom.co.uk', phone: process.env.EUROSENDER_CONTACT_PHONE || '+447700900123',
   }));

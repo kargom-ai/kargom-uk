@@ -97,10 +97,10 @@ export async function eurosenderTestOrder(kind: 'package' | 'pallet', contact: {
   const pallets = kind === 'pallet';
   const q: FreightQuery = pallets
     ? { origin: '', destination: '', fromCountry: 'GB', toCountry: 'FR', fromPostcode: 'M1 1AE', toPostcode: '75001', fromTown: 'Manchester', toTown: 'Paris', load: 'pallets', quantity: 1, weightKg: 250, lengthCm: 120, widthCm: 100, heightCm: 120 }
-    : { origin: '', destination: '', fromCountry: 'GB', toCountry: 'DE', fromPostcode: 'M1 1AE', toPostcode: '10115', fromTown: 'Manchester', toTown: 'Berlin', load: 'boxes', quantity: 1, weightKg: 5, lengthCm: 40, widthCm: 30, heightCm: 20 };
+    : { origin: '', destination: '', fromCountry: 'FR', toCountry: 'DE', fromPostcode: '75001', toPostcode: '10115', fromTown: 'Paris', toTown: 'Berlin', load: 'boxes', quantity: 1, weightKg: 2, lengthCm: 30, widthCm: 20, heightCm: 15 };
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json', 'x-api-key': key };
   const body: any = quoteBody(q);
-  body.shipment.pickupAddress.street = '1 Piccadilly';
+  body.shipment.pickupAddress.street = pallets ? '1 Piccadilly' : '10 Rue de Rivoli';
   body.shipment.deliveryAddress.street = pallets ? '1 Rue de Rivoli' : 'Invalidenstrasse 1';
   const qr = await f(`${eurosenderBase()}/v1/quotes`, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(15_000) });
   const quote = await qr.json().catch(() => null) as any;
