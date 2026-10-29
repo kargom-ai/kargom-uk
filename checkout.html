@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkout — Kargom.co.uk</title>
+<link rel="icon" href="/assets/logo-white.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap">
+<link rel="stylesheet" href="/assets/flow.css">
+<script type="module" src="/assets/pages/checkout.js"></script>
+<link rel="stylesheet" href="/assets/mobile.css">
+</head>
+<body data-page="checkout">
+<div id="root"></div>
+<script type="text/x-template" id="tpl">
+<div class="page">
+  <header class="top">
+    <div class="top-in">
+      <a href="/" aria-label="Kargom.co.uk home"><img src="/assets/logo-white.png" alt="Kargom.co.uk" class="logo"></a>
+      <span class="secure"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8FD3F7" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>Secure checkout</span>
+      <a href="{{signInUrl}}" class="toplink">Have an account? Sign in</a>
+    </div>
+  </header>
+  <sc-if value="{{missing}}">
+    <main class="wrap"><section class="card center"><h1>Pick a delivery service first</h1><p class="muted">Search for prices, then press Book on the service you want.</p><a class="btn big" href="/">Compare prices</a></section></main>
+  </sc-if>
+  <sc-if value="{{ready}}">
+  <main class="wrap cols">
+    <div class="steps">
+      <div class="steps-head"><h1>Book your label</h1><span class="muted">4 quick steps · no account needed</span></div>
+      
+      <section class="step" data-state="{{s1.state}}">
+        <div class="step-h">
+          <span class="dot"><sc-if value="{{s1.done}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></sc-if><sc-if value="{{s1.notDone}}">1</sc-if></span>
+          <div class="step-t"><h2>Your details</h2><sc-if value="{{s1.done}}"><span class="sum">{{s1.sum}}</span></sc-if></div>
+          <sc-if value="{{s1.canEdit}}"><button type="button" class="link" onClick="{{s1.edit}}">Change</button></sc-if>
+        </div>
+        <sc-if value="{{s1.open}}">
+          <div class="step-b">
+          <div class="grid2">
+            <label class="fld"><span>Full name <i>*</i></span><input aria-label="y_name" value="{{y.name}}" autocomplete="name" class="inp"></label>
+            <label class="fld"><span>Email <i>*</i> <em>{{emailHint}}</em></span><input aria-label="y_email" value="{{y.email}}" type="email" autocomplete="email" placeholder="you@example.com" class="inp"></label>
+          </div>
+          <span class="hint">No account needed. We only use your email if there is a problem with this parcel.</span>
+            <div class="err" hidden="{{noErr}}">{{err}}</div>
+            <button type="button" class="btn big" onClick="{{s1.next}}" aria-disabled="{{busyTxt}}">Next</button>
+          </div>
+        </sc-if>
+      </section>
+      
+      <section class="step" data-state="{{s2.state}}">
+        <div class="step-h">
+          <span class="dot"><sc-if value="{{s2.done}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></sc-if><sc-if value="{{s2.notDone}}">2</sc-if></span>
+          <div class="step-t"><h2>Collection address</h2><sc-if value="{{s2.done}}"><span class="sum">{{s2.sum}}</span></sc-if></div>
+          <sc-if value="{{s2.canEdit}}"><button type="button" class="link" onClick="{{s2.edit}}">Change</button></sc-if>
+        </div>
+        <sc-if value="{{s2.open}}">
+          <div class="step-b">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; margin-bottom: 12px; border-radius: 12px; background: #F0FDF4; border: 1px dashed #86EFAC">
+            <label style="position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 10px; background: #16A34A; color: #FFFFFF; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>{{ph.c.btn}}<input type="file" accept="image/*" aria-label="c_photo" data-controlled="1" onChange="{{ph.c.pick}}" style="position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden"></label>
+            <span style="flex: 1 1 200px; font-size: 13px; color: #3E4A5C">Take a photo of a label or note, or upload a screenshot. We fill in the address for you.</span>
+            <sc-if value="{{ph.c.msg}}"><span style="flex: 1 1 100%; font-size: 13px; font-weight: 600; color: {{ph.c.msgFg}}">{{ph.c.msg}}</span></sc-if>
+          </div>
+          <div class="finder">
+            <label class="fld grow"><span>Find the address by postcode</span><input aria-label="c_find" placeholder="e.g. M1 1AE" autocomplete="postal-code" onKeydown="{{lk.c.key}}" class="inp up"></label>
+            <button type="button" class="btn" onClick="{{lk.c.find}}">{{lk.c.btn}}</button>
+            <sc-if value="{{lk.c.has}}"><label class="fld full"><span>Choose the address</span><select aria-label="c_pick" onChange="{{lk.c.pick}}" class="inp sel-on"><option value="">{{lk.c.count}}</option><sc-for list="{{lk.c.items}}" as="a"><option value="{{a.i}}">{{a.label}}</option></sc-for></select></label></sc-if>
+            <span class="hint full" style="color: {{lk.c.msgFg}}">{{lk.c.msg}}</span>
+          </div>
+          <div class="grid2">
+            <label class="fld"><span>Sender full name <i>*</i></span><input aria-label="c_name" value="{{c.name}}" placeholder="Who is sending it" autocomplete="name" class="inp"></label>
+            <label class="fld"><span>Phone <i>*</i> <em>{{notifyHint}}</em></span><input aria-label="c_phone" value="{{c.phone}}" inputmode="tel" autocomplete="tel" placeholder="07700 900123" class="inp"></label>
+            <label class="fld"><span>Company name <em>Optional</em></span><input aria-label="c_company" value="{{c.company}}" autocomplete="organization" class="inp"></label>
+            <label class="fld"><span>Address line 1 <i>*</i></span><input aria-label="c_line1" value="{{c.line1}}" autocomplete="address-line1" class="inp"></label>
+            <label class="fld"><span>Address line 2 <em>Optional</em></span><input aria-label="c_line2" value="{{c.line2}}" autocomplete="address-line2" class="inp"></label>
+            <label class="fld"><span>Town / city <i>*</i></span><input aria-label="c_city" value="{{c.city}}" autocomplete="address-level2" class="inp"></label>
+            <label class="fld"><span>Postcode <i>*</i></span><input aria-label="c_postcode" value="{{c.postcode}}" autocomplete="postal-code" class="inp up"></label>
+          </div>
+            <div class="err" hidden="{{noErr}}">{{err}}</div>
+            <button type="button" class="btn big" onClick="{{s2.next}}" aria-disabled="{{busyTxt}}">Next</button>
+          </div>
+        </sc-if>
+      </section>
+      
+      <section class="step" data-state="{{s3.state}}">
+        <div class="step-h">
+          <span class="dot"><sc-if value="{{s3.done}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></sc-if><sc-if value="{{s3.notDone}}">3</sc-if></span>
+          <div class="step-t"><h2>Delivery address</h2><sc-if value="{{s3.done}}"><span class="sum">{{s3.sum}}</span></sc-if></div>
+          <sc-if value="{{s3.canEdit}}"><button type="button" class="link" onClick="{{s3.edit}}">Change</button></sc-if>
+        </div>
+        <sc-if value="{{s3.open}}">
+          <div class="step-b">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; margin-bottom: 12px; border-radius: 12px; background: #F0FDF4; border: 1px dashed #86EFAC">
+            <label style="position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 10px; background: #16A34A; color: #FFFFFF; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>{{ph.d.btn}}<input type="file" accept="image/*" aria-label="d_photo" data-controlled="1" onChange="{{ph.d.pick}}" style="position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden"></label>
+            <span style="flex: 1 1 200px; font-size: 13px; color: #3E4A5C">Take a photo of a label or note, or upload a screenshot. We fill in the address for you.</span>
+            <sc-if value="{{ph.d.msg}}"><span style="flex: 1 1 100%; font-size: 13px; font-weight: 600; color: {{ph.d.msgFg}}">{{ph.d.msg}}</span></sc-if>
+          </div>
+          <div class="finder">
+            <label class="fld grow"><span>Find the address by postcode</span><input aria-label="d_find" placeholder="e.g. M1 1AE" autocomplete="postal-code" onKeydown="{{lk.d.key}}" class="inp up"></label>
+            <button type="button" class="btn" onClick="{{lk.d.find}}">{{lk.d.btn}}</button>
+            <sc-if value="{{lk.d.has}}"><label class="fld full"><span>Choose the address</span><select aria-label="d_pick" onChange="{{lk.d.pick}}" class="inp sel-on"><option value="">{{lk.d.count}}</option><sc-for list="{{lk.d.items}}" as="a"><option value="{{a.i}}">{{a.label}}</option></sc-for></select></label></sc-if>
+            <span class="hint full" style="color: {{lk.d.msgFg}}">{{lk.d.msg}}</span>
+          </div>
+          <div class="grid2">
+            <label class="fld"><span>Recipient full name <i>*</i></span><input aria-label="d_name" value="{{d.name}}" placeholder="Who is it going to" autocomplete="name" class="inp"></label>
+            <label class="fld"><span>Phone <i>*</i></span><input aria-label="d_phone" value="{{d.phone}}" inputmode="tel" autocomplete="tel" placeholder="07700 900123" class="inp"></label>
+            <label class="fld"><span>Company name <em>Optional</em></span><input aria-label="d_company" value="{{d.company}}" autocomplete="organization" class="inp"></label>
+            <label class="fld"><span>Address line 1 <i>*</i></span><input aria-label="d_line1" value="{{d.line1}}" autocomplete="address-line1" class="inp"></label>
+            <label class="fld"><span>Address line 2 <em>Optional</em></span><input aria-label="d_line2" value="{{d.line2}}" autocomplete="address-line2" class="inp"></label>
+            <label class="fld"><span>Town / city <i>*</i></span><input aria-label="d_city" value="{{d.city}}" autocomplete="address-level2" class="inp"></label>
+            <label class="fld"><span>Postcode <i>*</i></span><input aria-label="d_postcode" value="{{d.postcode}}" autocomplete="postal-code" class="inp up"></label>
+          </div>
+            <div class="err" hidden="{{noErr}}">{{err}}</div>
+            <button type="button" class="btn big" onClick="{{s3.next}}" aria-disabled="{{busyTxt}}">Next</button>
+          </div>
+        </sc-if>
+      </section>
+      
+      <section class="step" data-state="{{s4.state}}">
+        <div class="step-h">
+          <span class="dot"><sc-if value="{{s4.done}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></sc-if><sc-if value="{{s4.notDone}}">4</sc-if></span>
+          <div class="step-t"><h2>Parcel details</h2><sc-if value="{{s4.done}}"><span class="sum">{{s4.sum}}</span></sc-if></div>
+          <sc-if value="{{s4.canEdit}}"><button type="button" class="link" onClick="{{s4.edit}}">Change</button></sc-if>
+        </div>
+        <sc-if value="{{s4.open}}">
+          <div class="step-b">
+          <div class="pbox">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2463DB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"></path><path d="M3 8v8l9 5 9-5V8M12 13v8"></path></svg>
+            <span><b>{{parcelTxt}}</b><br><span class="muted">Size you searched with. To change it, <a href="{{backUrl}}">go back to prices</a>.</span></span>
+          </div>
+          <div class="grid2">
+            <label class="fld"><span>What is inside? <i>*</i></span><input aria-label="p_contents" value="{{p.contents}}" placeholder="e.g. Clothes, books" class="inp"></label>
+            <label class="fld"><span>Value (£) <i>*</i></span><input aria-label="p_value" value="{{p.value}}" inputmode="decimal" placeholder="e.g. 25" class="inp"></label>
+          </div>
+          <div class="noteb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2463DB" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"></path></svg>
+            <span>Do not send prohibited items: batteries on their own, aerosols, flammables, liquids that can leak, cash or weapons.</span></div>
+          <div class="terms">
+            <b>Before you pay</b>
+            <span>If the courier measures the parcel larger or heavier than declared and the price changes, the difference is charged to the card you pay with. Same price band: no extra charge.</span>
+            <label class="chk"><input type="checkbox" aria-label="p_terms" checked="{{p.terms}}"> I agree to Kargom's terms of service</label>
+          </div>
+            <div class="err" hidden="{{noErr}}">{{err}}</div>
+            <button type="button" class="btn big" onClick="{{s4.next}}" aria-disabled="{{busyTxt}}">{{payTxt}}</button>
+          </div>
+        </sc-if>
+      </section>
+    </div>
+    <aside class="summary">
+      <div class="card sum-card">
+        <h2>Booking summary</h2>
+        <div class="svc"><span class="logo-box"><sc-if value="{{q.hasLogo}}"><img src="{{q.logo}}" alt=""></sc-if></span><span><b>{{q.service}}</b><span class="muted">{{q.carrierName}}</span></span></div>
+        <div class="kv"><span class="muted">How it starts</span><b>{{q.how}}</b></div>
+        <div class="kv"><span class="muted">Delivery</span><b>{{q.eta}}</b></div>
+        <div class="kv"><span class="muted">Label</span><b style="color: {{q.labelFg}}">{{q.labelTxt}}</b></div>
+        <div class="kv"><span class="muted">Parcel</span><b>{{parcelTxt}}</b></div>
+        <div class="kv"><span class="muted">Route</span><b>{{routeTxt}}</b></div>
+        <hr>
+        <div class="kv"><span class="muted">Shipment cost</span><span>{{q.exTxt}}</span></div>
+        <div class="kv"><span class="muted">VAT</span><span>{{q.vatTxt}}</span></div>
+        <div class="kv total"><span>Total</span><b>{{q.priceTxt}}</b></div>
+        <div class="pays"><span class="paychip">VISA</span><span class="paychip">Mastercard</span><span class="paychip">Apple Pay</span><span class="paychip">Google Pay</span></div>
+      </div>
+    </aside>
+  </main>
+  </sc-if>
+  <sc-if value="{{toast}}"><div class="kg-toast" role="status">{{toastTxt}}</div></sc-if>
+</div>
+</script>
+</body>
+</html>
