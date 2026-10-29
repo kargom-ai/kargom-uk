@@ -57,3 +57,24 @@ test('address from image: a restricted Google key gives a clear message', async 
   await assert.rejects(addressFromImage('data:image/jpeg;base64,AAAA', f), /restricted: add Cloud Vision API/);
   delete process.env.GOOGLE_VISION_API_KEY;
 });
+
+test('address from pasted text: rules without AI, Claude with AI', async () => {
+  const { addressFromText } = await import('../src/address/fromImage.ts');
+  const r = await addressFromText('Hi! please send to Alice Brown, 7 Rose Lane, Bristol BS1 4DJ thanks');
+  assert.equal(r.address.postcode, 'BS1 4DJ');
+  await assert.rejects(addressFromText(' '), /Paste/);
+  process.env.ANTHROPIC_API_KEY = 'a';
+  let sent: any = null;
+  const f = (async (_u: string, init: any) => { sent = JSON.parse(init.body); return new Response(JSON.stringify({ content: [{ type: 'text', text: '{"name":"Mehmet Yılmaz","line1":"Atatürk Cad. 15","city":"Istanbul","postcode":"34710","country":"TR"}' }] }), { status: 200 }); }) as typeof fetch;
+  const ai = await addressFromText('Mehmet Yılmaz Atatürk Cad 15 Kadıköy 34710 İstanbul', f);
+  assert.match(sent.messages[0].content[0].text, /Kadıköy 34710/);
+  assert.match(sent.messages[0].content[0].text, /piece of text a customer pasted/);
+  assert.deepEqual([ai.found, ai.address.country, ai.address.city, ai.address.name], [true, 'TR', 'Istanbul', 'Mehmet Yılmaz']);
+  delete process.env.ANTHROPIC_API_KEY;
+});
+
+test('address from pasted text: one long line, chatty openings, phone on the end', () => {
+  assert.deepEqual(pick('Bob Smith 22 Baker Street London NW1 6XE'), { name: 'Bob Smith', phone: '', email: '', line1: '22 Baker Street', line2: '', city: 'London', postcode: 'NW1 6XE', country: 'GB' });
+  assert.deepEqual(pick('Bob Smith 22 Baker Street, London NW1 6XE'), { name: 'Bob Smith', phone: '', email: '', line1: '22 Baker Street', line2: '', city: 'London', postcode: 'NW1 6XE', country: 'GB' });
+  assert.deepEqual(pick('pls send to: Jane Doe 5 Mill Lane Leeds LS1 5HD 07700900111'), { name: 'Jane Doe', phone: '07700900111', email: '', line1: '5 Mill Lane', line2: '', city: 'Leeds', postcode: 'LS1 5HD', country: 'GB' });
+});

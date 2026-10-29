@@ -16,6 +16,12 @@ const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const PHONE = /(?:\+|00)?\d[\d\s().-]{8,}\d/;
 const LABEL = /^(?:ship(?:ping)?\s*to|deliver(?:y)?\s*(?:to|address)|send\s*to|recipient|to|address|addressee|name|tel|phone|mobile|e-?mail|alıcı|adres|ad\s*soyad|telefon)\s*[:\-–]\s*/i;
 const NOISE = /^(?:ship(?:ping)?\s*to|deliver(?:y)?\s*(?:to|address)|send\s*to|recipient|to|from|address|delivery|shipping address|teslimat adresi|alıcı bilgileri)\s*:?$/i;
+/** Chatty openings: "pls send to:", "can you ship it to", "adres:" */
+const LEAD = /^.*?\b(?:send|ship|deliver|post)\s+(?:it\s+|this\s+|them\s+)?to\s*:?\s*/i;
+/** "Bob Smith 22 Baker Street London": optional name, then house number and the rest. */
+const ONE_LINE = /^(?<name>[^\d]*?)\s*(?<street>(?:flat|unit|apt\.?|apartment)?\s*\d+[A-Za-z]?\b.*)$/i;
+/** Split "22 Baker Street London" after the street word into street and town. */
+const STREET_END = /^(?<street>.*?\b(?:street|st|road|rd|lane|ln|avenue|ave|close|drive|dr|way|court|ct|place|pl|gardens|gdns|crescent|cres|terrace|hill|grove|park|square|sq|row|mews|walk|parade|green)\.?)\s+(?<town>[A-Za-z][A-Za-z' .-]{1,40})$/i;
 const COMPANY = /\b(ltd|limited|plc|llc|inc|gmbh|sarl|s\.a\.|b\.v\.|a\.ş\.|ltd\.?\s*şti|co\.|company|group|services|logistics)\b/i;
 
 /** Country names and how we write them, for the last line of foreign addresses. */
@@ -37,16 +43,19 @@ const hasDigit = (s: string) => /\d/.test(s);
 export function parseAddress(text: string): ParsedAddress {
   const out: ParsedAddress = { name: '', company: '', phone: '', email: '', line1: '', line2: '', city: '', postcode: '', country: '', lines: [] };
   // one item per line; split "Street, Town, Postcode" lines on commas too
-  let lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  let lines = text.split(/\r?\n/).map((l) => l.trim().replace(LEAD, '')).filter(Boolean)
     .filter((l) => !NOISE.test(l))
-    .flatMap((l) => (l.split(',').length >= 3 ? l.split(',') : [l])).map(tidy).filter(Boolean);
+    .flatMap((l) => { const parts = l.split(','); return parts.length >= 3 || (parts.length === 2 && UK_PC.test(parts[1]!)) ? parts : [l]; })
+    .map(tidy).filter(Boolean);
 
   // email and phone, wherever they are
   for (const l of [...lines]) {
     const e = EMAIL.exec(l);
     if (e && !out.email) { out.email = e[0]; lines = lines.filter((x) => x !== l || x.replace(e[0], '').trim().length > 2).map((x) => (x === l ? tidy(x.replace(e[0], '')) : x)); continue; }
     const p = PHONE.exec(l);
-    if (p && !out.phone && !UK_PC.test(l) && p[0].replace(/\D/g, '').length >= 10 && l.replace(p[0], '').replace(/[^A-Za-z]/g, '').length <= 12) {
+    const digits = p ? p[0].replace(/\D/g, '').length : 0;
+    const atEdge = p ? (l.trim().startsWith(p[0]) || l.trim().endsWith(p[0])) : false;
+    if (p && !out.phone && digits >= 10 && digits <= 14 && (atEdge || l.replace(p[0], '').replace(/[^A-Za-z]/g, '').length <= 12)) {
       out.phone = p[0].replace(/[^\d+]/g, '').replace(/^00/, '+');
       lines = lines.map((x) => (x === l ? tidy(x.replace(p[0], '')) : x)).filter(Boolean);
     }
@@ -62,8 +71,18 @@ export function parseAddress(text: string): ParsedAddress {
     out.postcode = `${m[1]} ${m[2]}`.toUpperCase();
     out.country = 'GB';
     const rest = tidy(lines[pcLine]!.replace(m[0], ''));
-    if (rest && !hasDigit(rest)) out.city = rest;
-    lines.splice(pcLine, 1);
+    if (rest && !hasDigit(rest)) { out.city = rest; lines.splice(pcLine, 1); }
+    else if (rest) {
+      // everything on one line: "Bob Smith 22 Baker Street London" -> name, street, town
+      const one = ONE_LINE.exec(rest);
+      const parts: string[] = [];
+      if (one?.groups) {
+        if (one.groups.name && one.groups.name.trim().split(/\s+/).length >= 2) parts.push(one.groups.name.trim());
+        const st = STREET_END.exec(one.groups.street!);
+        if (st?.groups && st.groups.town) { parts.push(st.groups.street!.trim()); out.city = st.groups.town.trim(); } else parts.push(one.groups.street!.trim());
+      } else parts.push(rest);
+      lines.splice(pcLine, 1, ...parts);
+    } else lines.splice(pcLine, 1);
     if (!out.city && pcLine > 0 && !hasDigit(lines[pcLine - 1]!)) { out.city = lines[pcLine - 1]!; lines.splice(pcLine - 1, 1); }
   } else {
     pcLine = -1;
@@ -74,6 +93,11 @@ export function parseAddress(text: string): ParsedAddress {
   }
   out.city = out.city.replace(/\b(?:UK|United Kingdom)\b/i, '').trim();
 
+  // "Bob Smith 22 Baker Street": a name stuck in front of the house number
+  if (!lines.some((l) => !hasDigit(l) && l.split(/\s+/).length <= 6)) {
+    const i = lines.findIndex((l) => ONE_LINE.exec(l)?.groups?.name?.trim().split(/\s+/).length! >= 2);
+    if (i >= 0) { const g = ONE_LINE.exec(lines[i]!)!.groups!; lines.splice(i, 1, g.name!.trim(), g.street!.trim()); }
+  }
   // name: the first short line without digits; a company name goes to company
   const ni = lines.findIndex((l) => !hasDigit(l) && l.split(/\s+/).length <= 6 && l.length <= 60);
   if (ni >= 0 && (ni === 0 || ni < lines.findIndex(hasDigit) || lines.findIndex(hasDigit) < 0)) {
@@ -127,11 +151,18 @@ export const FIELDS = ['name', 'company', 'phone', 'email', 'line1', 'line2', 'c
  * Used when ANTHROPIC_API_KEY is set; otherwise Google Cloud Vision + our parser.
  */
 export async function aiReadAddress(dataUrl: string, f: typeof fetch = fetch): Promise<ParsedAddress> {
-  const key = process.env.ANTHROPIC_API_KEY!;
   const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   if (!m) throw new AppError('bad_request', 'Choose a JPG, PNG or WebP image');
   if (m[2]!.length > 4_500_000) throw new AppError('bad_request', 'That image is too large');
-  const prompt = `You are filling in a parcel delivery form from a picture a customer took or uploaded. It may be a shipping label, an envelope, a handwritten note, a business card, an invoice, or a screenshot of a chat, email, map or order page. It may be blurry, rotated, cropped, partly covered or in any language.
+  return askClaude([{ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } }, { type: 'text', text: PROMPT('picture') }], f);
+}
+
+/** Pasted text in any shape: a WhatsApp message, an email signature, one long line, several lines. */
+export async function aiReadAddressText(text: string, f: typeof fetch = fetch): Promise<ParsedAddress> {
+  return askClaude([{ type: 'text', text: `${PROMPT('text')}\n\nThe text the customer pasted:\n<<<\n${text}\n>>>` }], f);
+}
+
+const PROMPT = (what: 'picture' | 'text') => `You are filling in a parcel delivery form from a ${what === 'picture' ? 'picture a customer took or uploaded' : 'piece of text a customer pasted'}. ${what === 'picture' ? 'It may be a shipping label, an envelope, a handwritten note, a business card, an invoice, or a screenshot of a chat, email, map or order page. It may be blurry, rotated, cropped, partly covered or in any language.' : 'It may be copied from a chat, an email, an order page or a note: one long line, many lines, with extra words, emojis or other text around it, in any language.'}
 
 Your job: get as much of the address into the form as you can. Partial is much better than nothing.
 - Fill every field you can read even partly. If you are fairly sure, fill it. Never leave a field empty just because you are not 100% sure.
@@ -140,19 +171,20 @@ Your job: get as much of the address into the form as you can. Partial is much b
 - If everything is on one line ("12 High St, Leeds LS1 5HD"), split it into the fields.
 - country: 2-letter ISO code. Work it out from the country name, the postcode format, the phone code, the language or the city if not written (a UK postcode like "M1 1AE" means GB).
 - Keep the original spelling of names and streets (including Turkish, German, etc. letters). Phone: keep digits and a leading + if present.
-- Do not make up a street, number or name that is not in the picture.
+- Do not make up a street, number or name that is not in the ${what}.
 
 Reply with only this JSON, nothing else:
 {"name":"","company":"","phone":"","email":"","line1":"","line2":"","city":"","postcode":"","country":""}`;
+
+async function askClaude(content: unknown[], f: typeof fetch = fetch): Promise<ParsedAddress> {
+  const key = process.env.ANTHROPIC_API_KEY!;
   const r = await f('https://api.anthropic.com/v1/messages', {
     method: 'POST', signal: AbortSignal.timeout(40_000),
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5', max_tokens: 500, messages: [{ role: 'user', content: [
-      { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } }, { type: 'text', text: prompt },
-    ] }] }),
+    body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5', max_tokens: 500, messages: [{ role: 'user', content }] }),
   });
   const j = (await r.json().catch(() => ({}))) as { content?: Array<{ type: string; text?: string }>; error?: { message?: string } };
-  if (!r.ok) { console.warn(`[ai-address] ${r.status} ${j.error?.message ?? ''}`); throw new AppError('provider_failed', `Photo reading is not working yet: ${j.error?.message ?? `HTTP ${r.status}`}`); }
+  if (!r.ok) { console.warn(`[ai-address] ${r.status} ${j.error?.message ?? ''}`); throw new AppError('provider_failed', `Address reading is not working yet: ${j.error?.message ?? `HTTP ${r.status}`}`); }
   const text = (j.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join('');
   const json = /\{[\s\S]*\}/.exec(text)?.[0];
   let o: Record<string, unknown> = {};
@@ -175,4 +207,11 @@ export async function addressFromImage(dataUrl: unknown, f?: typeof fetch) {
   if (!text.trim()) throw new AppError('bad_request', 'We could not find any text in that image');
   const a = parseAddress(text);
   return { address: a, found: FIELDS.some((k) => a[k]) };
+}
+
+export async function addressFromText(textIn: unknown, f?: typeof fetch) {
+  const text = typeof textIn === 'string' ? textIn.trim().slice(0, 4000) : '';
+  if (text.length < 3) throw new AppError('bad_request', 'Paste the address first');
+  const a = process.env.ANTHROPIC_API_KEY ? await aiReadAddressText(text, f) : parseAddress(text);
+  return { address: a, found: FIELDS.some((k) => a[k]), by: process.env.ANTHROPIC_API_KEY ? 'ai' : 'rules' };
 }

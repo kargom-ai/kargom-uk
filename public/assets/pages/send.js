@@ -1,7 +1,7 @@
 import { DCLogic, mount, field, api, uid, CARRIER_LOGO, CARRIER_NAME } from '../dc.js';
 import { openPaySheet } from '../pay.js';
 import { NAV } from '../shell.js';
-import { shrinkPhoto } from '../photo-address.js';
+import { shrinkPhoto, clipboardText } from '../photo-address.js';
 
 /** Send a parcel: the approved 5-step design, booking real labels through the API. */
 
@@ -52,7 +52,7 @@ class Component extends DCLogic {
       me: null, bal: 0, history: [], parcels: [...custom, ...store.get('kg_parcels', []), ...PRESET_PARCELS],
       mySenders: store.get('kg_senders', []), myRecips: store.get('kg_recips', []), savedItems: store.get('kg_items', []),
       lk: { sa: { items: [], msg: '', bad: false, busy: false }, ra: { items: [], msg: '', bad: false, busy: false } },
-      ph: { sa: { busy: false, msg: '', bad: false }, ra: { busy: false, msg: '', bad: false } },
+      ph: { sa: { busy: false, msg: '', bad: false, paste: false }, ra: { busy: false, msg: '', bad: false, paste: false } },
       quotes: null, quoteError: '', busy: false, preferService: pending?.serviceName || '',
     };
     this.key = uid();
@@ -325,6 +325,23 @@ class Component extends DCLogic {
       const set = (patch) => this.setState({ ph: { ...this.state.ph, [px]: { ...this.state.ph[px], ...patch } } });
       return {
         busy: P.busy, msg: P.msg, msgFg: P.bad ? '#B42318' : '#166534', btn: P.busy ? 'Reading the address…' : 'Fill from a photo',
+        pasteOpen: Boolean(P.paste),
+        togglePaste: async () => {
+          if (P.paste) { set({ paste: false }); return; }
+          set({ paste: true, msg: '', bad: false });
+          const t = await clipboardText();
+          if (t) setTimeout(() => setField(`${px}_paste`, t), 0);
+        },
+        fillText: async () => {
+          const text = String(field(`${px}_paste`) || '').trim();
+          if (!text) { set({ msg: 'Paste the address in the box first.', bad: true }); return; }
+          set({ busy: true, msg: '', bad: false });
+          try {
+            const r = await api('/api/address/from-text', { method: 'POST', body: { text } });
+            if (!r.found) { set({ busy: false, msg: 'We could not find an address in that text. Check it, or type it below.', bad: true }); return; }
+            apply(r.address, 'text', true);
+          } catch (err) { set({ busy: false, msg: err.message, bad: true }); }
+        },
         pick: async (e) => {
           const file = e.target.files?.[0];
           e.target.value = '';
@@ -333,27 +350,29 @@ class Component extends DCLogic {
           try {
             const image = await shrinkPhoto(file);
             const r = await api('/api/address/from-image', { method: 'POST', body: { image } });
-            const a = r.address;
             if (!r.found) { set({ busy: false, msg: 'We could not read an address in that image. Try a closer photo, or type it below.', bad: true }); return; }
-            // fill only what was read, never wipe what the customer already typed
-            const put = (k, v) => { if (v) setField(k, v); };
-            put(`${px}_name`, px === 'sa' ? (a.company || a.name) : (a.name || a.company));
-            put(`${px}_phone`, a.phone);
-            if (px === 'ra') put('ra_email', a.email);
-            put(`${px}_line1`, a.line1); put(`${px}_line2`, a.line2); put(`${px}_city`, a.city); put(`${px}_postcode`, a.postcode);
-            if (px === 'ra' && intl && a.country && a.country !== 'GB') {
-              const sel = document.querySelector('[aria-label="ra_country"]');
-              if (sel && [...sel.options].some((o) => o.value === a.country)) setField('ra_country', a.country);
-            }
-            const got = ['name', 'phone', 'line1', 'city', 'postcode'].filter((k) => a[k] || (k === 'name' && a.company)).length;
-            const ukMismatch = px === 'ra' && !intl && a.country && a.country !== 'GB';
-            set({ busy: false, bad: Boolean(ukMismatch), msg: ukMismatch ? 'This looks like an address outside the UK. Switch to International at the top to send there.'
-              : got >= 4 ? 'Filled in from your photo. Please check the details.' : 'We filled in what we could read. Please complete the rest.' });
-            // UK: show the exact addresses at that postcode so a small reading error is easy to fix
-            if (a.country === 'GB' && a.postcode && document.querySelector(`[aria-label="${px}_find"]`)) { setField(`${px}_find`, a.postcode); lookup(px).find(); }
+            apply(r.address, 'photo', false);
           } catch (err) { set({ busy: false, msg: err.message, bad: true }); }
         },
       };
+      // fill only what was read, never wipe what the customer already typed
+      function apply(a, from, closePaste) {
+        const put = (k, v) => { if (v) setField(k, v); };
+        put(`${px}_name`, px === 'sa' ? (a.company || a.name) : (a.name || a.company));
+        put(`${px}_phone`, a.phone);
+        if (px === 'ra') put('ra_email', a.email);
+        put(`${px}_line1`, a.line1); put(`${px}_line2`, a.line2); put(`${px}_city`, a.city); put(`${px}_postcode`, a.postcode);
+        if (px === 'ra' && intl && a.country && a.country !== 'GB') {
+          const sel = document.querySelector('[aria-label="ra_country"]');
+          if (sel && [...sel.options].some((o) => o.value === a.country)) setField('ra_country', a.country);
+        }
+        const got = ['name', 'phone', 'line1', 'city', 'postcode'].filter((k) => a[k] || (k === 'name' && a.company)).length;
+        const ukMismatch = px === 'ra' && !intl && a.country && a.country !== 'GB';
+        set({ busy: false, bad: Boolean(ukMismatch), ...(closePaste ? { paste: false } : {}), msg: ukMismatch ? 'This looks like an address outside the UK. Switch to International at the top to send there.'
+          : got >= 4 ? `Filled in from your ${from}. Please check the details.` : 'We filled in what we could read. Please complete the rest.' });
+        // UK: show the exact addresses at that postcode so a small reading error is easy to fix
+        if (a.country === 'GB' && a.postcode && document.querySelector(`[aria-label="${px}_find"]`)) { setField(`${px}_find`, a.postcode); lookup(px).find(); }
+      }
     };
     const saveRecip = () => {
       if (!need([['ra_name', 'the name'], ['ra_line1', 'the address'], ['ra_city', 'the town'], ['ra_postcode', 'the postcode']])) return;

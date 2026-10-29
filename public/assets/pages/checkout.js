@@ -1,6 +1,6 @@
 import { DCLogic, mount, field, api, uid, CARRIER_LOGO, CARRIER_NAME } from '../dc.js';
 import { openPaySheet } from '../pay.js';
-import { fillFromPhoto } from '../photo-address.js';
+import { fillFromPhoto, fillFromText, clipboardText } from '../photo-address.js';
 
 /**
  * Guest checkout: buy one label without an account.
@@ -42,7 +42,7 @@ class Component extends DCLogic {
       step: 1, y: saved.y || { name: '', email: '' }, c: saved.c || {}, d: saved.d || {}, p: saved.p || { contents: '', value: '', terms: false },
       err: '', busy: false, toast: '', cfg: null, price: pick?.price ?? 0,
       lk: { c: { items: [], msg: '', bad: false, busy: false }, d: { items: [], msg: '', bad: false, busy: false } },
-      ph: { c: { busy: false, msg: '', bad: false }, d: { busy: false, msg: '', bad: false } },
+      ph: { c: { busy: false, msg: '', bad: false, paste: false }, d: { busy: false, msg: '', bad: false, paste: false } },
     };
     this.key = uid();
   }
@@ -97,7 +97,23 @@ class Component extends DCLogic {
     const P = this.state.ph[px];
     const set = (patch) => this.setState({ ph: { ...this.state.ph, [px]: { ...this.state.ph[px], ...patch } } });
     return {
-      btn: P.busy ? 'Reading the address…' : 'Fill from a photo', msg: P.msg, msgFg: P.bad ? '#B42318' : '#166534',
+      btn: P.busy ? 'Reading the address…' : 'Fill from a photo', msg: P.msg, msgFg: P.bad ? '#B42318' : '#166534', pasteOpen: Boolean(P.paste),
+      togglePaste: async () => {
+        if (P.paste) { set({ paste: false }); return; }
+        set({ paste: true, msg: '', bad: false });
+        const t = await clipboardText();
+        if (t) setTimeout(() => setField(`${px}_paste`, t), 0);
+      },
+      fillText: async () => {
+        const text = v(`${px}_paste`);
+        if (!text) { set({ msg: 'Paste the address in the box first.', bad: true }); return; }
+        set({ busy: true, msg: '', bad: false });
+        try {
+          const r = await fillFromText(text, px, setField, { useCompany: true, ukOnly: true });
+          set({ busy: false, msg: r.msg, bad: !r.ok, paste: !r.ok });
+          if (r.ok && r.address.postcode && r.address.country === 'GB') { setField(`${px}_find`, r.address.postcode); this.lookup(px).find(); }
+        } catch (err) { set({ busy: false, msg: err.message, bad: true }); }
+      },
       pick: async (e) => {
         const file = e.target.files?.[0];
         e.target.value = '';
