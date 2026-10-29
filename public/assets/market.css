@@ -247,3 +247,35 @@ textarea.inp { min-height: 96px; padding: 10px 12px; resize: vertical; line-heig
 .fr-fwd-col .acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .fr-fwd-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; margin-top: 10px; font-size: 13px; }
 @media (max-width: 900px) { .fr-fwd { grid-template-columns: minmax(0, 1fr); } }
+
+/* parcel forwarding */
+.fw-hero { padding: 8px 0 18px; max-width: 760px; }
+.fw-hero h1 { font: 600 34px/1.15 'Outfit', sans-serif; letter-spacing: -0.015em; margin: 0 0 10px; }
+.fw-hero p { margin: 0; font-size: 16px; line-height: 1.6; color: #3E4A5C; }
+.fw-cols { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.fw-calc { display: flex; flex-direction: column; gap: 14px; }
+.fw-calc h2, .fw-steps h2, .fw-faq h2 { font: 600 22px 'Outfit', sans-serif; margin: 0; }
+.fw-row { display: grid; grid-template-columns: 1fr 1fr 0.7fr auto; gap: 10px; align-items: end; }
+.fw-row .btn { min-height: 46px; }
+.fw-join { display: flex; flex-direction: column; gap: 14px; background: linear-gradient(160deg, #2463DB, #1D4FB8); color: #FFFFFF; border: 0; }
+.fw-join b { display: block; font: 600 21px 'Outfit', sans-serif; margin-bottom: 6px; }
+.fw-join span { font-size: 14px; line-height: 1.55; color: #DCE4F2; }
+.fw-join-f { display: flex; flex-direction: column; gap: 8px; }
+.fw-join .btn { background: #FFFFFF; color: #1D4FB8; }
+.fw-join.ok-box { background: #E6F4EA; color: #166534; }
+.fw-join.ok-box span { color: #166534; }
+.fw-steps { margin-top: 36px; display: flex; flex-direction: column; gap: 14px; }
+.fw-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.fw-grid .tile { cursor: default; }
+.fw-grid .tile b { font-size: 17px; }
+.fw-faq { margin-top: 36px; display: flex; flex-direction: column; gap: 10px; max-width: 760px; }
+.fw-faq details { background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 12px; padding: 14px 16px; }
+.fw-faq summary { font-weight: 700; cursor: pointer; }
+.fw-faq p { margin: 10px 0 0; line-height: 1.6; color: #3E4A5C; }
+@media (max-width: 900px) { .fw-cols { grid-template-columns: minmax(0, 1fr); } .fw-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .fw-hero h1 { font-size: 26px; }
+  .fw-row { grid-template-columns: 1fr 1fr; }
+  .fw-row .btn { grid-column: span 2; }
+  .fw-grid { grid-template-columns: minmax(0, 1fr); }
+}

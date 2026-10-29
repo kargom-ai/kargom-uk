@@ -53,7 +53,7 @@ function destination() {
   const p = place(S.to);
   if (S.toType === 'amazon' || S.toType === 'tiktok') {
     const w = warehouses().find((x) => x.v === S.fc);
-    if (w) return { text: `${w.town} ${w.pc}, ${p.n === 'England' ? 'United Kingdom' : p.n}`, pc: w.pc };
+    if (w) return { text: `${w.town} ${w.pc}, ${p.n === 'England' ? 'United Kingdom' : p.n}`, pc: w.pc, town: w.town.replace(/,.*$| \(.*\)$/, '') };
   }
   const t = S.toPlace.trim();
   return { text: `${t || p.city}, ${isUk(S.to) ? 'United Kingdom' : p.n}`, pc: t };
@@ -125,11 +125,11 @@ function resultsHtml() {
     ${r.note ? `<p class="hint" style="margin:0">${esc(r.note)}</p>` : ''}
     <div class="list">${r.rates.map((x) => `<article class="offer fr-rate">
       <div class="offer-top"><div class="co"><span class="co-logo fr-ic">${MODE_IC[x.mode] || IC.box}</span><div class="co-t"><b>${esc(x.label)}</b><span class="muted" style="font-size:13px">${esc(MODE_TIP[x.mode] || '')}</span></div></div>
-        <div class="fr-price"><span class="badge open">Estimated</span><b>${money(x.minPence, x.currency)} – ${money(x.maxPence, x.currency)}</b><span class="muted">${esc(days(x))}</span></div></div>
+        <div class="fr-price">${x.live ? `<span class="badge booked">Live price${x.carrier ? ` · ${esc(x.carrier)}` : ''}</span>` : '<span class="badge open">Estimated</span>'}<b>${x.minPence === x.maxPence ? money(x.minPence, x.currency) : `${money(x.minPence, x.currency)} – ${money(x.maxPence, x.currency)}`}</b><span class="muted">${esc(days(x))}</span></div></div>
       <div class="acts"><a class="btn ghost sm" href="${quoteHref(x.mode)}">Get firm quotes</a></div>
     </article>`).join('')}</div>
     ${r.rates.length ? '' : `<div class="empty-box"><b>Get prices from freight companies</b><span>Tell us about the shipment and freight forwarders and hauliers send you their prices.</span><a class="btn" href="${quoteHref(S.load === 'container' ? 'FCL' : 'air')}">Get firm quotes</a></div>`}
-    <p class="muted" style="font-size:12.5px;margin:0">Estimates by Kargom, based on ${esc(r.basis || 'current market rates')}. Door to door, excluding import duty and VAT. Real quotes can be higher or lower.</p>
+    <p class="muted" style="font-size:12.5px;margin:0">Estimates by Kargom, based on ${esc(r.basis || 'current market rates')}. Door to door, excluding import duty and VAT. Real quotes can be higher or lower.${r.rates.some((x) => x.live) ? ' Live prices come straight from the carrier and include VAT.' : ''}</p>
   </section>`;
 }
 
@@ -188,6 +188,10 @@ function render() {
     <div class="fr-cols">${formHtml()}${resultsHtml()}</div>${fwdHtml()}`;
 }
 
+const looksLikePostcode = (t) => /\d/.test(t) && t.length <= 10;
+const postcodeOf = (typed, p) => { const t = String(typed || '').trim(); return UK_PC.test(t) || (p.code !== 'GB' && looksLikePostcode(t)) ? t : p.pc; };
+const townOf = (typed, p) => { const t = String(typed || '').trim(); return t && !looksLikePostcode(t) ? t : p.city; };
+
 async function go() {
   const container = S.load === 'container';
   if (!container && !(Number(S.kg) > 0)) { S.err = 'Enter the weight of one box or pallet.'; render(); return; }
@@ -199,7 +203,9 @@ async function go() {
   const q = new URLSearchParams({
     origin: fromTxt, destination: dest.text, fromCountry: from.code, toCountry: code(S.to), load: container ? S.box : S.load, qty: S.qty || '1',
     ...(container ? {} : { kg: S.kg, l: S.l, w: S.w, h: S.h }),
-    ...(UK_PC.test(S.fromCity.trim()) ? { fromPostcode: S.fromCity.trim() } : {}), ...(UK_PC.test(dest.pc) ? { toPostcode: dest.pc } : {}),
+    // a postcode and town at each end (the customer's, or a sample for the country) so pallet networks can price it
+    fromPostcode: postcodeOf(S.fromCity, from), toPostcode: postcodeOf(dest.pc, place(S.to)),
+    fromTown: townOf(S.fromCity, from), toTown: townOf(dest.town || S.toPlace, place(S.to)),
   });
   try {
     S.res = await api(`/api/freight/rates?${q}`);

@@ -268,3 +268,12 @@ CREATE TABLE IF NOT EXISTS partner_invites (
   created_at  TEXT NOT NULL,
   UNIQUE (job_id, place_id)
 );
+
+-- Parcel forwarding ("shop abroad, we forward it"): people who want a Kargom address before it opens.
+CREATE TABLE IF NOT EXISTS forwarding_waitlist (
+  email       TEXT PRIMARY KEY,
+  from_country TEXT NOT NULL,
+  to_country  TEXT NOT NULL,
+  customer_id TEXT,
+  created_at  TEXT NOT NULL
+);
