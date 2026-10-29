@@ -1,5 +1,6 @@
 import { DCLogic, mount, field, api, uid, CARRIER_LOGO, CARRIER_NAME } from '../dc.js';
 import { openPaySheet } from '../pay.js';
+import { fillFromPhoto } from '../photo-address.js';
 
 /**
  * Guest checkout: buy one label without an account.
@@ -41,6 +42,7 @@ class Component extends DCLogic {
       step: 1, y: saved.y || { name: '', email: '' }, c: saved.c || {}, d: saved.d || {}, p: saved.p || { contents: '', value: '', terms: false },
       err: '', busy: false, toast: '', cfg: null, price: pick?.price ?? 0,
       lk: { c: { items: [], msg: '', bad: false, busy: false }, d: { items: [], msg: '', bad: false, busy: false } },
+      ph: { c: { busy: false, msg: '', bad: false }, d: { busy: false, msg: '', bad: false } },
     };
     this.key = uid();
   }
@@ -88,6 +90,26 @@ class Component extends DCLogic {
       const newPrice = e.code === 'quote_invalid' && /now £/.test(e.message);
       this.setState({ busy: false, err: e.message + (newPrice ? ' Go back to prices to book at the new price.' : '') });
     }
+  }
+
+  /** "Fill from a photo": a label, note or screenshot of the address. */
+  photo(px) {
+    const P = this.state.ph[px];
+    const set = (patch) => this.setState({ ph: { ...this.state.ph, [px]: { ...this.state.ph[px], ...patch } } });
+    return {
+      btn: P.busy ? 'Reading the address…' : 'Fill from a photo', msg: P.msg, msgFg: P.bad ? '#B42318' : '#166534',
+      pick: async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        set({ busy: true, msg: '', bad: false });
+        try {
+          const r = await fillFromPhoto(file, px, setField, { useCompany: true, ukOnly: true });
+          set({ busy: false, msg: r.msg, bad: !r.ok });
+          if (r.ok && r.address.postcode && r.address.country === 'GB') { setField(`${px}_find`, r.address.postcode); this.lookup(px).find(); }
+        } catch (err) { set({ busy: false, msg: err.message, bad: true }); }
+      },
+    };
   }
 
   lookup(px) {
@@ -156,7 +178,7 @@ class Component extends DCLogic {
       missing: false, ready: true, signInUrl: `/login?next=${encodeURIComponent('/app/send')}`,
       s1: S(1), s2: S(2), s3: S(3), s4: S(4),
       y: st.y, c: st.c, d: st.d, p: { ...st.p, terms: st.p.terms ? 'true' : 'false' },
-      lk: { c: this.lookup('c'), d: this.lookup('d') },
+      lk: { c: this.lookup('c'), d: this.lookup('d') }, ph: { c: this.photo('c'), d: this.photo('d') },
       err: st.err, noErr: !st.err, busyTxt: st.busy ? 'true' : 'false',
       payTxt: st.busy ? 'Please wait…' : `Next: pay ${gbp(pick.price)}`,
       parcelTxt: `${kg} kg · ${parcel.lengthCm} × ${parcel.widthCm} × ${parcel.heightCm} cm`,

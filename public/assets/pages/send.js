@@ -1,6 +1,7 @@
 import { DCLogic, mount, field, api, uid, CARRIER_LOGO, CARRIER_NAME } from '../dc.js';
 import { openPaySheet } from '../pay.js';
 import { NAV } from '../shell.js';
+import { shrinkPhoto } from '../photo-address.js';
 
 /** Send a parcel: the approved 5-step design, booking real labels through the API. */
 
@@ -32,21 +33,6 @@ function toast(text) {
 }
 
 /** Put a value into a form box and keep it through re-renders. */
-/** Shrink a photo before upload: long side up to 2400 px, JPEG under ~2 MB. */
-async function shrinkPhoto(file) {
-  const img = await createImageBitmap(file).catch(() => null);
-  if (!img) throw new Error('That file is not an image we can read.');
-  // keep small text readable: tall phone screenshots keep their full height up to 2400 px
-  const k = Math.min(1, 2400 / Math.max(img.width, img.height));
-  const c = document.createElement('canvas');
-  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-  const g = c.getContext('2d');
-  g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, c.width, c.height);
-  g.drawImage(img, 0, 0, c.width, c.height);
-  for (const q of [0.9, 0.8, 0.7, 0.6]) { const d = c.toDataURL('image/jpeg', q); if (d.length < 3_000_000) return d; }
-  return c.toDataURL('image/jpeg', 0.5);
-}
-
 function setField(label, value) {
   const el = document.querySelector(`[aria-label="${label}"]`);
   if (el) { el.value = value || ''; el.dataset.dirty = '1'; }
