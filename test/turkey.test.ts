@@ -55,13 +55,13 @@ test('Turkey warehouse: pre-alert, arrive, combine, price, pay from wallet, ship
   await assert.rejects(t.requestShipment(other, { packageIds: [a.id], address: UK }), /not found/);
   await assert.rejects(t.requestShipment(c, { packageIds: [a.id], address: { ...UK, postcode: 'XX' } }), /postcode/);
 
-  await assert.rejects(t.requestShipment(c, { packageIds: [a.id, r2.id], address: UK }), /Customs/);
-  await t.updatePackage(c, r2.id, { valueTry: 350 });
   const sh = await t.requestShipment(c, { packageIds: [a.id, r2.id], address: UK, note: 'Remove shoe boxes' });
   assert.match(sh.ref, /^TR-1000\d$/);
   await assert.rejects(t.requestShipment(c, { packageIds: [a.id], address: UK }), /warehouse/);
 
-  const priced = await t.measure(sh.id, { weightKg: '2.1', dims: '40x30x20' });
+  // the Book had no price: we fill it in when we pack
+  await assert.rejects(t.measure(sh.id, { weightKg: '2.1', dims: '40x30x20' }), /value/);
+  const priced = await t.measure(sh.id, { weightKg: '2.1', dims: '40x30x20', values: { [r2.id]: 350 } });
   // 4.8 kg volumetric → 5 kg. UPS: £30 + 10% fuel + £3 handling + £2 for the second parcel = £38
   assert.deepEqual(priced.quotes.map((q) => [q.name, q.pence]), [['UPS Express', 3800], ['PTT Economy', 3000]].sort((x, y) => (x[1] as number) - (y[1] as number)));
   const ups = priced.quotes.find((q) => q.name === 'UPS Express')!;

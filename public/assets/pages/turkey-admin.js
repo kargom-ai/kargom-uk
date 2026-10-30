@@ -167,7 +167,9 @@ function drawerHtml() {
     h = `<h2>Parcel arrived</h2><p>${esc(p.customer)} · ${esc(p.suite)} · ${esc(p.store)}</p>`;
     b = `<div class="tw-note"><b>${esc(p.description)}</b><br>${tl(p.valueTry)}${p.tracking ? ` · tracking ${esc(p.tracking)}` : ''}</div>
       ${p.autoSend ? `<div class="tw-note warn">⚡ The customer asked to send this <b>as soon as it arrives</b> (${p.autoPref}). After you save, it is priced and paid from their wallet automatically, if the money is there.</div>` : ''}
-      ${dimsHtml(dr.v)}<label class="tw-f">Note for the customer <em>(damage, missing items…)</em><input class="tw-in" name="note" value="${esc(dr.v?.note || '')}"></label>
+      ${dimsHtml(dr.v)}
+      <label class="tw-f">Item value <em>(for customs: check it on the shop page${p.productUrl ? ` · <a href="${esc(p.productUrl)}" target="_blank" rel="noopener nofollow">open the link ↗</a>` : ''})</em><span class="tw-unit" data-u="TL"><input class="tw-in" name="valueTry" inputmode="numeric" value="${esc(dr.v?.valueTry ?? p.valueTry ?? '')}"></span></label>
+      <label class="tw-f">Note for the customer <em>(damage, missing items…)</em><input class="tw-in" name="note" value="${esc(dr.v?.note || '')}"></label>
       <div class="tw-f">Photos <em>(optional: damage, contents, label)</em>${dr.v?.photos?.length ? `<div class="tw-photos" style="margin-top:6px">${dr.v.photos.map((ph, i) => `<span class="tw-ph"><img src="${ph}" alt=""><button type="button" data-unphoto="${i}" aria-label="Remove photo">×</button></span>`).join('')}</div>` : ''}
         <label class="tw-btn ghost sm" style="margin-top:6px">📷 Add photos<input type="file" accept="image/*" multiple data-photos hidden></label></div>`;
     f = `<button type="button" class="tw-btn big" data-act="arrive">Mark as arrived</button>`;
@@ -179,6 +181,7 @@ function drawerHtml() {
       ${dimsHtml(v)}
       <div class="tw-row"><label class="tw-f">Shop<select class="tw-in" name="store">${S.d.stores.map((s) => `<option ${s === v.store ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
       <label class="tw-f">What is in it<input class="tw-in" name="description" value="${esc(v.description || '')}"></label></div>
+      <label class="tw-f">Item value <em>(for customs)</em><span class="tw-unit" data-u="TL"><input class="tw-in" name="valueTry" inputmode="numeric" value="${esc(v.valueTry || '')}"></span></label>
       <label class="tw-f">Note for the customer<input class="tw-in" name="note" value="${esc(v.note || '')}"></label>`;
     f = '<button type="button" class="tw-btn big" data-act="scan">Received</button>';
   } else if (dr.kind === 'note') {
@@ -191,7 +194,10 @@ function drawerHtml() {
     const s = shp(dr.id);
     const pk = S.d.packages.filter((p) => p.shipmentId === s.id);
     h = `<h2>Pack &amp; price ${esc(s.ref)}</h2><p>${esc(s.customer)} · ${esc(s.suite)} · ${pk.length} parcel${pk.length > 1 ? 's' : ''}</p>`;
-    b = `<div class="tw-note"><b>In the box</b>${pk.map((p) => `<br>• ${esc(p.store)}: ${esc(p.description)} · ${tl(p.valueTry)} · ${kg(p.weightKg)}`).join('')}<br><b>Customs total: ${tl(pk.reduce((a, p) => a + (p.valueTry || 0), 0))}</b></div>
+    const vals = dr.v?.vals || {};
+    b = `<div class="tw-f">In the box: value of each item for customs <em>(check on the shop page)</em><div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">${pk.map((p) => `<div class="tw-item" style="justify-content:space-between">
+        <span class="tw-item" style="min-width:0">${thumb(p.image, p.store, 36)}<span class="two" style="display:flex;flex-direction:column"><b style="font-size:14px">${esc(p.productTitle || p.description)}</b><small class="tw-muted">${esc(p.description)} · ${kg(p.weightKg)}${p.productUrl ? ` · <a href="${esc(p.productUrl)}" target="_blank" rel="noopener nofollow">shop page ↗</a>` : ''}</small></span></span>
+        <span class="tw-unit" data-u="TL" style="width:120px;flex:none"><input class="tw-in" data-val="${p.id}" inputmode="numeric" value="${esc(vals[p.id] ?? p.valueTry ?? '')}" aria-label="Value in TL" style="${p.valueTry || vals[p.id] ? '' : 'border-color:#E5484D'}"></span></div>`).join('')}</div></div>
       <div class="tw-muted">To: ${esc(addrText(s.address))} · ${esc(s.address.phone || '')}</div>
       ${s.note ? `<div class="tw-note warn">Customer note: ${esc(s.note)}</div>` : ''}
       ${dimsHtml(dr.v)}<div id="prev">${S.preview ? quotesHtml(S.preview) : '<span class="tw-muted">Enter the weight and size: prices appear here.</span>'}</div>`;
@@ -273,7 +279,11 @@ function render() {
 
 async function load() { S.d = await api('/api/admin/tr'); render(); }
 const val = (name) => root.querySelector(`#dr [name="${name}"]`)?.value ?? '';
-const keepDrawer = () => { if (!S.drawer) return; S.drawer.v = { ...(S.drawer.v || {}), ...Object.fromEntries([...root.querySelectorAll('#dr [name]')].map((i) => [i.name, i.value])) }; };
+const keepDrawer = () => {
+  if (!S.drawer) return;
+  const vals = Object.fromEntries([...root.querySelectorAll('#dr [data-val]')].map((i) => [i.dataset.val, i.value]));
+  S.drawer.v = { ...(S.drawer.v || {}), ...Object.fromEntries([...root.querySelectorAll('#dr [name]')].map((i) => [i.name, i.value])), ...(Object.keys(vals).length ? { vals } : {}) };
+};
 const dimsOf = () => ({ weightKg: val('w'), dims: [val('l'), val('wd'), val('h')].every((x) => Number(x) > 0) ? `${val('l')}x${val('wd')}x${val('h')}` : '' });
 async function run(fn, ok) {
   if (S.busy) return;
@@ -345,20 +355,20 @@ function bind() {
         await run(async () => { await api(`/api/admin/tr/buy/${dr.id}/ordered`, { method: 'POST', body: o }); S.drawer = null; await load(); }, 'Ordered. It is now in "Coming to warehouse".'); break; }
       case 'arrive': await run(async () => {
         const photos = dr.v?.photos || [];
-        const r = await api('/api/admin/tr/receive', { method: 'POST', body: { packageId: dr.id, ...dimsOf(), note: val('note') } });
+        const r = await api('/api/admin/tr/receive', { method: 'POST', body: { packageId: dr.id, ...dimsOf(), note: val('note'), valueTry: val('valueTry') } });
         if (photos.length) await api(`/api/admin/tr/packages/${dr.id}/messages`, { method: 'POST', body: { body: val('note') || 'Photos of your parcel on arrival.', photos } });
         S.drawer = null; await load();
         return r.auto?.status === 'paid' ? `Arrived, priced and paid from the wallet (${gbp(r.auto.pence)}). It is in Ready to ship.`
           : r.auto?.status === 'quoted' ? `Arrived and priced (${gbp(r.auto.pence)}). Waiting for the customer to pay.` : 'Arrived. The customer got an email.';
       }); break;
       case 'scan': await run(async () => {
-        const r = await api('/api/admin/tr/receive', { method: 'POST', body: { tracking: val('tracking'), suite: val('suite'), store: val('store'), description: val('description'), note: val('note'), ...dimsOf() } });
+        const r = await api('/api/admin/tr/receive', { method: 'POST', body: { tracking: val('tracking'), suite: val('suite'), store: val('store'), description: val('description'), note: val('note'), valueTry: val('valueTry'), ...dimsOf() } });
         S.drawer = { kind: 'scan', v: null }; await load();
         return r.auto ? `Received and ${r.auto.status === 'paid' ? 'paid from the wallet' : 'priced for the customer'}.` : 'Received. Scan the next one.';
       }); break;
       case 'saveNote': await run(async () => { await api(`/api/admin/tr/packages/${dr.id}`, { method: 'POST', body: { note: val('note') } }); S.drawer = null; await load(); }, 'Note saved'); break;
       case 'discard': if (!confirm('Mark this parcel as discarded?')) return; await run(async () => { await api(`/api/admin/tr/packages/${dr.id}`, { method: 'POST', body: { discard: true } }); S.drawer = null; await load(); }, 'Discarded'); break;
-      case 'measure': await run(async () => { await api(`/api/admin/tr/shipments/${dr.id}/measure`, { method: 'POST', body: dimsOf() }); S.drawer = null; await load(); }, 'Price sent. The customer chooses a courier and pays.'); break;
+      case 'measure': await run(async () => { await api(`/api/admin/tr/shipments/${dr.id}/measure`, { method: 'POST', body: { ...dimsOf(), values: S.drawer.v?.vals || {} } }); S.drawer = null; await load(); }, 'Price sent. The customer chooses a courier and pays.'); break;
       case 'ship': await run(async () => { await api(`/api/admin/tr/shipments/${dr.id}/ship`, { method: 'POST', body: { trackingNo: val('trackingNo') } }); S.drawer = null; await load(); }, 'Shipped. The customer got the tracking number.'); break;
       case 'saveCour': {
         const body = Object.fromEntries([...root.querySelectorAll('#dr [name]')].map((i) => [i.name, i.value]));

@@ -139,7 +139,9 @@ function listCard(all) {
     ${payPanels()}
     ${list.length ? `<div style="overflow-x:auto"><table class="tw-tbl"><thead><tr><th style="width:34px"></th><th>Item</th><th>Tracking</th><th>Weight</th><th>Status</th><th></th></tr></thead><tbody>
     ${list.map(({ p, s, stage }) => {
-      const sub = stage === 'coming' ? (p.tracking ? `<span class="mono">${esc(p.tracking)}</span>` : '<span style="color:#9A5B00">Add the tracking number</span>')
+      const sub = stage === 'coming' ? (S.trk === p.id
+        ? `<span class="tc-trk"><input class="tw-in" data-trkin="${p.id}" value="${esc(p.tracking || '')}" placeholder="Tracking number" aria-label="Tracking number"><button type="button" class="tw-btn sm" data-trksave="${p.id}">Save</button></span>`
+        : `<button type="button" class="tc-trkbtn" data-trk="${p.id}" title="${p.tracking ? 'Change the tracking number' : 'Add the tracking number'}">${p.tracking ? `<span class="mono">${esc(p.tracking)}</span> ✎` : '+ Add the tracking number'}</button>`)
         : stage === 'here' ? `Arrived ${day(p.receivedAt)} · ${p.storagePence ? `<b style="color:#B42318">storage ${gbp(p.storagePence)}</b>` : `free until ${day(p.freeUntil)}`}`
           : s ? `<span class="mono">${esc(s.ref)}</span>${s.trackingNo ? ` · ${esc(s.courierName)} <span class="mono">${esc(s.trackingNo)}</span>` : ''}` : '';
       const act = stage === 'coming' ? `<button type="button" class="tw-btn ghost sm" data-open="order" data-id="${p.id}">Edit</button>`
@@ -230,8 +232,6 @@ function readLink(input, now = false) {
     // fill what is still empty: shop, price paid
     const sel = root.querySelector('#dr [name="store"]');
     if (sel && pv.store && [...sel.options].some((o) => o.value === pv.store || o.text === pv.store)) sel.value = pv.store;
-    const price = root.querySelector('#dr [name="valueTry"]');
-    if (price && !price.value && pv.priceTry) price.value = String(Math.round(pv.priceTry));
     const what = root.querySelector('#dr [name="description"]');
     if (what && !what.value && pv.english) what.value = pv.english;
   }, now ? 50 : 500);
@@ -249,10 +249,9 @@ function drawerHtml() {
     b = `${dr.id ? '' : `<label class="tw-f">Product link <em>(paste it: we fill in the name, price and picture)</em><input class="tw-in" name="productUrl" data-link value="${esc(v.productUrl || '')}" placeholder="https://www.trendyol.com/…" inputmode="url"></label>
       <div id="pv">${pvHtml(dr.pv)}</div>`}
       <div class="tw-row"><label class="tw-f">Shop<select class="tw-in" name="store" ${dr.id ? 'disabled' : ''}>${S.d.stores.map((s) => `<option ${s === (v.store || 'Trendyol') ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
-        <label class="tw-f">Price paid<span class="tw-unit" data-u="TL"><input class="tw-in" name="valueTry" inputmode="numeric" value="${esc(v.valueTry || '')}" placeholder="1250"></span></label></div>
+        <label class="tw-f">Order number <em>(optional)</em><input class="tw-in" name="orderNo" value="${esc(v.orderNo || '')}"></label></div>
       <label class="tw-f">What is it? <em>(in English, for customs)</em><input class="tw-in" name="description" value="${esc(v.description || '')}" placeholder="e.g. 2 cotton T-shirts"></label>
-      <div class="tw-row"><label class="tw-f">Order number <em>(optional)</em><input class="tw-in" name="orderNo" value="${esc(v.orderNo || '')}"></label>
-        <label class="tw-f">Tracking in Turkey <em>(add later)</em><input class="tw-in" name="tracking" value="${esc(v.tracking || '')}" placeholder="Yurtiçi, Aras, TEX…"></label></div>
+      <div class="tw-row"><label class="tw-f">Tracking in Turkey <em>(add later)</em><input class="tw-in" name="tracking" value="${esc(v.tracking || '')}" placeholder="Yurtiçi, Aras, TEX…"></label></div>
       ${!dr.id || p.status === 'expected' ? `<label class="tw-switch"><input type="checkbox" name="autoSend" ${auto ? 'checked' : ''}><span><b>Send it as soon as it arrives</b>We weigh it, price it and send it to your UK address. If your wallet has enough money we take it from there, so nothing waits.</span></label>
       ${auto ? `<div class="tw-seg" role="radiogroup" aria-label="Courier choice"><label><input type="radio" name="autoPref" value="cheapest" ${v.autoPref !== 'fastest' ? 'checked' : ''}>Cheapest courier</label><label><input type="radio" name="autoPref" value="fastest" ${v.autoPref === 'fastest' ? 'checked' : ''}>Fastest courier</label></div>
         ${S.d.ukAddress ? `<span class="tw-muted">Sending to ${esc(S.d.ukAddress.name)}, ${esc(addrLine(S.d.ukAddress))} · wallet ${gbp(S.d.balancePence)}</span>` : `<b style="font-size:14px">Your UK address</b>${addrFields({ ...(S.d.suggestedAddress || savedAddresses()[0] || {}), ...v })}`}` : ''}` : ''}`;
@@ -356,7 +355,15 @@ root.addEventListener('change', (e) => {
 root.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && S.drawer) { S.drawer = null; render(); }
   if (e.key === 'Enter' && e.target.matches('[data-find]')) { e.preventDefault(); root.querySelector('[data-act="find"]')?.click(); }
+  if (e.target.matches?.('[data-trkin]')) { if (e.key === 'Enter') { e.preventDefault(); saveTracking(e.target.dataset.trkin); } if (e.key === 'Escape') { S.trk = null; render(); } }
 });
+/** Save a tracking number typed straight into the list. */
+async function saveTracking(id) {
+  const v = root.querySelector(`[data-trkin="${id}"]`)?.value ?? '';
+  S.trk = null;
+  try { await api(`/api/tr/packages/${id}`, { method: 'POST', body: { tracking: v } }); await load(); toast(v.trim() ? 'Tracking number saved. We match it when it arrives.' : 'Tracking number removed'); }
+  catch (e) { toast(e.message); render(); }
+}
 /** Keep what was typed in the drawer before re-drawing it. */
 function keep() { if (S.drawer) S.drawer.v = { ...(S.drawer.v || {}), ...form() }; const f = root.querySelector('[data-find]'); if (f) S.lk.pc = f.value; }
 /** Put an address into the drawer's boxes, never wiping what the customer typed if a part is missing. */
@@ -387,6 +394,8 @@ root.addEventListener('click', async (e) => {
     });
     return;
   }
+  if (ds.trk) { S.trk = ds.trk; render(); const i = root.querySelector(`[data-trkin="${ds.trk}"]`); i?.focus(); i?.select(); return; }
+  if (ds.trksave) { await saveTracking(ds.trksave); return; }
   if (ds.sendone) { S.sel = new Set([ds.sendone]); S.drawer = { kind: 'send', id: null, v: null }; S.lk = { items: [], msg: '', bad: false, busy: false }; render(); return; }
   if (ds.saved != null) { fillAddr(savedAddresses()[Number(ds.saved)], 'Saved address filled in.'); return; }
   if (ds.unphoto != null) { keep(); S.drawer.v.photos = (S.drawer.v.photos || []).filter((_, i) => i !== Number(ds.unphoto)); render(); return; }
@@ -444,7 +453,7 @@ root.addEventListener('click', async (e) => {
     case 'all': { const here = S.d.packages.filter((p) => p.status === 'received'); if (S.sel.size === here.length) S.sel.clear(); else here.forEach((p) => S.sel.add(p.id)); render(); break; }
     case 'saveOrder': {
       const o = form();
-      const body = { description: o.description, valueTry: Number(String(o.valueTry || '').replace(/[^\d]/g, '')) || 0, orderNo: o.orderNo, tracking: o.tracking };
+      const body = { description: o.description, orderNo: o.orderNo, tracking: o.tracking };
       if ('autoSend' in o) { body.autoSend = Boolean(o.autoSend); body.autoPref = o.autoPref || 'cheapest'; }
       if (!dr.id) { body.store = o.store; body.productUrl = o.productUrl; }
       if (o.autoSend && !S.d.ukAddress) body.address = addrOf(o);

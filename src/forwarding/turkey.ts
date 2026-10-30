@@ -389,7 +389,8 @@ export class TurkeyForwarding {
     const description = text(input.description, 300);
     if (!store) throw new AppError('bad_request', 'Choose the shop');
     if (!description) throw new AppError('bad_request', 'Say what is in the parcel (for customs), e.g. 2 cotton T-shirts');
-    const value = int(input.valueTry, 'Price paid (TL)', 1, 5_000_000);
+    // The customer may leave the price out: we check it on the shop page before we price the box.
+    const value = Number(input.valueTry) > 0 ? int(input.valueTry, 'Price paid (TL)', 1, 5_000_000) : null;
     const open = await this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM fw_packages WHERE customer_id = $1 AND status = 'expected'`, [customerId]);
     if (Number(open?.n ?? 0) >= 100) throw new AppError('bad_request', 'You have 100 parcels on the way already');
     await this.suite(customerId);
@@ -421,7 +422,7 @@ export class TurkeyForwarding {
     if ('tracking' in input) put('inbound_tracking', text(input.tracking, 60));
     if ('orderNo' in input) put('order_no', text(input.orderNo, 60));
     if ('description' in input) { const d = text(input.description, 300); if (!d) throw new AppError('bad_request', 'Say what is in the parcel'); put('description', d); }
-    if ('valueTry' in input) put('value_try', int(input.valueTry, 'Price paid (TL)', 1, 5_000_000));
+    if ('valueTry' in input) put('value_try', Number(input.valueTry) > 0 ? int(input.valueTry, 'Price paid (TL)', 1, 5_000_000) : null);
     if ('hold' in input) put('hold', input.hold ? 1 : 0);
     if ('autoSend' in input) {
       if (input.autoSend && !(await this.ukAddress(customerId))) throw new AppError('bad_request', 'Add your UK address first, so we know where to send it');
@@ -453,8 +454,8 @@ export class TurkeyForwarding {
       const pk = await Promise.all(ids.map((id) => this.ownPackage(customerId, id, tx)));
       const notHere = pk.filter((p) => p.status !== 'received');
       if (notHere.length) throw new AppError('conflict', 'Only parcels that are in our warehouse can be sent');
-      const noInfo = pk.filter((p) => !p.description || !p.value_try);
-      if (noInfo.length) throw new AppError('bad_request', 'Add what is in each parcel and the price you paid (Edit). Customs needs it.');
+      const noInfo = pk.filter((p) => !p.description);
+      if (noInfo.length) throw new AppError('bad_request', 'Add what is in each parcel (Edit). Customs needs it.');
       return this.createShipment(tx, customerId, pk.map((p) => p.id), address, text(input.note, 500));
     });
   }
@@ -592,6 +593,7 @@ export class TurkeyForwarding {
     const weightG = kgToG(input.weightKg);
     const dims = parseDims(input.dims);
     const tracking = text(input.tracking, 60);
+    const valueTry = Number(input.valueTry) > 0 ? int(input.valueTry, 'Value (TL)', 1, 5_000_000) : null;
     const now = this.now();
     let pkg: PkgRow | undefined;
     if (typeof input.packageId === 'string' && input.packageId) {
@@ -603,15 +605,16 @@ export class TurkeyForwarding {
     if (pkg) {
       if (pkg.status !== 'expected' && pkg.status !== 'received') throw new AppError('conflict', 'This parcel is already in a shipment');
       if (pkg.auto_send && pkg.status === 'expected' && !dims) throw new AppError('bad_request', 'Enter the size: this customer asked us to send it as soon as it arrives');
-      await this.db.run(`UPDATE fw_packages SET status = 'received', weight_g = $1, dims = $2, admin_note = COALESCE($3, admin_note), inbound_tracking = COALESCE(inbound_tracking, $4), received_at = COALESCE(received_at, $5) WHERE id = $6`,
-        [weightG, dimsText(dims), text(input.note, 300), tracking, now, pkg.id]);
+      if (pkg.auto_send && pkg.status === 'expected' && !valueTry && !pkg.value_try) throw new AppError('bad_request', 'Enter the item value (TL): this customer asked us to send it as soon as it arrives');
+      await this.db.run(`UPDATE fw_packages SET status = 'received', weight_g = $1, dims = $2, admin_note = COALESCE($3, admin_note), inbound_tracking = COALESCE(inbound_tracking, $4), received_at = COALESCE(received_at, $5), value_try = COALESCE($6, value_try) WHERE id = $7`,
+        [weightG, dimsText(dims), text(input.note, 300), tracking, now, valueTry, pkg.id]);
     } else {
       const suite = String(input.suite ?? '').replace(/\s/g, '').toUpperCase();
       const owner = suite ? await this.db.get<{ customer_id: string }>('SELECT customer_id FROM fw_suites WHERE code = $1', [suite]) : undefined;
       if (!owner) throw new AppError('bad_request', 'No pre-alert matches this tracking number. Enter the suite code from the label (KG…).');
       const id = newId('frp');
-      await this.db.run(`INSERT INTO fw_packages (id, customer_id, status, store, inbound_tracking, description, weight_g, dims, admin_note, received_at, created_at)
-        VALUES ($1,$2,'received',$3,$4,$5,$6,$7,$8,$9,$9)`, [id, owner.customer_id, text(input.store, 60) ?? 'Other', tracking, text(input.description, 300), weightG, dimsText(dims), text(input.note, 300), now]);
+      await this.db.run(`INSERT INTO fw_packages (id, customer_id, status, store, inbound_tracking, description, weight_g, dims, admin_note, value_try, received_at, created_at)
+        VALUES ($1,$2,'received',$3,$4,$5,$6,$7,$8,$9,$10,$10)`, [id, owner.customer_id, text(input.store, 60) ?? 'Other', tracking, text(input.description, 300), weightG, dimsText(dims), text(input.note, 300), valueTry, now]);
       pkg = await this.db.get<PkgRow>('SELECT * FROM fw_packages WHERE id = $1', [id]);
     }
     const s = await this.settings();
@@ -637,7 +640,11 @@ export class TurkeyForwarding {
     const dims = parseDims(input.dims);
     if (!dims && !preview) throw new AppError('bad_request', 'Enter the box size in cm, e.g. 40x30x20');
     const settings = await this.settings();
+    // Item values for customs, checked by us on the shop page (sent with the measurements).
+    const values = (input.values && typeof input.values === 'object' ? input.values : {}) as Record<string, unknown>;
+    if (!preview) for (const [pid, v] of Object.entries(values)) if (Number(v) > 0) await this.db.run('UPDATE fw_packages SET value_try = $1 WHERE id = $2 AND shipment_id = $3', [int(v, 'Value (TL)', 1, 5_000_000), pid, id]);
     const pk = await this.db.all<PkgRow>('SELECT * FROM fw_packages WHERE shipment_id = $1', [id]);
+    if (!preview && pk.some((p) => !p.value_try)) throw new AppError('bad_request', 'Enter the value (TL) of each item: customs needs it');
     const now = this.clock.now();
     const storagePence = pk.reduce((a, p) => a + storageFor(p.received_at, now, settings), 0);
     const quotes = quoteAll(await this.couriers(), settings, { weightG, dims, parcels: pk.length, storagePence });
@@ -683,6 +690,8 @@ export class TurkeyForwarding {
     const sets: string[] = []; const vals: Param[] = [];
     const put = (col: string, v: Param) => { vals.push(v); sets.push(`${col} = $${vals.length}`); };
     if ('note' in input) put('admin_note', text(input.note, 300));
+    if ('valueTry' in input) put('value_try', Number(input.valueTry) > 0 ? int(input.valueTry, 'Value (TL)', 1, 5_000_000) : null);
+    if ('description' in input && text(input.description, 300)) put('description', text(input.description, 300));
     if (input.discard === true && PKG_OPEN.includes(p.status)) put('status', 'discarded');
     if (!sets.length) return { ok: true };
     vals.push(id);
