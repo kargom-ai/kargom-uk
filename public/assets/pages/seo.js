@@ -1,6 +1,6 @@
 /* Guide pages: tracking-number detector and volumetric weight calculator. No framework. */
 
-// ---- Track: recognise the courier from the number, then open its tracking page ----
+// ---- Track: recognise the courier from the number, then link to its own tracking page ----
 for (const form of document.querySelectorAll('form[data-track]')) {
   const cfg = JSON.parse(form.dataset.track);
   const input = form.querySelector('input');
@@ -13,7 +13,7 @@ for (const form of document.querySelectorAll('form[data-track]')) {
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const link = (key, n) => cfg.carriers[key].url.replace('{n}', encodeURIComponent(n));
 
-  // Arrived from the homepage tracking box: fill in and go.
+  // Arrived from the homepage tracking box: fill in and show the courier link (the visitor clicks it).
   const pre = new URLSearchParams(location.search).get('n');
   if (pre) { input.value = pre; history.replaceState(null, '', location.pathname); setTimeout(() => form.requestSubmit(), 0); }
 
@@ -37,13 +37,11 @@ for (const form of document.querySelectorAll('form[data-track]')) {
       say(`This could be ${keys.map((k) => `<a href="${esc(link(k, n))}" rel="nofollow noopener"><b>${esc(cfg.carriers[k].name)}</b></a>`).join(' or ')}. Choose one.`);
       return;
     }
+    // No automatic redirect: show the courier's own tracking link and let the visitor open it.
     const c = cfg.carriers[keys[0]];
-    if (!c.deep) {
-      try { await navigator.clipboard.writeText(n); say(`Number copied. Opening ${esc(c.name)}: paste it there.`); } catch { say(`Opening ${esc(c.name)}. Your number is <b>${esc(n)}</b>.`); }
-    } else {
-      say(`Opening ${esc(c.name)} tracking…`);
-    }
-    setTimeout(() => { location.href = link(keys[0], n); }, c.deep ? 150 : 900);
+    let copied = false;
+    if (!c.deep) { try { await navigator.clipboard.writeText(n); copied = true; } catch { /* not allowed */ } }
+    say(`This is a <b>${esc(c.name)}</b> number. <a href="${esc(link(keys[0], n))}" style="display:inline-block;margin:6px 0;padding:8px 14px;border-radius:8px;background:#2463DB;color:#FFFFFF;font-weight:700;text-decoration:none" target="_blank" rel="nofollow noopener">Track it on the ${esc(c.name)} website ↗</a>${c.deep ? '' : copied ? ' Your number is copied: paste it there.' : ` Your number is <b>${esc(n)}</b>.`}`);
   });
 }
 

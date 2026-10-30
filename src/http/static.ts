@@ -111,6 +111,8 @@ export async function serveStatic(req: IncomingMessage, res: ServerResponse, pat
     const st = await stat(file);
     if (!st.isFile()) return false;
     const ext = extname(file);
+    // Only real website files: never source code, notes or stray copies of pages uploaded into assets/.
+    if (!page && (!(ext.toLowerCase() in TYPES) || ext.toLowerCase() === '.html' || /^assets\/(public|src|test)\//i.test(rel.replace(/^\/+/, '')))) return false;
     const code = ext === '.css' || ext === '.js';
     // Scripts and styles: always re-check with the server (cheap 304 when unchanged).
     const etag = `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
@@ -149,6 +151,7 @@ export async function serveStatic(req: IncomingMessage, res: ServerResponse, pat
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'X-Frame-Options': 'DENY',
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
       ...(page ? { 'Content-Security-Policy': CSP } : {}),
       ...(page && PRIVATE.has(page) ? { 'X-Robots-Tag': 'noindex, nofollow' } : {}),
     });

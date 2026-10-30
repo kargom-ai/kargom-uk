@@ -6,7 +6,8 @@ const f = document.getElementById('f');
 const msg = document.getElementById('msg');
 const raw = params.get('next') || '';
 // Only allow redirects inside our own site.
-const next = raw.startsWith('/') && !raw.startsWith('//') ? raw : '';
+// Only a path on this site. Blocks //evil.com, /\evil.com and /<tab>/evil.com (browsers treat all of them as another site).
+const next = /^\/(?![/\\])[^\s\\\x00-\x1f\x7f]*$/.test(raw) ? raw : '';
 
 function render() {
   document.getElementById('t-login').setAttribute('aria-selected', String(mode === 'login'));

@@ -222,7 +222,8 @@ export function buildRouter(app: App) {
     return { token, role: principal.role, partner: Boolean(partner) };
   });
   /* ---------- Continue with Google */
-  const safeNext = (v: unknown) => { const x = String(v ?? ''); return x.startsWith('/') && !x.startsWith('//') && !x.includes('\\') ? x.slice(0, 300) : ''; };
+  // Only a path on this site: no //host, no backslashes, no spaces or control characters (browsers drop tabs, so /\t/evil.com would become //evil.com).
+  const safeNext = (v: unknown) => { const x = String(v ?? ''); return /^\/(?![/\\])[^\s\\\x00-\x1f\x7f]*$/.test(x) ? x.slice(0, 300) : ''; };
   const redirect = (c: Ctx, to: string, cookies: string[] = []) => { c.res.writeHead(302, { Location: to, 'Cache-Control': 'no-store', ...(cookies.length ? { 'Set-Cookie': cookies } : {}) }); c.res.end(); return null; };
   // Google's official "G" mark, if it has been added to public/assets (see .env.example)
   const googleLogo = existsSync(new URL('../../public/assets/google-g.svg', import.meta.url));
