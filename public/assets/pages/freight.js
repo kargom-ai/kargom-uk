@@ -111,6 +111,43 @@ function quoteHref(mode) {
   return `/app/quote?${p}`;
 }
 
+/* ---------- this week's container market (Drewry WCI) and real Maersk sailings ---------- */
+const niceDay = (iso) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+function marketHtml() {
+  const m = S.market;
+  if (!m || !m.enabled) return '';
+  const fromAsia = ['CN', 'HK', 'VN', 'TW', 'KR', 'JP', 'TH', 'MY', 'SG', 'IN', 'BD'].includes(code(S.from));
+  const toCode = code(S.to);
+  const hot = fromAsia ? (toCode === 'US' ? ['shaLax', 'shaNyc'] : toCode === 'IT' || toCode === 'ES' || toCode === 'TR' ? ['shaGoa'] : ['shaRtm']) : [];
+  const show = ['shaRtm', 'shaGoa', 'shaLax', 'shaNyc'];
+  const rows = m.lanes.filter((l) => show.includes(l.key)).map((l) => {
+    const up = l.changePct > 0, down = l.changePct < 0;
+    const ch = l.changePct === null ? '' : `<span style="white-space:nowrap;font-weight:700;color:${up ? '#B42318' : down ? '#166534' : '#586579'}">${up ? '▲' : down ? '▼' : '•'} ${Math.abs(l.changePct)}%</span>`;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;${hot.includes(l.key) ? 'background:#EEF4FF;' : ''}">
+      <span>${esc(l.label)}${l.key === 'shaRtm' ? ' <span class="muted" style="font-size:12px">(UK and North Europe)</span>' : ''}</span>
+      <span style="display:flex;gap:12px;align-items:baseline"><b>$${l.usd.toLocaleString('en-GB')}</b>${ch}</span></div>`;
+  }).join('');
+  const main = m.lanes.find((l) => l.key === (hot[0] || 'shaRtm'));
+  const head = main && main.changePct !== null ? `${main.label}: ${main.changePct > 0 ? 'up' : main.changePct < 0 ? 'down' : 'no change'}${main.changePct ? ` ${Math.abs(main.changePct)}%` : ''} on last week` : 'Container prices this week';
+  return `<section class="card fr-market" style="display:flex;flex-direction:column;gap:6px;margin-top:18px">
+    <span class="lbl" style="font-size:12px;font-weight:700;letter-spacing:.04em;color:#2463DB">CONTAINER MARKET · ${esc(new Date(m.week + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase())}</span>
+    <b style="font-size:18px">${esc(head)}</b>
+    <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px">${rows}</div>
+    <span class="muted" style="font-size:12px">Spot price for one 40 ft container, port to port, in US dollars. Source: Drewry World Container Index. Our sea-freight estimates use these figures.</span>
+  </section>`;
+}
+function sailingsHtml() {
+  const s = S.sail;
+  if (!s || !s.sailings?.length) return '';
+  return `<div class="card" style="display:flex;flex-direction:column;gap:8px;padding:14px 16px">
+    <b style="font-size:16px">🚢 Next ships · ${esc(s.from)} → ${esc(s.to)}</b>
+    ${s.sailings.map((x) => `<div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;padding:8px 0;border-top:1px solid #E5E9F0">
+      <span><b>${esc(niceDay(x.depart))}</b> → ${esc(niceDay(x.arrive))}${x.vessel ? `<span class="muted" style="font-size:13px"> · ${esc(x.vessel)}</span>` : ''}</span>
+      <span class="muted" style="font-size:13px">${x.days} days port to port${x.stops === 0 ? ' · direct' : x.stops ? ` · ${x.stops} stop${x.stops > 1 ? 's' : ''}` : ''}</span></div>`).join('')}
+    <span class="muted" style="font-size:12px">Live Maersk schedule. Allow about a week more for collection, customs and delivery.</span>
+  </div>`;
+}
+
 function resultsHtml() {
   if (S.busy) return `<section class="card fr-res"><div class="ldr"><span class="spin" aria-hidden="true"></span><span><b>Checking air, sea and road rates…</b><span class="muted">This can take up to 10 seconds.</span></span></div></section>`;
   const r = S.res;
@@ -129,6 +166,7 @@ function resultsHtml() {
         <div class="fr-price">${x.live ? `<span class="badge booked">Live price${x.carrier ? ` · ${esc(x.carrier)}` : ''}</span>` : '<span class="badge open">Estimated</span>'}<b>${x.minPence === x.maxPence ? money(x.minPence, x.currency) : `${money(x.minPence, x.currency)} – ${money(x.maxPence, x.currency)}`}</b><span class="muted">${esc(days(x))}</span></div></div>
       <div class="acts"><a class="btn ghost sm" href="${quoteHref(x.mode)}">Get firm quotes</a></div>
     </article>`).join('')}</div>
+    ${sailingsHtml()}
     ${r.rates.length ? '' : `<div class="empty-box"><b>Get prices from freight companies</b><span>Tell us about the shipment and freight forwarders and hauliers send you their prices.</span><a class="btn" href="${quoteHref(S.load === 'container' ? 'FCL' : 'air')}">Get firm quotes</a></div>`}
     <p class="muted" style="font-size:12.5px;margin:0">Estimates by Kargom, based on ${esc(r.basis || 'current market rates')}. Door to door, excluding import duty and VAT. Real quotes can be higher or lower.${r.rates.some((x) => x.live) ? ' Live prices come straight from the carrier and include VAT.' : ''}</p>
   </section>`;
@@ -186,7 +224,7 @@ async function loadForwarders() {
 function render() {
   root.className = 'wrap';
   root.innerHTML = `<div class="steps-head"><h1>Compare freight rates</h1><span class="muted">Air, sea and road · free estimates in seconds</span></div>
-    <div class="fr-cols">${formHtml()}${resultsHtml()}</div>${fwdHtml()}`;
+    <div class="fr-cols">${formHtml()}${resultsHtml()}</div>${marketHtml()}${fwdHtml()}`;
 }
 
 const looksLikePostcode = (t) => /\d/.test(t) && t.length <= 10;
@@ -215,7 +253,17 @@ async function go() {
   } catch (e) { S.res = null; S.err = e.message; }
   S.busy = false; render();
   document.querySelector('.fr-res')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (S.res) loadForwarders();
+  if (S.res) { loadForwarders(); loadSailings(); }
+}
+
+async function loadSailings() {
+  S.sail = null;
+  if (!S.res?.rates?.some((x) => x.mode === 'LCL' || x.mode === 'FCL')) return;
+  const dest = destination();
+  try {
+    const r = await api(`/api/freight/sailings?${new URLSearchParams({ from: place(S.from).code, fromTown: S.fromCity.trim(), to: code(S.to), toTown: dest.town || S.toPlace || '' })}`);
+    if (r.enabled && r.sailings?.length) { S.sail = r; render(); }
+  } catch { /* schedules are a bonus */ }
 }
 
 root.addEventListener('input', (e) => {
@@ -253,4 +301,5 @@ root.addEventListener('click', (e) => {
 document.getElementById('top').insertAdjacentHTML('beforeend', '<a class="toplink" href="/login">Sign in</a>');
 api('/api/me').then((me) => { S.me = me; const a = document.querySelector('#top .toplink'); if (a && me) { a.href = '/app'; a.textContent = 'My account'; } if (S.fwd) render(); }).catch(() => {});
 render();
+api('/api/freight/market').then((m) => { S.market = m; render(); }).catch(() => {});
 if (qs.get('kg') || qs.get('box')) go();

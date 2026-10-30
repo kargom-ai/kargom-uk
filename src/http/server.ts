@@ -22,6 +22,8 @@ import { freightRates, parseFreightQuery } from '../freight/rates.ts';
 import { freightForwarders } from '../freight/forwarders.ts';
 import { forwardingEstimate, joinForwardingWaitlist } from '../forwarding/forwarding.ts';
 import { eurosenderTestOrder } from '../freight/eurosender.ts';
+import { maerskSailings, maerskTest } from '../freight/maersk.ts';
+import { loadMarketIndex, marketSummary, marketWeeks, saveMarketIndex, INDEX_KEYS } from '../freight/market.ts';
 import type { PacklinkProvider } from '../providers/packlink.ts';
 
 type Ctx = {
@@ -351,6 +353,19 @@ export function buildRouter(app: App) {
   on('POST', '/api/forwarding/waitlist', 'public', async (c) => { publicLimiter.check(ip(c)); return joinForwardingWaitlist(app.db, c.body ?? {}, c.user?.customerId ?? null, new Date().toISOString()); });
   on('GET', '/api/freight/forwarders', 'public', async (c) => { publicLimiter.check(ip(c)); return freightForwarders(c.query.get('place'), c.query.get('country'), Boolean(c.user)); });
   on('GET', '/api/freight/rates', 'public', async (c) => { freightLimiter.check(ip(c)); return freightRates(parseFreightQuery(c.query)); });
+  /** Next Maersk ships between the main ports (needs MAERSK_CONSUMER_KEY). */
+  on('GET', '/api/freight/sailings', 'public', async (c) => {
+    publicLimiter.check(ip(c));
+    const g = (k: string) => String(c.query.get(k) ?? '').slice(0, 60);
+    return maerskSailings(g('from').toUpperCase(), g('fromTown'), g('to').toUpperCase(), g('toTown'));
+  });
+  /** This week's container market (Drewry WCI, entered by the admin). */
+  on('GET', '/api/freight/market', 'public', async () => marketSummary(app.db));
+  on('GET', '/api/admin/market', 'admin', async () => ({ keys: INDEX_KEYS, weeks: await marketWeeks(app.db, 12) }));
+  on('POST', '/api/admin/market', 'admin', async (c) => saveMarketIndex(app.db, c.body ?? {}));
+  /** Admin: check the Maersk schedules key on the live site. Open /api/admin/maersk-test. */
+  on('GET', '/api/admin/maersk-test', 'admin', async () => maerskTest());
+  loadMarketIndex(app.db).catch((e) => console.warn(`[market] ${(e as Error).message}`));
   on('GET', '/api/gplace/:id/logo', 'public', async (c) => {
     const img = await placeLogo(c.params.id!);
     if (!img) throw new AppError('not_found', 'No logo');

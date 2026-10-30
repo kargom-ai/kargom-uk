@@ -40,7 +40,7 @@ const SEO: Record<string, { title: string; description: string; path: string; fo
   'login.html': { title: 'Sign In or Create an Account | Kargom', path: '/login', footer: true,
     description: 'Sign in to Kargom or create a free account to save addresses, top up a wallet and manage all your parcels in one place.' },
 };
-const PRIVATE = new Set(['app.html', 'admin.html', 'checkout.html', 'label.html', 'send.html', 'quotes.html', 'quote.html', 'request.html', 'movers.html']);
+const PRIVATE = new Set(['app.html', 'admin.html', 'market-admin.html', 'checkout.html', 'label.html', 'send.html', 'quotes.html', 'quote.html', 'request.html', 'movers.html']);
 const SITE_LD = () => {
   const base = (process.env.PUBLIC_URL || 'https://kargom.co.uk').replace(/\/+$/, '');
   return `<script type="application/ld+json">${JSON.stringify([
@@ -75,6 +75,7 @@ function pageFor(pathname: string): string | null {
   if (pathname === '/checkout') return 'checkout.html';
   if (pathname.startsWith('/l/')) return 'label.html';
   if (pathname === '/app' || pathname.startsWith('/app/')) return 'app.html';
+  if (pathname === '/admin/market') return 'market-admin.html';
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'admin.html';
   return null;
 }

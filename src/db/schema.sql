@@ -277,3 +277,11 @@ CREATE TABLE IF NOT EXISTS forwarding_waitlist (
   customer_id TEXT,
   created_at  TEXT NOT NULL
 );
+
+-- Weekly container market index (Drewry WCI, entered by the admin each week). One row per week.
+CREATE TABLE IF NOT EXISTS market_index (
+  week       TEXT PRIMARY KEY,
+  data       TEXT NOT NULL,
+  source     TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);

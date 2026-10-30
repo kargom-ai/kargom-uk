@@ -3,6 +3,7 @@ import { estimatePrice } from '../market/estimate.ts';
 import { routeInfo } from '../market/route.ts';
 import { cargoboardRates } from './cargoboard.ts';
 import { eurosenderRates } from './eurosender.ts';
+import { latestIndex, type IndexKey } from './market.ts';
 
 /**
  * Air, sea, express and road freight price ranges, worked out from published market indices.
@@ -61,6 +62,19 @@ const LANES: Record<string, Lane> = {
   'uk>oc': L(3200, 150, 6.5, 12, [40, 55], [6, 10], [4, 7]),
   'oc>uk': L(2800, 150, 6.5, 12, [40, 55], [6, 10], [4, 7]),
 };
+/** Which weekly WCI lane sets each lane's sea rate ($/40ft port to port). */
+const INDEX_FOR: Record<string, IndexKey | [IndexKey, IndexKey]> = {
+  'asia>uk': 'shaRtm', 'asia>eu': 'shaRtm', 'asia>na': ['shaLax', 'shaNyc'], 'uk>na': 'rtmNyc', 'eu>na': 'rtmNyc',
+  'na>uk': 'nycRtm', 'na>eu': 'nycRtm', 'uk>asia': 'rtmSha', 'eu>asia': 'rtmSha',
+};
+/** The lane with this week's index in place of the built-in sea rate, when the admin has entered one. */
+function withIndex(lane: string, base: Lane): { lane: Lane; week: string | null } {
+  const idx = latestIndex(), k = INDEX_FOR[lane];
+  if (!idx || !k) return { lane: base, week: null };
+  const vals = (Array.isArray(k) ? k : [k]).map((x) => idx.values[x]).filter((n): n is number => typeof n === 'number' && n > 0);
+  if (!vals.length) return { lane: base, week: null };
+  return { lane: { ...base, fcl: vals.reduce((a, b) => a + b, 0) / vals.length }, week: idx.week };
+}
 const DEFAULT_LANE = L(3200, 150, 6.0, 11, [30, 50], [6, 12], [4, 8]);
 const NEAR = new Set(['uk>uk', 'uk>eu', 'eu>uk', 'eu>eu']);
 
@@ -129,7 +143,7 @@ export async function freightRates(q: FreightQuery, f: typeof fetch = fetch): Pr
   const container = q.load.startsWith('container');
   const out: FreightRate[] = [];
   const near = NEAR.has(lane) ? lane : null;
-  const L = LANES[lane] ?? DEFAULT_LANE;
+  const { lane: L, week: indexWeek } = withIndex(lane, LANES[lane] ?? DEFAULT_LANE);
   const cbm = container ? CONTAINER[q.load]!.cbm * q.quantity : (q.lengthCm * q.widthCm * q.heightCm / 1e6) * q.quantity;
   const kg = container ? 0 : q.weightKg * q.quantity;
 
@@ -159,6 +173,7 @@ export async function freightRates(q: FreightQuery, f: typeof fetch = fetch): Pr
   return {
     rates: all,
     note: all.length ? null : 'We could not estimate this one. Freight companies can still price it for you.',
-    basis: near ? 'typical UK and European haulage rates' : 'Drewry and Freightos market indices (October 2026) plus typical collection, customs clearance and delivery charges',
+    basis: near ? 'typical UK and European haulage rates'
+      : `${indexWeek ? `the Drewry World Container Index of ${new Date(indexWeek + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Drewry market indices'}, the Freightos Air Index, plus typical collection, customs clearance and delivery charges`,
   };
 }
