@@ -32,6 +32,33 @@ const IC = {
   truck: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>',
   box: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>',
 };
+const FX = {
+  out: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13v5a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h5"/><path d="M15 3h6v6M10 14L21 3"/></svg>',
+  in: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v3a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-3"/></svg>',
+  factory: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V10l5 3V10l5 3V10l5 3V5h3v16z"/><path d="M7 17h2M12 17h2M17 17h1"/></svg>',
+  building: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10.5 21v-3h3v3"/></svg>',
+  home: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
+  anchor: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="2.5"/><path d="M12 7.5V21M5 12H2a10 10 0 0 0 20 0h-3"/></svg>',
+  pin: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+  pallet: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="12" rx="1"/><path d="M4 9h16M2 15h20M3 15v5M12 15v5M21 15v5M2 20h20"/></svg>',
+  cont: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="13" rx="1.5"/><path d="M6 9v7M10 9v7M14 9v7M18 9v7"/></svg>',
+  hash: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 9h15M4 15h15M10 3 8 21M16 3l-2 18"/></svg>',
+  chev: '<svg class="fx-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
+  arrow: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+};
+const FLAGS = ['gb', 'us', 'de', 'fr', 'ie', 'cn', 'tr'];
+/** Flag for a country: our own picture for the common ones, the phone's flag emoji for the rest. */
+function flagHtml(name) {
+  const c = (place(name)?.code || '').toLowerCase();
+  if (FLAGS.includes(c)) return `<img class="fx-flag" src="/assets/flags/${c}.svg" alt="">`;
+  if (!/^[a-z]{2}$/.test(c)) return FX.pin;
+  return `<span class="fx-emoji" aria-hidden="true">${String.fromCodePoint(...[...c.toUpperCase()].map((ch) => 0x1F1E6 + ch.charCodeAt(0) - 65))}</span>`;
+}
+/** An input or select with an icon on the left (and an arrow for selects). */
+const fx = (icon, control) => `<span class="fx">${icon}${control}${control.startsWith('<select') ? FX.chev : ''}</span>`;
+const PLACE_IC = { factory: FX.factory, port: FX.anchor, business: FX.building, home: FX.home, warehouse: FX.factory, fc: FX.building };
+const secHead = (icon, title, sub) => `<div class="fx-h"><span class="fx-hi">${icon}</span><span><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span></div>`;
+
 const MODE_IC = { air: IC.plane, express: IC.box, LCL: IC.ship, FCL: IC.ship, LTL: IC.truck, FTL: IC.truck };
 const MODE_TIP = {
   express: 'Door to door with DHL, UPS or FedEx. Best for small, urgent shipments.',
@@ -88,33 +115,33 @@ function formHtml() {
     const list = portsFor(country);
     if (!list.length) return '';
     const grp = (kind, label) => { const l = list.filter((x) => x[2] === kind); return l.length ? `<optgroup label="${label}">${l.map(([c, n]) => opt(c, `${esc(n)} (${c})`, c === val)).join('')}</optgroup>` : ''; };
-    return `<label class="fld">${k === 'fromPort' ? 'Port or airport' : 'Port or airport'}<select class="inp" data-k="${k}"><option value="">Choose…</option>${grp('sea', 'Sea ports')}${grp('air', 'Airports')}</select></label>`;
+    return `<label class="fld">Port or airport${fx(FX.anchor, `<select class="inp" data-k="${k}"><option value="">Choose…</option>${grp('sea', 'Sea ports')}${grp('air', 'Airports')}</select>`)}</label>`;
   };
   const wh = warehouses();
   const destField = S.dest === 'port' ? portSel('toPort', code(S.to), S.toPort)
     : S.dest === 'fc' ? (wh.length
-      ? `<label class="fld">Fulfilment centre <i>*</i><select class="inp" data-k="fc"><option value="">Choose…</option>${['Amazon FBA', 'TikTok Shop'].map((g) => { const l = wh.filter((w) => w.group === g); return l.length ? `<optgroup label="${g}">${l.map((w) => opt(esc(w.v), esc(w.t), w.v === S.fc)).join('')}</optgroup>` : ''; }).join('')}</select></label>`
-      : `<label class="fld">Fulfilment centre postcode <em>(optional)</em><input class="inp" data-k="toPlace" value="${esc(S.toPlace)}" placeholder="From your shipping plan"></label>`)
-    : `<label class="fld">Postcode <em>(optional)</em><input class="inp" data-k="toPlace" value="${esc(S.toPlace)}" placeholder="e.g. ${isUk(S.to) ? 'M1 1AE' : esc(place(S.to)?.pc || '')}"></label>`;
+      ? `<label class="fld">Fulfilment centre <i>*</i>${fx(FX.building, `<select class="inp" data-k="fc"><option value="">Choose…</option>${['Amazon FBA', 'TikTok Shop'].map((g) => { const l = wh.filter((w) => w.group === g); return l.length ? `<optgroup label="${g}">${l.map((w) => opt(esc(w.v), esc(w.t), w.v === S.fc)).join('')}</optgroup>` : ''; }).join('')}</select>`)}</label>`
+      : `<label class="fld">Fulfilment centre postcode <em>(optional)</em>${fx(FX.pin, `<input class="inp" data-k="toPlace" value="${esc(S.toPlace)}" placeholder="From your shipping plan">`)}</label>`)
+    : `<label class="fld">Postcode <em>(optional)</em>${fx(FX.pin, `<input class="inp" data-k="toPlace" value="${esc(S.toPlace)}" placeholder="e.g. ${isUk(S.to) ? 'M1 1AE' : esc(place(S.to)?.pc || '')}">`)}</label>`;
   const unit = S.load === 'boxes' ? 'boxes' : 'pallets';
   return wrapLabels(`<section class="card fr-form">
     <div class="fr-row">
-      <div class="fr-side"><span class="lbl">From</span>
-        <label class="fld">Country${countrySel('from', S.from)}</label>
-        <label class="fld">Origin<select class="inp" data-k="origin">${opt('factory', 'Factory / warehouse', S.origin === 'factory')}${opt('port', 'Port / airport', S.origin === 'port')}${opt('business', 'Business address', S.origin === 'business')}${opt('home', 'Residential address', S.origin === 'home')}</select></label>
+      <div class="fr-side">${secHead(FX.out, 'From', 'Where are you shipping from?')}
+        <label class="fld">Country${fx(flagHtml(S.from), countrySel('from', S.from))}</label>
+        <label class="fld">Origin${fx(PLACE_IC[S.origin] || FX.factory, `<select class="inp" data-k="origin">${opt('factory', 'Factory / warehouse', S.origin === 'factory')}${opt('port', 'Port / airport', S.origin === 'port')}${opt('business', 'Business address', S.origin === 'business')}${opt('home', 'Residential address', S.origin === 'home')}</select>`)}</label>
         ${S.origin === 'port' ? portSel('fromPort', place(S.from).code, S.fromPort) : ''}
       </div>
-      <div class="fr-side"><span class="lbl">To</span>
-        <label class="fld">Country${countrySel('to', S.to)}</label>
-        <label class="fld">Destination<select class="inp" data-k="dest">${opt('port', 'Port / airport', S.dest === 'port')}${opt('warehouse', 'Warehouse', S.dest === 'warehouse')}${opt('fc', 'Fulfilment centre (Amazon, TikTok)', S.dest === 'fc')}${opt('business', 'Business address', S.dest === 'business')}${opt('home', 'Residential address', S.dest === 'home')}</select></label>
+      <div class="fr-side">${secHead(FX.in, 'To', 'Where are you shipping to?')}
+        <label class="fld">Country${fx(flagHtml(S.to), countrySel('to', S.to))}</label>
+        <label class="fld">Destination${fx(PLACE_IC[S.dest] || FX.building, `<select class="inp" data-k="dest">${opt('port', 'Port / airport', S.dest === 'port')}${opt('warehouse', 'Warehouse', S.dest === 'warehouse')}${opt('fc', 'Fulfilment centre (Amazon, TikTok)', S.dest === 'fc')}${opt('business', 'Business address', S.dest === 'business')}${opt('home', 'Residential address', S.dest === 'home')}</select>`)}</label>
         ${destField}
       </div>
     </div>
-    <div class="fr-what"><span class="lbl">What are you shipping?</span>
-      <div class="chips">${chip('load', 'boxes', `${IC.box} Boxes`, S.load === 'boxes')}${chip('load', 'pallets', 'Pallets', S.load === 'pallets')}${chip('load', 'container', `${IC.ship} Container`, S.load === 'container')}</div>
-      ${S.load === 'container' ? `<div class="grid2">
-          <label class="fld">Container size<select class="inp" data-k="box"><option value="container20" ${S.box === 'container20' ? 'selected' : ''}>20 ft (33 m³)</option><option value="container40" ${S.box === 'container40' ? 'selected' : ''}>40 ft (67 m³)</option><option value="container40HC" ${S.box === 'container40HC' ? 'selected' : ''}>40 ft High Cube (76 m³)</option></select></label>
-          <label class="fld">How many?<input class="inp" data-k="qty" inputmode="numeric" value="${esc(S.qty)}"></label></div>`
+    <div class="fr-what">${secHead(IC.box, 'What are you shipping?', '')}
+      <div class="chips fx-seg">${chip('load', 'boxes', `${IC.box} Boxes`, S.load === 'boxes')}${chip('load', 'pallets', `${FX.pallet} Pallets`, S.load === 'pallets')}${chip('load', 'container', `${IC.ship} Container`, S.load === 'container')}</div>
+      ${S.load === 'container' ? `<div class="grid2 fx-g2">
+          <label class="fld">Container size${fx(FX.cont, `<select class="inp" data-k="box"><option value="container20" ${S.box === 'container20' ? 'selected' : ''}>20 ft (33 m³)</option><option value="container40" ${S.box === 'container40' ? 'selected' : ''}>40 ft (67 m³)</option><option value="container40HC" ${S.box === 'container40HC' ? 'selected' : ''}>40 ft High Cube (76 m³)</option></select>`)}</label>
+          <label class="fld">How many?${fx(FX.hash, `<input class="inp" data-k="qty" inputmode="numeric" value="${esc(S.qty)}">`)}</label></div>`
       : `<div class="fr-dims">
           <label class="fld">How many ${unit}?<input class="inp" data-k="qty" inputmode="numeric" value="${esc(S.qty)}"></label>
           <label class="fld">Weight of one (kg) <i>*</i><input class="inp" data-k="kg" inputmode="decimal" value="${esc(S.kg)}" placeholder="${S.load === 'boxes' ? 'e.g. 15' : 'e.g. 300'}"></label>
@@ -124,7 +151,7 @@ function formHtml() {
         </div><span class="muted fr-tot" id="tot">${esc(totals())}</span>`}
     </div>
     <div class="err" id="fr-err" ${S.err ? '' : 'hidden'}>${esc(S.err)}</div>
-    <button type="button" class="btn big" data-go ${S.busy ? 'disabled' : ''}>${S.busy ? 'Finding rates…' : 'Compare freight rates'}</button>
+    <button type="button" class="btn big fx-go" data-go ${S.busy ? 'disabled' : ''}>${S.busy ? 'Finding rates…' : `Compare freight rates ${FX.arrow}`}</button>
   </section>`);
 }
 
@@ -289,7 +316,7 @@ function paint() {
   out.innerHTML = marketHtml() + resultsHtml();
   fw.innerHTML = fwdHtml();
   const btn = root.querySelector('[data-go]');
-  if (btn) { btn.disabled = S.busy; btn.textContent = S.busy ? 'Finding rates…' : 'Compare freight rates'; }
+  if (btn) { btn.disabled = S.busy; btn.innerHTML = S.busy ? 'Finding rates…' : `Compare freight rates ${FX.arrow}`; }
   const err = document.getElementById('fr-err'); if (err) err.textContent = S.err || '';
 }
 
