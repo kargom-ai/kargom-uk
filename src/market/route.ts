@@ -12,7 +12,7 @@ type LatLng = { lat: number; lng: number };
 const cache = new Map<string, { at: number; v: RouteInfo }>();
 const TTL = 24 * 3600_000;
 
-async function coords(postcode: string, f: typeof fetch): Promise<LatLng | null> {
+export async function coords(postcode: string, f: typeof fetch = fetch): Promise<LatLng | null> {
   const r = await f(`https://api.postcodes.io/postcodes/${encodeURIComponent(postcode)}`, { signal: AbortSignal.timeout(6000) });
   if (!r.ok) return null;
   const j = (await r.json()) as { result?: { latitude?: number; longitude?: number } };

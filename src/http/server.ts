@@ -16,7 +16,7 @@ import { AddressLookup, nearestPostcode } from '../address/lookup.ts';
 import { addressFromImage, addressFromText } from '../address/fromImage.ts';
 import { chatTurn } from '../chat/agent.ts';
 import { GuestCheckout } from '../guest/guest.ts';
-import { routeInfo } from '../market/route.ts';
+import { routeInfo, coords } from '../market/route.ts';
 import { placeLogo } from '../market/places.ts';
 import { freightRates, parseFreightQuery } from '../freight/rates.ts';
 import { freightForwarders } from '../freight/forwarders.ts';
@@ -305,6 +305,8 @@ export function buildRouter(app: App) {
   on('GET', '/api/market/config', 'public', async () => ({
     mapsEmbedKey: process.env.GOOGLE_MAPS_EMBED_KEY ?? null, addressList: addresses.hasAddressList,
   }));
+  /** Where a UK postcode is (for the map on international requests, where only one end is in the UK). */
+  on('GET', '/api/geo', 'customer', async (c) => { marketLimiter.check(me(c)); return (await coords(str(c.query.get('pc'), 'Postcode', 12))) ?? { lat: null, lng: null }; });
   on('GET', '/api/route', 'customer', async (c) => {
     marketLimiter.check(me(c));
     const q = c.query;

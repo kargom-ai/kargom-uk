@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeApp } from './helpers.ts';
+import { makeApp, makeCustomer } from './helpers.ts';
 import { haversineMiles } from '../src/market/route.ts';
 
 const home = (line1: string, city: string, postcode: string) => ({ line1, city, postcode, country: 'GB' });
@@ -170,4 +170,25 @@ test('market: visitors see nearby companies with phone numbers partly hidden', a
     assert.equal(JSON.stringify(r).includes('x.example'), false, 'no website link');
     await assert.rejects(m.publicNearby('nowhere', 'removals', fake), /postcode/);
   } finally { delete process.env.GOOGLE_PLACES_API_KEY; }
+});
+
+test('sea freight: Google forwarders at the destination, port and FBA details kept', async () => {
+  const { app } = await makeApp();
+  const m = app.market;
+  const customer = await makeCustomer(app, 'seller@example.co.uk');
+  const job = await m.createJob(customer, {
+    kind: 'freight', from: { line1: 'Port of Ningbo (CNNGB)', city: 'Ningbo', postcode: 'CNNGB', country: 'CN' }, to: { line1: 'Amazon BHX5', city: 'Rugby', postcode: 'CV23 0XF', country: 'GB' },
+    date: tomorrow(), phone: '07700 900123',
+    details: { load: 'sea', goods: 'Phone cases', shipUnit: 'container40', units: 1, originType: 'port', portFrom: 'cnngb', destType: 'amazon', fbaCode: 'BHX5', fbaLabelling: true, fbaPrep: true },
+  });
+  const d = (await m.customerJob(customer, job.id)).details as any;
+  assert.deepEqual([d.originType, d.portFrom, d.destType, d.fbaLabelling, d.fbaPrep, d.fbaAppointment], ['port', 'CNNGB', 'amazon', true, true, false]);
+  process.env.GOOGLE_PLACES_API_KEY = 'k';
+  let body: any = null;
+  const f = (async (url: string, init: any) => { if (String(url).includes('searchText')) body = JSON.parse(init.body); return new Response(JSON.stringify({ places: [] })); }) as any;
+  const g = await m.googleNearby(customer, job.id, f) as any;
+  assert.equal(body.textQuery, 'freight forwarder in Rugby');
+  assert.equal(body.regionCode, 'gb');
+  assert.equal(g.searched, 'Rugby');
+  delete process.env.GOOGLE_PLACES_API_KEY;
 });

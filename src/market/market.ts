@@ -4,7 +4,7 @@ import { AppError } from '../core/errors.ts';
 import { newId } from '../core/ids.ts';
 import type { AuthService } from '../auth/auth.ts';
 import { haversineMiles, outcodeCoords } from './route.ts';
-import { nearbyOnGoogle, placesEnabled } from './places.ts';
+import { nearbyOnGoogle, placesEnabled, forwardersOnGoogle } from './places.ts';
 import { estimatePrice } from './estimate.ts';
 import { requestSheet } from './sheet.ts';
 import { randomBytes } from 'node:crypto';
@@ -440,13 +440,22 @@ export class Market {
   async googleNearby(customerId: string, jobId: string, f?: typeof fetch) {
     const j = await this.ownJob(customerId, jobId);
     if (!placesEnabled()) return { enabled: false, places: [], invited: [] };
-    const from = JSON.parse(j.from_addr) as Addr;
-    const oc = from.country === 'GB' ? outward(from.postcode) : '';
-    const c = oc ? await outcodeCoords(oc, f) : null;
-    const label = oc ? `${from.city} ${oc}` : `${from.city} ${from.postcode}`;
+    const from = JSON.parse(j.from_addr) as Addr, to = JSON.parse(j.to_addr) as Addr;
+    const details = JSON.parse(j.details || '{}') as { load?: string };
+    // sea and air: the freight forwarders at the destination clear customs and deliver, so search there
+    const abroad = j.kind === 'freight' && (details.load === 'sea' || details.load === 'air');
     let places: Awaited<ReturnType<typeof nearbyOnGoogle>> = [];
     let error: string | null = null;
-    try { places = await nearbyOnGoogle(j.kind, c ? { label, lat: c.lat, lng: c.lng } : { label }, f); } catch (e) { error = (e as Error).message; console.warn(`[places] ${error}`); }
+    let label: string;
+    if (abroad) {
+      label = to.city;
+      try { places = await forwardersOnGoogle(to.city, to.country, f); } catch (e) { error = (e as Error).message; console.warn(`[places] ${error}`); }
+    } else {
+      const oc = from.country === 'GB' ? outward(from.postcode) : '';
+      const c = oc ? await outcodeCoords(oc, f) : null;
+      label = oc ? `${from.city} ${oc}` : `${from.city} ${from.postcode}`;
+      try { places = await nearbyOnGoogle(j.kind, c ? { label, lat: c.lat, lng: c.lng } : { label }, f); } catch (e) { error = (e as Error).message; console.warn(`[places] ${error}`); }
+    }
     const ours = new Set((await this.db.all<{ company: string }>('SELECT company FROM partners')).map((p) => p.company.toLowerCase().replace(/\W+/g, '')));
     const invited = (await this.db.all<{ place_id: string }>('SELECT place_id FROM partner_invites WHERE job_id = $1', [j.id])).map((r) => r.place_id);
     return { enabled: true, error, searched: label, found: places.length, places: places.filter((p) => !ours.has(p.name.toLowerCase().replace(/\W+/g, ''))), invited };

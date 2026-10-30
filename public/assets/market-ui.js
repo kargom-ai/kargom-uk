@@ -85,6 +85,8 @@ export async function drawMap(el, { from, to, fc = 'GB', tc = 'GB' }) {
   if (el.dataset.key === key && el.dataset.done) return getRoute(from, to, fc, tc);
   el.dataset.key = key; el.dataset.done = '';
   el.innerHTML = '<div class="empty">Loading the map…</div>';
+  // abroad (sea, air, Europe): ports and cities on a world map, no road route
+  if (fc !== 'GB' || tc !== 'GB') { await drawWorld(el, key, from, to, fc, tc); el.dataset.done = '1'; return null; }
   const [cfg, route] = await Promise.all([marketConfig(), getRoute(from, to, fc, tc)]);
   if (el.dataset.key !== key) return route;
   if (cfg.mapsEmbedKey) {
@@ -109,6 +111,38 @@ export async function drawMap(el, { from, to, fc = 'GB', tc = 'GB' }) {
   }
   el.dataset.done = '1';
   return route;
+}
+
+/** A point for one end: a known port or airport code, a UK postcode, or the country's main city. */
+async function where(code, country) {
+  const { PORT_LL, COUNTRY_LL } = await import('./ports.js');
+  const c = String(code || '').toUpperCase().replace(/\s+/g, '');
+  if (PORT_LL[c]) return PORT_LL[c];
+  if (country === 'GB' && UK_PC.test(String(code || '').trim())) {
+    try { const g = await api(`/api/geo?pc=${encodeURIComponent(code)}`); if (g.lat !== null) return [g.lat, g.lng]; } catch { /* country instead */ }
+  }
+  return COUNTRY_LL[country] || null;
+}
+async function drawWorld(el, key, from, to, fc, tc) {
+  try {
+    const [a, b0, L] = await Promise.all([where(from, fc), where(to, tc), leaflet()]);
+    if (el.dataset.key !== key) return;
+    if (!a || !b0) { el.innerHTML = `<div class="empty">${esc(cname(fc))} → ${esc(cname(tc))}</div>`; return; }
+    // go the short way round (e.g. across the Pacific)
+    const b = [b0[0], b0[1] + (b0[1] - a[1] > 180 ? -360 : a[1] - b0[1] > 180 ? 360 : 0)];
+    el.innerHTML = '<div class="leaf"></div>';
+    const map = L.map(el.firstChild, { scrollWheelZoom: false, attributionControl: true, worldCopyJump: true });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
+    const pin = (t, c) => L.divIcon({ className: '', html: `<div class="pinicon" style="background:${c}">${t}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
+    L.marker(a, { icon: pin('A', '#2463DB') }).addTo(map);
+    L.marker(b, { icon: pin('B', '#16A34A') }).addTo(map);
+    // a gentle arc between the two ends
+    const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], dx = b[1] - a[1], dy = b[0] - a[0];
+    const ctl = [mid[0] + dx * 0.18, mid[1] - dy * 0.18];
+    const pts = Array.from({ length: 41 }, (_, i) => { const t = i / 40, u = 1 - t; return [u * u * a[0] + 2 * u * t * ctl[0] + t * t * b[0], u * u * a[1] + 2 * u * t * ctl[1] + t * t * b[1]]; });
+    L.polyline(pts, { color: '#2463DB', weight: 3, dashArray: '8 8' }).addTo(map);
+    map.fitBounds([a, b], { padding: [30, 30], maxZoom: 9 });
+  } catch { el.innerHTML = `<div class="empty">${esc(cname(fc))} → ${esc(cname(tc))}</div>`; }
 }
 
 export function routeChips(r) {
