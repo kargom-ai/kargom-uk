@@ -95,7 +95,45 @@ function num(s: string | number | null | undefined): number | null {
   return n > 0 && n < 10_000_000 ? n : null;
 }
 
-export type Preview = { title: string | null; priceTry: number | null; image: { type: string; data: Buffer } | null; log?: string[] };
+export type Preview = { title: string | null; english?: string | null; priceTry: number | null; image: { type: string; data: Buffer } | null; log?: string[] };
+
+const TR_FIX: Record<string, string> = { kulaklik: 'kulaklık', gurultu: 'gürültü', kadin: 'kadın', erkek: 'erkek', cocuk: 'çocuk', canta: 'çanta', elbise: 'elbise', gomlek: 'gömlek',
+  ayakkabi: 'ayakkabı', pantolon: 'pantolon', tisort: 'tişört', kazak: 'kazak', ceket: 'ceket', saat: 'saat', telefon: 'telefon', kilif: 'kılıf', sarj: 'şarj', bebek: 'bebek' };
+/** The product name written in the link itself: trendyol.com/tarcin/air-4-pro-…-p-123 → "Tarcin Air 4 Pro …". No request to the shop. */
+export function nameFromLink(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.split('/').map((p) => decodeURIComponent(p)).filter(Boolean);
+    const isTy = /trendyol\.com$/.test(u.hostname);
+    // the longest hyphenated piece is the product name; Amazon puts it before /dp/
+    const dp = parts.indexOf('dp');
+    let slug = dp > 0 ? parts[dp - 1]! : [...parts].sort((a, b) => b.split('-').length - a.split('-').length)[0] ?? '';
+    slug = slug.replace(/-(p|pm|pd)-[\w-]*$/i, '').replace(/-\d{5,}$/, '').replace(/\.html?$/, '');
+    if (slug.split('-').length < 2) return null;
+    const brand = isTy && parts.length > 1 && parts[0] !== slug ? parts[0]! : '';
+    const words = `${brand ? `${brand}-` : ''}${slug}`.split('-').filter(Boolean).slice(0, 14)
+      .map((w) => TR_FIX[w.toLowerCase()] ?? w).map((w) => (/^(anc|usb|led|xl|xxl|tws|5g|4g|hd|uv)$/i.test(w) ? w.toUpperCase() : w.charAt(0).toLocaleUpperCase('tr-TR') + w.slice(1)));
+    return words.join(' ').slice(0, 160) || null;
+  } catch { return null; }
+}
+
+/** A short English name a customs officer understands ("Tarcin wireless earbuds"). Cheap, fast model; null without a key. */
+export async function englishName(name: string, f: typeof fetch = fetch): Promise<string | null> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key || !name) return null;
+  try {
+    const r = await f('https://api.anthropic.com/v1/messages', {
+      method: 'POST', signal: AbortSignal.timeout(12_000),
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: process.env.ANTHROPIC_FAST_MODEL || 'claude-haiku-5-5', max_tokens: 30,
+        messages: [{ role: 'user', content: `Turkish shop product name: "${name.slice(0, 200)}"\nWrite a short English name for a customs form: brand + what it is, 2 to 4 words, no marketing words, no model numbers. Examples: "Tarcin wireless earbuds", "Koton cotton dress", "Leather shoulder bag". Reply with the name only.` }] }),
+    });
+    const j = (await r.json().catch(() => ({}))) as { content?: Array<{ type: string; text?: string }> };
+    if (!r.ok) return null;
+    const t = (j.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join('').replace(/["\n]/g, ' ').trim();
+    return t && t.length <= 60 ? t : null;
+  } catch { return null; }
+}
 const EMPTY = (log: string[]): Preview => ({ title: null, priceTry: null, image: null, log });
 
 /** Read a product page's name, price and picture. Never throws: returns nulls when the shop blocks us. */
@@ -103,9 +141,12 @@ export async function productPreview(url: string, f: typeof fetch = fetch): Prom
   const log: string[] = [];
   try {
     if (!isShopLink(url)) { log.push('not a shop link we read'); return EMPTY(log); }
+    const fromLink = nameFromLink(url);
+    // When the shop does not let us read the page, the name in the link is still there.
+    const linkOnly = async () => { log.push(fromLink ? `name from the link: ${fromLink}` : 'no name in the link'); return { title: fromLink, english: fromLink ? await englishName(fromLink, f) : null, priceTry: null, image: null, log }; };
     const page = await safeGet(url, PAGE_HOSTS, f, 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 2_500_000, log);
-    if (!page) return EMPTY(log);
-    if (!/html/i.test(page.type)) { log.push(`not a web page (${page.type})`); return EMPTY(log); }
+    if (!page) return linkOnly();
+    if (!/html/i.test(page.type)) { log.push(`not a web page (${page.type})`); return linkOnly(); }
     const html = page.data.toString('utf8');
     const ld = jsonLd(html);
     let title: string | null = meta(html, ['og:title', 'twitter:title']) ?? ld.name ?? decode(html.match(/<title[^>]*>([^<]{3,300})<\/title>/i)?.[1]?.trim() ?? '');
@@ -123,7 +164,8 @@ export async function productPreview(url: string, f: typeof fetch = fetch): Prom
       if (got && /^image\/(jpeg|png|webp|gif)/i.test(got.type) && got.data.length > 500) image = { type: got.type.split(';')[0]!.trim(), data: got.data };
       else if (got) log.push(`picture not usable (${got.type})`);
     }
-    return { title, priceTry: priceTry ? Math.round(priceTry * 100) / 100 : null, image, log };
+    title = title || fromLink;
+    return { title, english: title ? await englishName(title, f) : null, priceTry: priceTry ? Math.round(priceTry * 100) / 100 : null, image, log };
   } catch (e) { log.push(`error: ${(e as Error).message}`); return EMPTY(log); }
 }
 

@@ -67,3 +67,22 @@ test('Buy for me: the request shows the product name and picture, and the parcel
   const a = await t.addPackage(c, { store: 'Trendyol', description: 'Shoes', valueTry: 900, productUrl: 'https://www.trendyol.com/x-p-2' });
   assert.equal((await t.overview(c)).packages.find((x) => x.id === a.id)!.productTitle, 'Navy cotton dress');
 });
+
+test('Link preview: the name comes from the link when the shop blocks us, then a short English name', async () => {
+  const { nameFromLink, productPreview: pp } = await import('../src/forwarding/preview.ts');
+  assert.equal(nameFromLink('https://www.trendyol.com/tarcin/air-4-pro-anc-bluetooth-kulaklik-gurultu-engelleyici-p-123456'), 'Tarcin Air 4 Pro ANC Bluetooth Kulaklık Gürültü Engelleyici');
+  assert.equal(nameFromLink('https://www.amazon.com.tr/Philips-Airfryer-XXL/dp/B07XYZ'), 'Philips Airfryer XXL');
+  assert.equal(nameFromLink('https://www.trendyol.com/'), null);
+  process.env.ANTHROPIC_API_KEY = 'test-key';
+  let asked = '';
+  const f = (async (url: string, init?: RequestInit) => {
+    if (url.startsWith('https://api.anthropic.com/')) { asked = String(init?.body); return new Response(JSON.stringify({ content: [{ type: 'text', text: 'Tarcin wireless earbuds' }] })); }
+    return new Response('blocked', { status: 403 });
+  }) as unknown as typeof fetch;
+  const pv = await pp('https://www.trendyol.com/tarcin/air-4-pro-anc-bluetooth-kulaklik-gurultu-engelleyici-p-123456', f);
+  assert.equal(pv.title, 'Tarcin Air 4 Pro ANC Bluetooth Kulaklık Gürültü Engelleyici');
+  assert.equal(pv.english, 'Tarcin wireless earbuds');
+  assert.match(asked, /claude-haiku/);
+  assert.match(pv.log!.join(' '), /403/);
+  delete process.env.ANTHROPIC_API_KEY;
+});

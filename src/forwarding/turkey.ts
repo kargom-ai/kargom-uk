@@ -402,7 +402,7 @@ export class TurkeyForwarding {
     const link = text(input.productUrl, 1000);
     if (link && isShopLink(link)) {
       await this.db.run('UPDATE fw_packages SET product_url = $1 WHERE id = $2', [link, id]);
-      await this.withPreview(link, (pv) => this.db.run('UPDATE fw_packages SET product_title = $1, image = $2 WHERE id = $3', [pv.title, dataUrl(pv.image), id]));
+      await this.withPreview(link, (pv) => this.db.run('UPDATE fw_packages SET product_title = $1, image = $2 WHERE id = $3', [pv.english || pv.title, dataUrl(pv.image), id]));
     }
     return { id };
   }
@@ -709,14 +709,14 @@ export class TurkeyForwarding {
     if (!url || !/^https?:\/\//i.test(url)) throw new AppError('bad_request', 'Paste the link to the product');
     if (!isShopLink(url)) return { store: storeFromUrl(url), known: false, title: null, priceTry: null, image: null };
     const pv = await this.preview(url);
-    return { store: storeFromUrl(url), known: true, title: pv.title, priceTry: pv.priceTry, image: dataUrl(pv.image) };
+    return { store: storeFromUrl(url), known: true, title: pv.title, english: pv.english ?? null, priceTry: pv.priceTry, image: dataUrl(pv.image) };
   }
   /** Admin test: what our server gets back from a shop link, step by step. */
   async previewTest(urlIn: unknown) {
     const url = text(urlIn, 1000) ?? '';
     const { productPreview } = await import('./preview.ts');
     const pv = await productPreview(url);
-    return { title: pv.title, priceTry: pv.priceTry, image: Boolean(pv.image), steps: pv.log ?? [] };
+    return { title: pv.title, english: pv.english ?? null, priceTry: pv.priceTry, image: Boolean(pv.image), steps: pv.log ?? [] };
   }
   /** Orders and requests made before we read links (or when the shop was slow): fill them in once, in the background. */
   private backfill(buys: Array<{ id: string; url: string; title?: string | null; image?: string | null }>, pkgs: Array<{ id: string; product_url?: string | null; product_title?: string | null; image?: string | null }>) {
@@ -724,12 +724,12 @@ export class TurkeyForwarding {
       if (b.title || b.image || this.tried.has(b.id) || !isShopLink(b.url)) continue;
       this.tried.add(b.id);
       this.preview(b.url).then((pv) => (pv.title || pv.image ? this.db.run('UPDATE fw_buys SET title = $1, image = $2, item_try = COALESCE(item_try, $3) WHERE id = $4',
-        [pv.title, dataUrl(pv.image), pv.priceTry ? Math.round(pv.priceTry) : null, b.id]) : null)).catch(() => {});
+        [pv.english || pv.title, dataUrl(pv.image), pv.priceTry ? Math.round(pv.priceTry) : null, b.id]) : null)).catch(() => {});
     }
     for (const p of pkgs) {
       if (!p.product_url || p.product_title || p.image || this.tried.has(p.id)) continue;
       this.tried.add(p.id);
-      this.preview(p.product_url).then((pv) => (pv.title || pv.image ? this.db.run('UPDATE fw_packages SET product_title = $1, image = $2 WHERE id = $3', [pv.title, dataUrl(pv.image), p.id]) : null)).catch(() => {});
+      this.preview(p.product_url).then((pv) => (pv.title || pv.image ? this.db.run('UPDATE fw_packages SET product_title = $1, image = $2 WHERE id = $3', [pv.english || pv.title, dataUrl(pv.image), p.id]) : null)).catch(() => {});
     }
   }
   /** Get the product's name and picture: wait up to 4 s so the page can show it at once, then finish in the background. */
@@ -815,7 +815,7 @@ export class TurkeyForwarding {
     const ref = `BUY-${1001 + Number(seq?.n ?? 0)}`;
     await this.db.run(`INSERT INTO fw_buys (id, ref, customer_id, status, url, details, qty, store, created_at) VALUES ($1,$2,$3,'requested',$4,$5,$6,$7,$8)`,
       [id, ref, customerId, url, text(input.details, 1000), int(input.qty ?? 1, 'Quantity', 1, 20), storeFromUrl(url), this.now()]);
-    await this.withPreview(url, (pv) => this.db.run('UPDATE fw_buys SET title = $1, image = $2, item_try = COALESCE(item_try, $3) WHERE id = $4', [pv.title, dataUrl(pv.image), pv.priceTry ? Math.round(pv.priceTry) : null, id]));
+    await this.withPreview(url, (pv) => this.db.run('UPDATE fw_buys SET title = $1, image = $2, item_try = COALESCE(item_try, $3) WHERE id = $4', [pv.english || pv.title, dataUrl(pv.image), pv.priceTry ? Math.round(pv.priceTry) : null, id]));
     return { id, ref };
   }
 

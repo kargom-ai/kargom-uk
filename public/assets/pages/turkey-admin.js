@@ -369,7 +369,7 @@ function bind() {
       case 'pvtest': {
         const url = root.querySelector('#pvurl')?.value || '';
         S.pvtest = 'Reading…'; render();
-        try { const r = await api(`/api/admin/tr/preview-test?url=${encodeURIComponent(url)}`); S.pvtest = `Name: ${r.title || '–'}\nPrice: ${r.priceTry ? `${r.priceTry} TL` : '–'}\nPicture: ${r.image ? 'yes' : 'no'}\n\n${r.steps.join('\n')}`; }
+        try { const r = await api(`/api/admin/tr/preview-test?url=${encodeURIComponent(url)}`); S.pvtest = `Name: ${r.title || '–'}\nEnglish: ${r.english || '–'}\nPrice: ${r.priceTry ? `${r.priceTry} TL` : '–'}\nPicture: ${r.image ? 'yes' : 'no'}\n\n${r.steps.join('\n')}`; }
         catch (e) { S.pvtest = e.message; }
         render(); const i = root.querySelector('#pvurl'); if (i) i.value = url;
         break;

@@ -205,9 +205,9 @@ function pvHtml(pv) {
   if (!pv) return '';
   if (pv.loading) return '<div class="tw-note" style="display:flex;align-items:center;gap:10px"><span class="spin" aria-hidden="true"></span>Reading the product page…</div>';
   if (!pv.known) return `<div class="tw-note warn">We can read links from Trendyol, Hepsiburada, Amazon.com.tr, N11 and other Turkish shops. For ${esc(pv.store || 'this site')}, please type the details.</div>`;
-  if (!pv.title && !pv.image && !pv.priceTry) return '<div class="tw-note warn">The shop did not let us read this page right now. Please type the details below.</div>';
+  if (!pv.title && !pv.image && !pv.priceTry) return '<div class="tw-note warn">We could not read this link. Please type the details below.</div>';
   return `<div class="tw-note tw-item" style="background:#F3F8FF;align-items:flex-start">${pv.image ? `<span class="tw-thumb" style="width:72px;height:72px"><img src="${esc(pv.image)}" alt=""></span>` : logo(pv.store, 48)}
-    <span style="display:flex;flex-direction:column;gap:3px;min-width:0"><b style="font-size:15px;color:var(--ink)">${esc(pv.title || pv.store)}</b>
+    <span style="display:flex;flex-direction:column;gap:3px;min-width:0"><b style="font-size:15px;color:var(--ink)">${esc(pv.english || pv.title || pv.store)}</b>${pv.english && pv.title ? `<span class="tw-muted">${esc(pv.title)}</span>` : ''}
       <span class="tw-muted">${esc(pv.store)}${pv.priceTry ? ` · <b style="color:var(--ink);font-size:15px">${Number(pv.priceTry).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL</b>` : ''}</span></span></div>`;
 }
 let pvTimer, pvFor = '';
@@ -232,6 +232,8 @@ function readLink(input, now = false) {
     if (sel && pv.store && [...sel.options].some((o) => o.value === pv.store || o.text === pv.store)) sel.value = pv.store;
     const price = root.querySelector('#dr [name="valueTry"]');
     if (price && !price.value && pv.priceTry) price.value = String(Math.round(pv.priceTry));
+    const what = root.querySelector('#dr [name="description"]');
+    if (what && !what.value && pv.english) what.value = pv.english;
   }, now ? 50 : 500);
 }
 
