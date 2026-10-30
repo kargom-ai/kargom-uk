@@ -1,5 +1,6 @@
 import { Market } from './market/market.ts';
 import { TurkeyForwarding } from './forwarding/turkey.ts';
+import { Inbox } from './notify/inbox.ts';
 import type { Db } from './db/db.ts';
 import { migrate } from './db/migrate.ts';
 import { systemClock, type Clock } from './core/clock.ts';
@@ -74,14 +75,33 @@ export async function createApp(db: Db, config: AppConfig, payments: PaymentGate
   };
   const turkey = new TurkeyForwarding(db, clock, ledger, wallet, payments);
   turkey.publicUrl = market.publicUrl;
+  const inbox = new Inbox(db, clock);
   turkey.notify = async (customerId, subject, heading, lines, link) => {
+    inbox.push(customerId, 'tr', heading, lines[0] ?? subject, '/app/turkey');
     const c = await db.get<{ email: string }>('SELECT email FROM customers WHERE id = $1', [customerId]);
     return c?.email ? notifier.emailNotice(c.email, subject, heading, lines, link) : null;
   };
   webhooks.onFwdPaid = (id, courierId, pi, amount) => turkey.onCardPaid(id, courierId, pi, amount);
   webhooks.onBuyPaid = (id, pi, amount) => turkey.onBuyPaid(id, pi, amount);
-  bookings.onLabelReady = (id, instant) => { notifier.labelReady(id, { instant }).catch((e) => console.warn(`[notify] ${id}: ${(e as Error).message}`)); };
-  return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments, notifier, refreshNotifier, market, turkey };
+  market.onCustomerEvent = (customerId, title, body, link) => inbox.push(customerId, 'req', title, body, link);
+  const shipInfo = (id: string) => db.get<{ customer_id: string; ref: string; to_json: string }>('SELECT customer_id, ref, to_json FROM shipments WHERE id = $1', [id]);
+  const toName = (json: string) => { try { const t = JSON.parse(json) as { name?: string; city?: string }; return [t.name, t.city].filter(Boolean).join(', '); } catch { return ''; } };
+  const TRACK: Record<string, string> = { collected: 'collected', in_transit: 'on its way', out_for_delivery: 'out for delivery', delivered: 'delivered', exception: 'has a problem' };
+  webhooks.onTracking = (id, status, description) => {
+    if (!TRACK[status]) return;
+    shipInfo(id).then((s) => s && inbox.push(s.customer_id, 'ship', `${s.ref} ${TRACK[status]}`, description || `To ${toName(s.to_json)}`, '/app?view=ship')).catch(() => {});
+  };
+  adjustments.onCreated = (id, diff) => {
+    shipInfo(id).then((s) => s && inbox.push(s.customer_id, 'ship', diff > 0 ? `${s.ref}: weight adjustment to pay` : `${s.ref} was re-weighed`,
+      diff > 0 ? `The courier measured it heavier: £${(diff / 100).toFixed(2)} to pay.` : 'No extra charge.', '/app?view=ship')).catch(() => {});
+  };
+  support.onAgentReply = (ticketId) => {
+    db.get<{ customer_id: string; ref: string; subject: string }>('SELECT customer_id, ref, subject FROM tickets WHERE id = $1', [ticketId])
+      .then((t) => t && inbox.push(t.customer_id, 'help', `New reply: ${t.subject}`, `Help request ${t.ref}`, '/app?view=help')).catch(() => {});
+  };
+  bookings.onLabelReady = (id, instant) => {
+    shipInfo(id).then((s) => s && inbox.push(s.customer_id, 'ship', `Label ready: ${s.ref}`, `To ${toName(s.to_json)}. Print it before drop-off.`, '/app?view=ship')).catch(() => {}); notifier.labelReady(id, { instant }).catch((e) => console.warn(`[notify] ${id}: ${(e as Error).message}`)); };
+  return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments, notifier, refreshNotifier, market, turkey, inbox };
 }
 
 export type App = Awaited<ReturnType<typeof createApp>>;

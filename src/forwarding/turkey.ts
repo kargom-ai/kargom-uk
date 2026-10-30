@@ -650,6 +650,14 @@ export class TurkeyForwarding {
     return { ok: true };
   }
 
+  /** Boxes on their way to the UK or delivered: these show in the dashboard's recent shipments, as "Forwarding". */
+  async sentBoxes(customerId: string) {
+    const rows = await this.db.all<ShipRow>(`SELECT * FROM fw_shipments WHERE customer_id = $1 AND status IN ('shipped','delivered') ORDER BY shipped_at DESC LIMIT 50`, [customerId]);
+    if (!rows.length) return [];
+    const pk = await this.db.all<PkgRow>(`SELECT * FROM fw_packages WHERE customer_id = $1 AND status = 'shipped'`, [customerId]);
+    return rows.map((r) => ({ ...shipOut(r), items: pk.filter((p) => p.shipment_id === r.id).map((p) => ({ store: p.store, description: p.description })) }));
+  }
+
   // ---------- UK address we can suggest (from the customer's parcel bookings)
   async suggestedAddress(customerId: string): Promise<Partial<UkAddress> | null> {
     if (await this.ukAddress(customerId)) return null;

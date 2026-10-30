@@ -41,9 +41,9 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
         <input placeholder="Search by tracking number, postcode or name" style="flex: 1; min-width: 0; border: 0; background: transparent; color: #FFFFFF; font: 500 14px 'Nunito Sans', sans-serif">
       </label>
       <div style="margin-left: auto; display: flex; align-items: center; gap: 14px">
-        <button type="button" class="m-hide" aria-label="Notifications, 2 new" style="position: relative; width: 42px; height: 42px; border-radius: 10px; border: 0; background: transparent; color: #DCE4F2; display: grid; place-items: center; cursor: pointer">
+        <button type="button" class="m-hide" data-bell aria-label="{{bellLabel}}" style="position: relative; width: 42px; height: 42px; border-radius: 10px; border: 0; background: transparent; color: #DCE4F2; display: grid; place-items: center; cursor: pointer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"></path></svg>
-          <span style="position: absolute; top: 9px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: #E5484D; box-shadow: 0 0 0 2px #1F2A3C"></span>
+          <span style="position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #E5484D; color: #FFFFFF; font: 800 11px 'Nunito Sans', sans-serif; display: {{bellDisp}}; place-items: center; box-shadow: 0 0 0 2px #1F2A3C; box-sizing: border-box">{{bellN}}</span>
         </button>
         <button type="button" class="chip" onClick="{{openTopup}}" aria-label="Wallet balance {{balTxt}}, top up" style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 6px 0 6px; border-radius: 12px; border: 1px solid #3B4A63; background: #26334A; color: #FFFFFF; font: 700 15px 'Nunito Sans', sans-serif; cursor: pointer">
           <span style="width: 32px; height: 32px; border-radius: 8px; background: #2463DB; display: grid; place-items: center">
@@ -75,7 +75,7 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
           <button type="button" class="nav" onClick="{{n.pick}}" aria-current="{{n.cur}}" style="display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 0 12px; border: 0; border-radius: 10px; background: {{n.bg}}; color: {{n.fg}}; font: 600 14px 'Nunito Sans', sans-serif; cursor: pointer; text-align: left">
             <span style="width: 8px; height: 8px; border-radius: 50%; background: {{n.dot}}"></span>
             <span style="flex: 1">{{n.label}}</span>
-            <span style="font-size: 12px; font-weight: 700; color: #2463DB">{{n.badge}}</span>
+            <span style="font-size: 11px; font-weight: 800; color: {{n.badgeFg}}; background: {{n.badgeBg}}; min-width: 20px; padding: 2px 6px; border-radius: 999px; text-align: center; box-sizing: border-box">{{n.badge}}</span>
           </button>
         </sc-for>
       </nav><div style="margin-top: auto; background: #EAF2FE; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 8px">

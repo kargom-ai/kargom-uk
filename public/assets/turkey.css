@@ -185,7 +185,7 @@ label.tw-opt { cursor: pointer; }
 .tw-link:hover { color: var(--blue); text-decoration: underline; }
 .tw-msgbtn { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #3E4A5C; font: 700 13px 'Nunito Sans', sans-serif; cursor: pointer; }
 .tw-msgbtn.has { border-color: #F59E0B; background: #FFF8EC; color: #9A5B00; }
-.tw-acts-row { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.tw-acts-row { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; flex-wrap: nowrap; }
 .tw-thread { display: flex; flex-direction: column; gap: 10px; }
 .tw-msg { max-width: 88%; align-self: flex-start; padding: 10px 12px; border-radius: 14px 14px 14px 4px; background: #F4F6FA; display: flex; flex-direction: column; gap: 6px; }
 .tw-msg.mine { align-self: flex-end; background: #EAF2FE; border-radius: 14px 14px 4px 14px; }

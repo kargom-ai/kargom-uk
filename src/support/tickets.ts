@@ -18,6 +18,8 @@ export type MessageRow = { id: string; ticket_id: string; author_type: 'customer
 export const SLA_MINUTES: Record<Priority, number> = { urgent: 30, high: 60, normal: 120, low: 480 };
 
 export class SupportService {
+  /** We replied to a customer's help request (the app turns this into a notification). */
+  onAgentReply: ((ticketId: string) => void) | null = null;
   private readonly db: Db;
   private readonly clock: Clock;
   constructor(db: Db, clock: Clock) {
@@ -102,6 +104,7 @@ export class SupportService {
     await this.get(id);
     if (!body.trim()) throw new AppError('bad_request', 'Message is empty');
     await this.addMessage(id, opts.internal ? 'note' : 'agent', agentId, body, opts.internal ? undefined : opts.nextStatus ?? 'waiting_customer');
+    if (!opts.internal) this.onAgentReply?.(id);
   }
 
   private async addMessage(id: string, type: MessageRow['author_type'], authorId: string, body: string, status?: TicketStatus) {

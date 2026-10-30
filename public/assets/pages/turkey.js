@@ -50,7 +50,7 @@ function rows() {
     let stage = p.status === 'expected' ? 'coming' : p.status === 'received' ? 'here' : 'pack';
     if (s) stage = { requested: 'pack', quoted: 'pay', paid: 'ship', shipped: 'sent', delivered: 'done', cancelled: 'here' }[s.status] || stage;
     return { p, s, stage };
-  });
+  }).filter((r) => !['sent', 'done'].includes(r.stage)); // on its way to the UK: it is in the dashboard's shipments now
 }
 
 function addressCard() {
@@ -71,9 +71,9 @@ function addressCard() {
 }
 
 function stats(all) {
-  const tiles = [['coming', 'On the way to us'], ['here', 'In our warehouse'], ['pay', 'Ready to pay'], ['sent', 'On the way to you']];
+  const tiles = [['coming', 'On the way to us'], ['here', 'In our warehouse'], ['pay', 'Ready to pay'], ['ship', 'Paid, sending']];
   return `<div class="tw-stats">${tiles.map(([k, l]) => {
-    const n = k === 'pay' ? S.d.shipments.filter((s) => s.status === 'quoted').length : k === 'sent' ? all.filter((r) => ['ship', 'sent'].includes(r.stage)).length : all.filter((r) => r.stage === k).length;
+    const n = k === 'pay' ? S.d.shipments.filter((s) => s.status === 'quoted').length : k === 'ship' ? S.d.shipments.filter((s) => s.status === 'paid').length : all.filter((r) => r.stage === k).length;
     return `<button type="button" class="tw-stat" data-stage="${k}" aria-pressed="${S.stage === k}"><span class="ic" style="background:${STAGE[k][1]}"><i style="background:${STAGE[k][2]}"></i></span><span>${l}<b>${n}</b></span></button>`;
   }).join('')}</div>`;
 }
@@ -120,8 +120,9 @@ function buyCard() {
 }
 
 function listCard(all) {
-  const chips = [['all', 'All'], ['coming', 'On the way to us'], ['here', 'In our warehouse'], ['pay', 'Ready to pay'], ['sent', 'On the way to you'], ['done', 'Delivered']];
-  const inStage = (r, k) => k === 'all' || r.stage === k || (k === 'sent' && r.stage === 'ship') || (k === 'pay' && r.stage === 'pay');
+  const chips = [['all', 'All'], ['coming', 'On the way to us'], ['here', 'In our warehouse'], ['pack', 'Being packed'], ['pay', 'Ready to pay'], ['ship', 'Paid, sending']];
+  const inStage = (r, k) => k === 'all' || r.stage === k;
+  const sentCount = S.d.shipments.filter((s) => ['shipped', 'delivered'].includes(s.status)).length;
   const list = all.filter((r) => inStage(r, S.stage));
   const count = (k) => k === 'all' ? all.length : new Set(all.filter((r) => inStage(r, k)).map((r) => (r.s && !['here', 'coming'].includes(r.stage) ? r.s.id : r.p.id))).size;
   const here = all.filter((r) => r.stage === 'here');
@@ -140,7 +141,7 @@ function listCard(all) {
         : stage === 'here' ? `Arrived ${day(p.receivedAt)} · ${p.storagePence ? `<b style="color:#B42318">storage ${gbp(p.storagePence)}</b>` : `free until ${day(p.freeUntil)}`}`
           : s ? `<span class="mono">${esc(s.ref)}</span>${s.trackingNo ? ` · ${esc(s.courierName)} <span class="mono">${esc(s.trackingNo)}</span>` : ''}` : '';
       const act = stage === 'coming' ? `<button type="button" class="tw-btn ghost sm" data-open="order" data-id="${p.id}">Edit</button>`
-        : stage === 'here' ? `<button type="button" class="tw-btn ghost sm" data-open="order" data-id="${p.id}">Edit</button>`
+        : stage === 'here' ? `<button type="button" class="tw-btn ghost sm" data-open="order" data-id="${p.id}">Edit</button><button type="button" class="tw-btn sm" data-sendone="${p.id}">Send</button>`
           : stage === 'sent' && s.trackingUrl ? `<a class="tw-btn sm" href="${esc(s.trackingUrl)}" target="_blank" rel="noopener">Track</a>` : '';
       const tags = p.autoSend && ['coming', 'here'].includes(stage) ? ` <span class="tw-tag blue">⚡ Sends on arrival</span>` : p.hold && stage === 'here' ? ' <span class="tw-tag">Keeping</span>' : '';
       return `<tr class="${S.sel.has(p.id) ? 'sel' : ''}"><td class="cb">${stage === 'here' ? `<input type="checkbox" data-sel="${p.id}" ${S.sel.has(p.id) ? 'checked' : ''} aria-label="Choose ${esc(p.description)}">` : ''}</td>
@@ -151,6 +152,7 @@ function listCard(all) {
     }).join('')}</tbody></table></div>` : empty}
     ${chosen.length ? `<div class="tc-bar"><span class="t"><b>${chosen.length} parcel${chosen.length > 1 ? 's' : ''} · ${kg(chosen.reduce((a, r) => a + (r.p.weightKg || 0), 0))}${chosen.length > 1 ? ' · packed into one box' : ''}</b>${uk ? `To ${esc(uk.name)}, ${esc(addrLine(uk))}` : 'Add your UK address next'}</span>
       <button type="button" class="tw-btn" data-open="send" style="min-height:44px">Send to the UK →</button></div>` : ''}
+    ${sentCount ? `<p class="tw-muted" style="margin:0;padding:12px 20px;border-top:1px solid #EEF2F7">${sentCount} box${sentCount > 1 ? 'es' : ''} sent to the UK: track ${sentCount > 1 ? 'them' : 'it'} in <a href="/app">your dashboard</a>, under Recent shipments.</p>` : ''}
   </section>`;
 }
 
@@ -339,6 +341,7 @@ root.addEventListener('click', async (e) => {
     });
     return;
   }
+  if (ds.sendone) { S.sel = new Set([ds.sendone]); S.drawer = { kind: 'send', id: null, v: null }; S.lk = { items: [], msg: '', bad: false, busy: false }; render(); return; }
   if (ds.saved != null) { fillAddr(savedAddresses()[Number(ds.saved)], 'Saved address filled in.'); return; }
   if (ds.unphoto != null) { keep(); S.drawer.v.photos = (S.drawer.v.photos || []).filter((_, i) => i !== Number(ds.unphoto)); render(); return; }
   if (ds.buypay) {

@@ -1,5 +1,6 @@
 /* The signed-in app frame (header + left menu), same markup as the dashboard and Send a parcel. */
 import { api } from './dc.js';
+import { loadInbox, readArea } from './bell.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const gbp = (p) => `£${(p / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
@@ -28,6 +29,10 @@ export async function mountShell(active) {
     <div style="padding: 12px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px">
       <a href="/" aria-label="Kargom.co.uk home"><img src="/assets/logo-white.png" alt="Kargom.co.uk" style="height: 28px; width: auto; display: block"></a>
       <div style="margin-left: auto; display: flex; align-items: center; gap: 14px">
+        <button type="button" data-bell aria-label="Notifications" style="position: relative; width: 42px; height: 42px; border-radius: 10px; border: 0; background: transparent; color: #DCE4F2; display: grid; place-items: center; cursor: pointer">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"></path></svg>
+          <span data-bell-n hidden style="position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #E5484D; color: #FFFFFF; font: 800 11px 'Nunito Sans', sans-serif; display: grid; place-items: center; box-shadow: 0 0 0 2px #1F2A3C; box-sizing: border-box"></span>
+        </button>
         <a href="/app?view=wallet" aria-label="Wallet balance ${gbp(w.balancePence)}" style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px 0 6px; border-radius: 12px; border: 1px solid #3B4A63; background: #26334A; color: #FFFFFF; font: 700 15px 'Nunito Sans', sans-serif; text-decoration: none">
           <span style="width: 32px; height: 32px; border-radius: 8px; background: #2463DB; display: grid; place-items: center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="3"></rect><path d="M3 10h18M16 15h2"></path></svg></span>
           <span style="font-variant-numeric: tabular-nums">${gbp(w.balancePence)}</span>
@@ -47,7 +52,7 @@ export async function mountShell(active) {
       <span style="height: 12px"></span>
       <nav style="display: flex; flex-direction: column; gap: 2px">
         ${NAV.map(([k, label, href]) => `<a href="${href}" class="nav" ${on(k) ? 'aria-current="page"' : ''} style="display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 0 12px; border-radius: 10px; background: ${on(k) ? '#EAF2FE' : 'transparent'}; color: ${on(k) ? '#1D4FB8' : '#3E4A5C'}; font: 600 14px 'Nunito Sans', sans-serif; text-decoration: none">
-          <span style="width: 8px; height: 8px; border-radius: 50%; background: ${on(k) ? '#2463DB' : '#C9D6EA'}"></span>${label}</a>`).join('')}
+          <span style="width: 8px; height: 8px; border-radius: 50%; background: ${on(k) ? '#2463DB' : '#C9D6EA'}"></span><span style="flex: 1">${label}</span><b data-nbadge="${k}" hidden style="min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #E5484D; color: #FFFFFF; font: 800 11px 'Nunito Sans', sans-serif; display: grid; place-items: center; box-sizing: border-box"></b></a>`).join('')}
       </nav>
       <button type="button" class="m-signout" data-signout style="margin-top: 10px; display: flex; align-items: center; min-height: 42px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: #B42318; font: 600 14px 'Nunito Sans', sans-serif; cursor: pointer; text-align: left">Sign out</button>
     </aside>
@@ -56,6 +61,13 @@ export async function mountShell(active) {
   for (const b of wrap.querySelectorAll('[data-signout]')) {
     b.addEventListener('click', async () => { try { await api('/api/auth/logout', { method: 'POST' }); } catch { /* already out */ } location.href = '/'; });
   }
+  // Red counts in the menu and on the bell; opening an area clears its count.
+  const paint = (d) => {
+    for (const b of wrap.querySelectorAll('[data-nbadge]')) { const n = d.unread?.[b.dataset.nbadge] || 0; b.textContent = n > 9 ? '9+' : String(n); b.hidden = !n; }
+    const t = wrap.querySelector('[data-bell-n]'); if (t) { t.textContent = d.total > 9 ? '9+' : String(d.total || ''); t.hidden = !d.total; }
+  };
+  document.addEventListener('kg-inbox', (e) => paint(e.detail));
+  loadInbox().then(() => { if (['ship', 'wallet', 'req', 'tr', 'help'].includes(active)) readArea(active); });
   const page = document.querySelector('.page');
   (page || document.body).replaceWith(wrap);
   return { main: wrap.querySelector('main'), me };

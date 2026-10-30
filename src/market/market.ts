@@ -148,6 +148,8 @@ export class Market {
   private readonly clock: Clock;
   private readonly auth: AuthService;
   notice: Notice | null = null;
+  /** In-app notification for a customer (the bell). */
+  onCustomerEvent: ((customerId: string, title: string, body: string, link: string) => void) | null = null;
   publicUrl = '';
   constructor(db: Db, clock: Clock, auth: AuthService) { this.db = db; this.clock = clock; this.auth = auth; }
 
@@ -569,6 +571,7 @@ export class Market {
         [newId('ofr'), j.id, p.id, ...vals, now]);
     }
     const c = await this.db.get<{ email: string; name: string; account_type: string }>('SELECT email, name, account_type FROM customers WHERE id = $1', [j.customer_id]);
+    if (c && !mine) this.onCustomerEvent?.(j.customer_id, `New offer for request #${j.ref}: £${pounds.toFixed(2)}`, `${p.company} offered £${pounds.toFixed(2)} for your ${j.title.toLowerCase()}.`, `/app/requests/${j.id}`);
     if (c && !mine) this.send(c.email, `New offer for request #${j.ref}: £${pounds.toFixed(2)}`, 'You have a new offer',
       [`${p.company} offered £${pounds.toFixed(2)} for your ${j.title.toLowerCase()}.`, 'Compare offers, look at each company\'s reviews and choose the one you like.'],
       { href: `${this.publicUrl}/app/requests/${j.id}`, text: 'See your offers' });

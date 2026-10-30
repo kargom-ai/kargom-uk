@@ -1,5 +1,6 @@
 import { DCLogic, mount, field, api, gbp as gbpP, shortDate, dateTime, CARRIER_LOGO, CARRIER_NAME, uid } from '../dc.js';
 import { openPaySheet } from '../pay.js';
+import { loadInbox, readArea } from '../bell.js';
 
 /** Customer account: same screens as the approved design, filled from the live API. */
 
@@ -22,7 +23,7 @@ class Component extends DCLogic {
       nav: views.includes(startView) ? startView : 'dash', tab: 'all', txTab: 'all', topup: false, amt: 50, method: 'card', toast: '', auto: false, adj: '',
       hT: '', newT: false, cat: 'where_is_my_parcel', shipSel: {}, abTab: 'rec', setTab: 'profile',
       notif: { booked: [1, 0], collected: [1, 0], out: [0, 1], deliv: [1, 1], issue: [1, 1], low: [1, 0] }, fmt: 'a4', qr: true, cover: false, tfa: false,
-      me: null, bal: 0, statement: [], shipments: [], adjustments: [], tickets: [], jobs: [], thread: null, loaded: false,
+      me: null, bal: 0, statement: [], shipments: [], adjustments: [], tickets: [], jobs: [], fwd: [], inbox: { unread: {}, total: 0 }, thread: null, loaded: false,
     };
     this.draft = '';
   }
@@ -36,6 +37,8 @@ class Component extends DCLogic {
       return;
     }
     await this.reload();
+    document.addEventListener('kg-inbox', (e) => this.setState({ inbox: e.detail }));
+    loadInbox().then(() => { if (['ship', 'wallet', 'help'].includes(this.state.nav)) readArea(this.state.nav); });
     const back = new URLSearchParams(location.search).get('topup');
     if (back) {
       history.replaceState(null, '', '/app?view=wallet');
@@ -57,8 +60,8 @@ class Component extends DCLogic {
   }
 
   async reload() {
-    const [w, s, a, t, j] = await Promise.all([api('/api/wallet'), api('/api/shipments'), api('/api/adjustments'), api('/api/tickets'), api('/api/jobs').catch(() => ({ jobs: [] }))]);
-    this.setState({ bal: w.balancePence / 100, statement: w.statement, shipments: s.shipments, adjustments: a.adjustments, tickets: t.tickets, jobs: j.jobs, loaded: true });
+    const [w, s, a, t, j, fw] = await Promise.all([api('/api/wallet'), api('/api/shipments'), api('/api/adjustments'), api('/api/tickets'), api('/api/jobs').catch(() => ({ jobs: [] })), api('/api/tr/sent').catch(() => ({ boxes: [] }))]);
+    this.setState({ bal: w.balancePence / 100, statement: w.statement, shipments: s.shipments, adjustments: a.adjustments, tickets: t.tickets, jobs: j.jobs, fwd: fw.boxes, loaded: true });
     if (this.state.nav === 'help' && !this.state.hT && t.tickets[0]) this.openTicket(t.tickets[0].id);
   }
 
@@ -111,18 +114,27 @@ class Component extends DCLogic {
         price: j.bestPence ? `from ${gbp(j.bestPence / 100)}` : '—', isShip: false, isJob: true, jobUrl: `/app/requests/${j.id}`, at: j.createdAt,
         adj: false, adjShort: '', aBg: '', aFg: '', aDot: '', openAdj: () => {}, labelUrl: '#', trackUrl: '#' };
     });
-    const dashAll = [...all, ...jobRows].sort((x, y) => (x.at < y.at ? 1 : -1));
+    // Boxes from the Turkey warehouse, once they leave for the UK, are shipments too.
+    const fwdRows = st.fwd.map((b) => {
+      const key = b.status === 'delivered' ? 'deliv' : 'transit';
+      const what = b.items.map((i) => i.description).filter(Boolean);
+      return { id: b.id, no: b.trackingNo || b.ref, date: shortDate(b.shippedAt || b.createdAt), to: b.address.name, city: `${b.address.city} ${b.address.postcode}`,
+        service: `${b.courierName} · ${what.slice(0, 2).join(', ')}${what.length > 2 ? ` +${what.length - 2}` : ''}`, logo: '', hasLogo: false, noLogo: true, svc: 'TR → UK', key,
+        status: b.status === 'delivered' ? 'Delivered' : 'In transit', sBg: S[key][1], sFg: S[key][2], price: gbp((b.pricePence || 0) / 100), isShip: false, isJob: true,
+        jobUrl: b.trackingUrl || '/app/turkey', at: b.shippedAt || b.createdAt, adj: false, adjShort: '', aBg: '', aFg: '', aDot: '', openAdj: () => {}, labelUrl: '#', trackUrl: '#' };
+    });
+    const dashAll = [...all, ...jobRows, ...fwdRows].sort((x, y) => (x.at < y.at ? 1 : -1));
     const rows = (st.tab === 'all' ? dashAll : dashAll.filter((r) => r.key === st.tab)).slice(0, 6);
     const tabDefs = [['all', 'All'], ['print', 'Ready to print'], ['coll', 'Processing'], ['transit', 'In transit'], ['deliv', 'Delivered'], ['issue', 'Issue']];
     const mkTabs = () => tabDefs.map(([id, label]) => ({
-      label, n: id === 'all' ? all.length : all.filter((r) => r.key === id).length, on: st.tab === id ? 'true' : 'false',
+      label, n: id === 'all' ? all.length : [...all, ...fwdRows].filter((r) => r.key === id).length, on: st.tab === id ? 'true' : 'false',
       bg: st.tab === id ? '#1F2A3C' : '#FFFFFF', fg: st.tab === id ? '#FFFFFF' : '#3E4A5C', border: st.tab === id ? '#1F2A3C' : '#C9D6EA',
       pick: () => this.setState({ tab: id }) }));
     const tabs = [...mkTabs(), ...(jobRows.length ? [{ label: 'Moving & freight', n: jobRows.length, on: st.tab === 'move' ? 'true' : 'false',
       bg: st.tab === 'move' ? '#1F2A3C' : '#FFFFFF', fg: st.tab === 'move' ? '#FFFFFF' : '#3E4A5C', border: st.tab === 'move' ? '#1F2A3C' : '#C9D6EA', pick: () => this.setState({ tab: 'move' }) }] : [])];
     tabs[0].n = dashAll.length;
     const tiles = [['print', 'Ready to print'], ['coll', 'Processing'], ['transit', 'In transit'], ['deliv', 'Delivered'], ['issue', 'Issues']].map(([id, label]) => ({
-      label, n: all.filter((r) => r.key === id).length, bg: S[id][1], fg: S[id][2], border: st.tab === id ? S[id][2] : '#E1E7EF',
+      label, n: [...all, ...fwdRows].filter((r) => r.key === id).length, bg: S[id][1], fg: S[id][2], border: st.tab === id ? S[id][2] : '#E1E7EF',
       pick: () => this.setState({ tab: st.tab === id ? 'all' : id }) }));
     const shipRows = st.tab === 'all' ? all : all.filter((r) => r.key === st.tab);
     const shipTabs = mkTabs();
@@ -368,9 +380,12 @@ class Component extends DCLogic {
     // ---- nav
     const navItems = [['dash', 'Dashboard', ''], ['ship', 'Shipments', String(all.length || '')], ['wallet', 'Wallet', ''], ['inv', 'Invoices', ''], ['addr', 'Address book', ''], ['req', 'Moving & freight', ''], ['tr', 'Shop from Turkey', ''],
       ['int', 'Integrations', ''], ['set', 'Settings', ''], ['help', 'Help', helpBadge]];
-    const nav = navItems.map(([id, label, badge]) => ({ label, badge, cur: st.nav === id ? 'page' : 'false',
+    const unread = st.inbox?.unread || {};
+    const nav = navItems.map(([id, label, count]) => ({ label, cur: st.nav === id ? 'page' : 'false',
+      // Red = new updates there; otherwise the plain count in blue.
+      badge: unread[id] ? String(unread[id] > 9 ? '9+' : unread[id]) : count, badgeBg: unread[id] ? '#E5484D' : 'transparent', badgeFg: unread[id] ? '#FFFFFF' : '#2463DB',
       bg: st.nav === id ? '#EAF2FE' : 'transparent', fg: st.nav === id ? '#1D4FB8' : '#3E4A5C', dot: st.nav === id ? '#2463DB' : '#C9D6EA',
-      pick: () => { if (id === 'req') { location.href = '/app/requests'; return; } if (id === 'tr') { location.href = '/app/turkey'; return; } this.setState({ nav: id }); if (id === 'help' && !st.hT && st.tickets[0]) this.openTicket(st.tickets[0].id); } }));
+      pick: () => { if (id === 'req') { location.href = '/app/requests'; return; } if (id === 'tr') { location.href = '/app/turkey'; return; } this.setState({ nav: id }); readArea(id); if (id === 'help' && !st.hT && st.tickets[0]) this.openTicket(st.tickets[0].id); } }));
 
     const low = st.bal < 20;
     return {
@@ -391,6 +406,7 @@ class Component extends DCLogic {
       autoOn: st.auto ? 'true' : 'false', swBg: st.auto ? '#2463DB' : '#C9D6EA', swX: st.auto ? '25px' : '3px', autoOp: st.auto ? '1' : '.45',
       toggleAuto: () => this.say('Auto top-up starts once card payments are connected.'),
       topup: st.topup, openTopup: () => this.setState({ topup: true }), closeTopup: () => this.setState({ topup: false }),
+      bellN: st.inbox?.total > 9 ? '9+' : String(st.inbox?.total || ''), bellDisp: st.inbox?.total ? 'grid' : 'none', bellLabel: `Notifications, ${st.inbox?.total || 0} new`,
       goWallet: () => this.setState({ nav: 'wallet' }), goShip: (e) => { e.preventDefault(); this.setState({ nav: 'ship' }); },
       amtTxt: gbp(st.amt), newBal: gbp(st.bal + st.amt), pay,
       adjOpen: !!A, closeAdj: () => this.setState({ adj: '' }), ...adjVals,

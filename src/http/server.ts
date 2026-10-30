@@ -410,6 +410,9 @@ export function buildRouter(app: App) {
     }
     return r;
   });
+  on('GET', '/api/inbox', 'customer', async (c) => app.inbox.list(me(c)));
+  on('POST', '/api/inbox/read', 'customer', async (c) => app.inbox.read(me(c), c.body ?? {}));
+  on('GET', '/api/tr/sent', 'customer', async (c) => ({ boxes: await app.turkey.sentBoxes(me(c)) }));
   on('POST', '/api/tr/address', 'customer', async (c) => app.turkey.saveUkAddress(me(c), c.body ?? {}));
   on('POST', '/api/tr/packages', 'customer', async (c) => app.turkey.addPackage(me(c), c.body ?? {}));
   on('POST', '/api/tr/packages/:id', 'customer', async (c) => app.turkey.updatePackage(me(c), c.params.id!, c.body ?? {}));

@@ -39,6 +39,8 @@ export type AdjustmentRow = {
  * the unpaid total passes £20.
  */
 export class AdjustmentService {
+  /** A courier re-weighed a parcel (the app turns this into a notification). */
+  onCreated: ((shipmentId: string, diffPence: number) => void) | null = null;
   private readonly db: Db;
   private readonly ledger: Ledger;
   private readonly wallet: Wallet;
@@ -108,6 +110,7 @@ export class AdjustmentService {
         }, tx);
       }
     });
+    this.onCreated?.(s.id, diff);
     if (diff > 0) await this.collect(id);
     return this.get(id);
   }

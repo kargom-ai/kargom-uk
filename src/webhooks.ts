@@ -45,6 +45,8 @@ export class WebhookHandlers {
   /** Turkey warehouse: a box was paid for by card (set by the app). */
   onFwdPaid: ((fwdId: string, courierId: string, paymentIntentId: string, amount: number) => Promise<void>) | null = null;
   onBuyPaid: ((buyId: string, paymentIntentId: string, amount: number) => Promise<void>) | null = null;
+  /** A parcel's tracking status changed (the app turns this into a notification). */
+  onTracking: ((shipmentId: string, status: string, description: string) => void) | null = null;
 
   /** Stripe event (signature already verified by the router). */
   async stripe(ev: StripeEvent): Promise<void> {
@@ -88,6 +90,7 @@ export class WebhookHandlers {
           await tx.run("UPDATE shipments SET status = $1, updated_at = $2 WHERE id = $3 AND status NOT IN ('cancelled','failed')", [
             ev.status, this.clock.now().toISOString(), s.id]);
         });
+        this.onTracking?.(s.id, ev.status, ev.description);
       } else if (ev.type === 'label_update') {
         // The event only says "something changed"; ask the provider for the truth.
         const s = await this.db.get<{ id: string }>('SELECT id FROM shipments WHERE provider = $1 AND provider_label_id = $2', [provider, ev.providerLabelId]);

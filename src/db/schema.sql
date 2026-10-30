@@ -395,3 +395,15 @@ CREATE TABLE IF NOT EXISTS fw_photos (
   created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS fw_photos_package ON fw_photos(package_id);
+-- In-app notifications for customers: the bell and the red counts in the left menu.
+CREATE TABLE IF NOT EXISTS inbox (
+  id          TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  area        TEXT NOT NULL,                    -- ship | tr | req | wallet | help
+  title       TEXT NOT NULL,
+  body        TEXT,
+  link        TEXT,
+  read_at     TEXT,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS inbox_customer ON inbox(customer_id, created_at);
