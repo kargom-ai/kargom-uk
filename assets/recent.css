@@ -1,0 +1,38 @@
+/* Dashboard "Recent shipments" cards. */
+.rs-list { display: flex; flex-direction: column; gap: 10px; padding: 0 16px 16px; }
+.rs-card { display: flex; gap: 14px; padding: 14px; border: 1px solid #E6ECF3; border-radius: 16px; background: #FFFFFF; box-shadow: 0 2px 10px rgba(31, 42, 60, .04); }
+.rs-ico { flex: none; width: 52px; height: 52px; border-radius: 12px; background: #EAF2FE; display: grid; place-items: center; overflow: hidden; }
+.rs-ico img { width: 46px; height: 46px; object-fit: contain; }
+.rs-ico:has(img) { background: #FFFFFF; border: 1px solid #EEF2F7; }
+.rs-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.rs-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rs-to { flex: 1; min-width: 0; font-size: 16px; font-weight: 800; color: #0F1A2C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rs-price { flex: none; font-size: 16px; font-weight: 800; color: #0F1A2C; font-variant-numeric: tabular-nums; }
+.rs-more { flex: none; display: grid; place-items: center; width: 26px; height: 26px; margin-right: -4px; border-radius: 50%; color: #6B7789; text-decoration: none; }
+.rs-more:hover { background: #F1F5FA; color: #1F2A3C; }
+.rs-sub { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13.5px; color: #6B7789; white-space: nowrap; }
+.rs-kind { flex: none; padding: 2px 9px; border-radius: 999px; background: #EAF2FE; color: #1D4FB8; font-size: 12.5px; font-weight: 800; }
+.rs-svc { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rs-date { flex: none; }
+.rs-date:empty { display: none; }
+.rs-when { font-size: 13.5px; color: #6B7789; }
+.rs-date::before, .rs-ref::before { content: '·'; margin-right: 8px; }
+.rs-ref { flex: none; font-size: 12px; color: #8A95A6; font-family: ui-monospace, Menlo, monospace; }
+.rs-foot { display: flex; align-items: center; flex-wrap: nowrap; gap: 8px; margin-top: 4px; }
+.rs-st { box-sizing: border-box; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 0 11px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.rs-st i { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+.rs-adj { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 9px 0 4px; border: 0; border-radius: 999px; font: 700 12px 'Nunito Sans', sans-serif; cursor: pointer; }
+.rs-adj i { width: 18px; height: 18px; border-radius: 50%; color: #FFFFFF; display: grid; place-items: center; font: 800 11px 'Nunito Sans', sans-serif; font-style: normal; }
+.rs-go { box-sizing: border-box; flex: none; margin-left: auto; display: inline-flex; align-items: center; justify-content: center; min-height: 36px; min-width: 84px; padding: 0 16px; border-radius: 10px; border: 1.5px solid #2463DB; background: #EAF2FE; color: #1D4FB8; font-size: 14px; font-weight: 800; text-decoration: none; }
+.rs-go:hover { background: #2463DB; color: #FFFFFF; }
+.rs-go.print { background: #2463DB; color: #FFFFFF; }
+@media (max-width: 600px) {
+  .rs-list { padding: 0 10px 12px; gap: 8px; }
+  .rs-card { gap: 12px; padding: 12px; }
+  .rs-ico { width: 46px; height: 46px; }
+  .rs-ico img { width: 40px; height: 40px; }
+  .rs-to, .rs-price { font-size: 15px; }
+  .rs-sub { font-size: 13px; }
+  .rs-ref { display: none; }
+  .rs-go { min-height: 34px; }
+}
