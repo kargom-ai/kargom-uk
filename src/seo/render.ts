@@ -58,7 +58,11 @@ function page(o: PageOpts) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${headTags(o)}
-<link rel="icon" href="/assets/logo-white.png">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/assets/icon-96.png" sizes="96x96" type="image/png">
+<link rel="apple-touch-icon" href="/assets/icon-180.png">
+<link rel="manifest" href="/assets/site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap">

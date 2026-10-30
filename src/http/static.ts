@@ -23,6 +23,7 @@ const TYPES: Record<string, string> = {
   '.m4v': 'video/mp4',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json',
   '.txt': 'text/plain; charset=utf-8',
 };
 
