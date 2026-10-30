@@ -334,3 +334,7 @@ textarea.inp { min-height: 96px; padding: 10px 12px; resize: vertical; line-heig
   .fr-cols { grid-template-areas: "form" "out" "top"; }
   .fr-cols.has-res { grid-template-areas: "out" "top" "form"; }
 }
+.go-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.go-btn .go-ic { flex: none; width: 20px; height: 20px; }
+.fr-top .fr-fwd-foot { margin-top: 0; }
+.fr-top .acts { display: flex; flex-wrap: wrap; gap: 8px; }

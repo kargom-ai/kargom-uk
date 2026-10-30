@@ -46,6 +46,8 @@ const FX = {
   chev: '<svg class="fx-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
   arrow: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
 };
+/** The "O" from our logo (ring with the arrow). `white` for use on a blue button. */
+const goIcon = (white = false) => `<svg class="go-ic" width="20" height="20" viewBox="0 0 512 512" aria-hidden="true">${white ? '' : '<defs><linearGradient id="goG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1D4ED8"/><stop offset="1" stop-color="#38BDF8"/></linearGradient></defs>'}<circle cx="256" cy="256" r="170" fill="none" stroke="${white ? '#FFFFFF' : 'url(#goG)'}" stroke-width="64"/><path d="M352 160 L176 236 L250 262 L276 336 Z" fill="${white ? '#FFFFFF' : 'url(#goG)'}" stroke="${white ? '#FFFFFF' : 'url(#goG)'}" stroke-width="12" stroke-linejoin="round"/></svg>`;
 const FLAGS = ['gb', 'us', 'de', 'fr', 'ie', 'cn', 'tr'];
 /** Flag for a country: our own picture for the common ones, the phone's flag emoji for the rest. */
 function flagHtml(name) {
@@ -244,16 +246,15 @@ function resultsHtml() {
       <div class="offer-top"><div class="co"><span class="co-logo fr-ic">${MODE_IC[x.mode] || IC.box}</span><div class="co-t"><b>${esc(x.label)}</b><span class="muted" style="font-size:13px">${esc(MODE_TIP[x.mode] || '')}</span></div></div>
         <div class="fr-price">${x.live ? `<span class="badge booked">Live price${x.carrier ? ` · ${esc(x.carrier)}` : ''}</span>` : '<span class="badge open">Estimated</span>'}<b>${x.minPence === x.maxPence ? money(x.minPence, x.currency) : `${money(x.minPence, x.currency)} – ${money(x.maxPence, x.currency)}`}</b><span class="muted">${esc(days(x))}</span></div></div>
       ${(x.mode === 'FCL' || x.mode === 'LCL') && r.carriers?.length ? carriersHtml(r.carriers) : ''}
-      <div class="acts"><a class="btn ghost sm" href="${quoteHref(x.mode)}">Get firm quotes</a></div>
+      <div class="acts"><a class="btn ghost sm go-btn" href="${quoteHref(x.mode)}">Get firm quotes ${goIcon()}</a></div>
     </article>`).join('')}</div>
     ${sailingsHtml()}
-    ${r.rates.length ? '' : `<div class="empty-box"><b>Get prices from freight companies</b><span>Tell us about the shipment and freight forwarders and hauliers send you their prices.</span><a class="btn" href="${quoteHref(S.load === 'container' ? 'FCL' : 'air')}">Get firm quotes</a></div>`}
+    ${r.rates.length ? '' : `<div class="empty-box"><b>Get prices from freight companies</b><span>Tell us about the shipment and freight forwarders and hauliers send you their prices.</span><a class="btn go-btn" href="${quoteHref(S.load === 'container' ? 'FCL' : 'air')}">Get firm quotes ${goIcon(true)}</a></div>`}
     <p class="muted" style="font-size:12.5px;margin:0">Estimates by Kargom, based on ${esc(r.basis || 'current market rates')}. ${esc(r.scope ? r.scope[0].toUpperCase() + r.scope.slice(1) : 'Door to door')}, excluding import duty and VAT. Real quotes can be higher or lower.${r.rates.some((x) => x.live) ? ' Live prices come straight from the carrier and include VAT.' : ''}</p>
   </section>`;
 }
 
 /* ---------- freight forwarders on Google, at both ends ---------- */
-const WA = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"></path></svg>';
 const placeLabel = (name, town) => { const p = place(name); return `${town || p.city}, ${isUk(name) ? 'United Kingdom' : p.n}`; };
 function fwdPlaces() {
   const o = originPlace(), d = destination();
@@ -269,11 +270,11 @@ function fwdCard(p, where = '') {
   const signup = `/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}`;
   const rating = p.rating ? `${stars(p.rating)}<span class="stars-n">${p.rating.toFixed(1)} · ${p.reviewCount} Google review${p.reviewCount === 1 ? '' : 's'}</span>` : '<span class="stars-n">No reviews yet</span>';
   const member = Boolean(S.me);
-  const wa = p.whatsapp ? `<a class="btn wa sm" href="${member && p.intlPhone ? esc(`https://wa.me/${p.intlPhone.replace(/\D/g, '')}?text=${encodeURIComponent(shipText())}`) : signup}" ${member ? 'target="_blank" rel="noopener"' : ''}>${WA}${member ? 'WhatsApp' : 'Sign up to WhatsApp'}</a>` : '';
   const tel = p.phone ? `<a class="btn ghost sm" href="${member ? `tel:${esc(String(p.intlPhone || p.phone).replace(/[^\d+]/g, ''))}` : signup}">📞 ${member ? esc(p.phone) : 'Sign up to see number'}</a>` : '';
   const more = member ? `${p.website ? `<a class="btn ghost sm" href="${esc(p.website)}" target="_blank" rel="noopener nofollow">Website</a>` : ''}${p.mapsUrl ? `<a class="btn ghost sm" href="${esc(p.mapsUrl)}" target="_blank" rel="noopener">Map</a>` : ''}` : '';
+  const ourQuote = `<a class="btn sm go-btn" href="${quoteHref(S.res?.rates?.[0]?.mode || (S.load === 'container' ? 'FCL' : 'air'))}">${goIcon(true)}Free instant quote</a>`;
   return `<article class="offer gplace"><div class="offer-top"><div class="co">${logoHtml(p)}<div class="co-t"><b>${esc(p.company)}</b><span>${rating}</span>${where ? `<span class="fr-where">${esc(where)}</span>` : ''}${p.area ? `<span class="muted" style="font-size:13px">${esc(p.area)}</span>` : ''}</div></div></div>
-    <div class="acts">${wa}${tel}${more}</div></article>`;
+    <div class="acts">${ourQuote}${tel}${more}</div></article>`;
 }
 /** Best first: good rating with enough reviews to trust it. */
 const fwdScore = (p) => (p.rating || 0) * Math.min(1, (p.reviewCount || 0) / 25) + Math.min(p.reviewCount || 0, 500) / 100000;
@@ -293,22 +294,12 @@ function topHtml() {
   const picks = topPicks();
   if (!picks.length) return '';
   return `<section class="fr-top"><div class="fr-top-head"><h2>Recommended forwarders</h2><span class="muted">Best rated on Google at both ends of your route</span></div>
-    <div class="list">${picks.map(({ p, where }) => fwdCard(p, where)).join('')}</div></section>`;
-}
-function fwdHtml() {
-  if (!S.fwd) return '';
-  const shown = new Set(topPicks().map(({ p }) => pickKey(p)));
-  const cols = S.fwd.map((g) => {
-    const rest = g.places.filter((p) => !shown.has(pickKey(p)));
-    return `<section class="fr-fwd-col"><h3>${shown.size ? 'More f' : 'F'}reight forwarders in ${esc(g.label)}</h3>
-    ${g.busy ? '<p class="muted" style="margin:0">Finding companies…</p>' : rest.length ? `<div class="list">${rest.map((p) => fwdCard(p)).join('')}</div>`
-      : `<p class="muted" style="margin:0">${g.error ? esc(g.error) : g.places.length ? 'All shown above.' : 'No companies listed here yet.'}</p>`}</section>`;
-  }).join('');
-  if (S.fwd.every((g) => !g.busy && !g.places.length && !g.error)) return '';
-  return `<div class="fr-fwd">${cols}</div>
+    <div class="list">${picks.map(({ p, where }) => fwdCard(p, where)).join('')}</div>
     <div class="fr-fwd-foot"><span class="g-attr">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></span>
-      ${S.me ? '<span class="muted">WhatsApp opens with your shipment details already written.</span>' : `<span class="muted">Full numbers and WhatsApp are free for members. <a href="/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}">Sign up free</a></span>`}</div>`;
+      ${S.me ? '' : `<span class="muted">Phone numbers are free for members. <a href="/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}">Sign up free</a></span>`}</div></section>`;
 }
+/** Only the recommended pick is shown (above the form); the page ends with the form. */
+function fwdHtml() { return ''; }
 let fwdKey = '';
 async function loadForwarders() {
   const wanted = fwdPlaces();
