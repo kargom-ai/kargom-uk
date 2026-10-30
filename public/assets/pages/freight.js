@@ -197,6 +197,7 @@ function resultsHtml() {
   const money = (p, c) => (c === 'GBP' ? gbp(p).replace('.00', '') : `${(p / 100).toLocaleString('en-GB', { style: 'currency', currency: c, maximumFractionDigits: 0 })}`);
   return `<section class="fr-res">
     <div class="g-head"><h2 style="margin:0;font-size:22px">Freight rates</h2><span class="muted" style="font-size:13px">${esc(originPlace().text)} → ${esc(destination().text)}${r.scope ? ` · <b style="color:#2463DB">${esc(r.scope[0].toUpperCase() + r.scope.slice(1))}</b>` : ''}</span></div>
+    ${S.stale ? '<div style="padding:10px 14px;border-radius:10px;background:#FFF7E6;border:1px solid #F5C26B;color:#7A4B00;font-size:14px;font-weight:600">You changed the details. Press <b>Compare freight rates</b> to update these prices.</div>' : ''}
     ${r.note ? `<p class="hint" style="margin:0">${esc(r.note)}</p>` : ''}
     <div class="list">${r.rates.map((x) => `<article class="offer fr-rate">
       <div class="offer-top"><div class="co"><span class="co-logo fr-ic">${MODE_IC[x.mode] || IC.box}</span><div class="co-t"><b>${esc(x.label)}</b><span class="muted" style="font-size:13px">${esc(MODE_TIP[x.mode] || '')}</span></div></div>
@@ -277,9 +278,15 @@ function paint() {
   const err = document.getElementById('fr-err'); if (err) err.textContent = S.err || '';
 }
 
-/** Prices follow every change: a short pause after typing, straight away for a click. */
+/**
+ * Searches cost money (Google listings, carrier APIs), so a change never searches by itself:
+ * it only marks the prices as out of date until the customer presses "Compare freight rates".
+ */
 let timer = null, seq = 0;
-function auto(delay = 500) { clearTimeout(timer); timer = setTimeout(() => go({ auto: true }), delay); }
+function auto() {
+  if (!S.res || S.stale) return;
+  S.stale = true; paint();
+}
 
 const looksLikePostcode = (t) => /\d/.test(t) && t.length <= 10;
 const postcodeOf = (typed, p) => { const t = String(typed || '').trim(); return UK_PC.test(t) || (p.code !== 'GB' && looksLikePostcode(t)) ? t : p.pc; };
@@ -298,7 +305,7 @@ async function go({ auto: quiet = false } = {}) {
   if (S.load === 'boxes' && !(Number(S.l) > 0 && Number(S.w) > 0 && Number(S.h) > 0)) return fail('Enter the size of one box (length, width and height in cm).');
   if (S.dest === 'fc' && warehouses().length && !S.fc) return fail('Choose the fulfilment centre.');
   const my = ++seq;
-  S.err = ''; S.busy = true; paint();
+  S.err = ''; S.busy = true; S.stale = false; paint();
   const from = place(S.from), dest = destination(), o = originPlace();
   const fromTxt = o.text;
   const q = new URLSearchParams({
@@ -372,4 +379,5 @@ api('/api/me').then((me) => { S.me = me; const a = document.querySelector('#top 
 sample();
 render();
 api('/api/freight/market').then((m) => { S.market = m; paint(); }).catch(() => {});
-go({ auto: true });
+// a search from the homepage runs once on arrival; a bare /freight visit waits for the button
+if (qs.get('from')) go({ auto: true });
