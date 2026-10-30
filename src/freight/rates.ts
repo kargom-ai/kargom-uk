@@ -4,6 +4,7 @@ import { routeInfo } from '../market/route.ts';
 import { cargoboardRates } from './cargoboard.ts';
 import { eurosenderRates } from './eurosender.ts';
 import { latestIndex, type IndexKey } from './market.ts';
+import { carriersFor } from './carriers.ts';
 
 /**
  * Air, sea, express and road freight price ranges, worked out from published market indices.
@@ -149,7 +150,7 @@ async function road(q: FreightQuery, near: string, f: typeof fetch): Promise<Fre
   return out;
 }
 
-export async function freightRates(q: FreightQuery, f: typeof fetch = fetch): Promise<{ rates: FreightRate[]; note: string | null; basis: string; scope: string }> {
+export async function freightRates(q: FreightQuery, f: typeof fetch = fetch): Promise<{ rates: FreightRate[]; note: string | null; basis: string; scope: string; carriers: { id: string; name: string }[] }> {
   const lane = `${region(q.fromCountry)}>${region(q.toCountry)}`;
   const container = q.load.startsWith('container');
   const out: FreightRate[] = [];
@@ -192,6 +193,7 @@ export async function freightRates(q: FreightQuery, f: typeof fetch = fetch): Pr
     note: all.length ? null : 'We could not estimate this one. Freight companies can still price it for you.',
     basis: near ? 'typical UK and European haulage rates'
       : `${indexWeek ? `the Drewry World Container Index of ${new Date(indexWeek + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Drewry market indices'}, the Freightos Air Index, plus ${fromDoor && toDoor ? 'typical collection, customs clearance and delivery charges' : !fromDoor && !toDoor ? 'terminal handling (port to port: no collection, delivery or customs)' : fromDoor ? 'collection and export clearance, delivered to the destination port' : 'import clearance and delivery from the origin port'}`,
+    carriers: near ? [] : carriersFor(lane),
     scope: near ? 'door to door' : `${fromDoor ? 'door' : 'port'} to ${toDoor ? 'door' : 'port'}`,
   };
 }

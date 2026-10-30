@@ -185,6 +185,15 @@ function sailingsHtml() {
   </div>`;
 }
 
+/** Small carrier icons on the sea cards: who sails this route. Prices are our estimate, not theirs. */
+function carriersHtml(list) {
+  return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:2px">
+    <span class="muted" style="font-size:12px;margin-right:2px">Carriers on this route:</span>
+    ${list.map((c) => `<span title="${esc(c.name)}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px 3px 4px;border:1px solid #E5E9F0;border-radius:99px;background:#FFFFFF;font-size:12px;font-weight:600;color:#1F2A3C">
+      <img src="/api/carrier-logo/${esc(c.id)}" alt="" width="18" height="18" loading="lazy" style="width:18px;height:18px;border-radius:4px;object-fit:contain">${esc(c.name)}</span>`).join('')}
+  </div>`;
+}
+
 function resultsHtml() {
   if (S.busy) return `<section class="card fr-res"><div class="ldr"><span class="spin" aria-hidden="true"></span><span><b>Checking air, sea and road rates…</b><span class="muted">This can take up to 10 seconds.</span></span></div></section>`;
   const r = S.res;
@@ -202,6 +211,7 @@ function resultsHtml() {
     <div class="list">${r.rates.map((x) => `<article class="offer fr-rate">
       <div class="offer-top"><div class="co"><span class="co-logo fr-ic">${MODE_IC[x.mode] || IC.box}</span><div class="co-t"><b>${esc(x.label)}</b><span class="muted" style="font-size:13px">${esc(MODE_TIP[x.mode] || '')}</span></div></div>
         <div class="fr-price">${x.live ? `<span class="badge booked">Live price${x.carrier ? ` · ${esc(x.carrier)}` : ''}</span>` : '<span class="badge open">Estimated</span>'}<b>${x.minPence === x.maxPence ? money(x.minPence, x.currency) : `${money(x.minPence, x.currency)} – ${money(x.maxPence, x.currency)}`}</b><span class="muted">${esc(days(x))}</span></div></div>
+      ${(x.mode === 'FCL' || x.mode === 'LCL') && r.carriers?.length ? carriersHtml(r.carriers) : ''}
       <div class="acts"><a class="btn ghost sm" href="${quoteHref(x.mode)}">Get firm quotes</a></div>
     </article>`).join('')}</div>
     ${sailingsHtml()}

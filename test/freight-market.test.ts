@@ -86,3 +86,16 @@ test('port to port costs less than door to door, and says so', async () => {
   assert.equal(d2p.scope, 'door to port');
   assert.match(p2p.basis, /terminal handling/);
 });
+
+test('sea results list the carriers on the lane; icons only for listed carriers', async () => {
+  const { carrierIcon } = await import('../src/freight/carriers.ts');
+  const r = await freightRates(parseFreightQuery(new URLSearchParams({ origin: 'Shanghai, China', destination: 'Felixstowe, United Kingdom', fromCountry: 'CN', toCountry: 'GB', load: 'container40', qty: '1' })), (async () => new Response('{}')) as any);
+  assert.deepEqual(r.carriers.slice(0, 4).map((c) => c.name), ['Maersk', 'MSC', 'CMA CGM', 'Hapag-Lloyd']);
+  let asked = '';
+  const f = (async (u: string) => { asked = u; return new Response(new Uint8Array(500), { headers: { 'content-type': 'image/png' } }); }) as any;
+  assert.equal((await carrierIcon('maersk', f)).data.length, 500);
+  assert.match(asked, /domain=maersk\.com/);
+  asked = '';
+  assert.equal((await carrierIcon('../etc/passwd', f)).data.length < 100, true);
+  assert.equal(asked, '');
+});

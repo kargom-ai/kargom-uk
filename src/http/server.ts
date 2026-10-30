@@ -23,6 +23,7 @@ import { freightForwarders } from '../freight/forwarders.ts';
 import { forwardingEstimate, joinForwardingWaitlist } from '../forwarding/forwarding.ts';
 import { eurosenderTestOrder } from '../freight/eurosender.ts';
 import { maerskSailings, maerskTest } from '../freight/maersk.ts';
+import { carrierIcon } from '../freight/carriers.ts';
 import { loadMarketIndex, marketSummary, marketWeeks, saveMarketIndex, INDEX_KEYS } from '../freight/market.ts';
 import type { PacklinkProvider } from '../providers/packlink.ts';
 
@@ -366,6 +367,7 @@ export function buildRouter(app: App) {
   /** Admin: check the Maersk schedules key on the live site. Open /api/admin/maersk-test. */
   on('GET', '/api/admin/maersk-test', 'admin', async () => maerskTest());
   loadMarketIndex(app.db).catch((e) => console.warn(`[market] ${(e as Error).message}`));
+  on('GET', '/api/carrier-logo/:id', 'public', async (c) => image(c, await carrierIcon(c.params.id!), 'public, max-age=604800'));
   on('GET', '/api/gplace/:id/logo', 'public', async (c) => {
     const img = await placeLogo(c.params.id!);
     if (!img) throw new AppError('not_found', 'No logo');
