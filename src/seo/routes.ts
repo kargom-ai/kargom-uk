@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { SeoPrices } from './prices.ts';
 import {
   calculatorPage, courierPage, couriersHub, destinationPage, destinationsHub, guidePage, guidesHub, notFoundPage,
-  parcelPricesPage, privacyPage, trackPagesOn, resolve, robots, sitemap, trackHub, trackPage,
+  parcelPricesPage, privacyPage, aboutPage, termsPage, cookiesPage, trackPagesOn, resolve, robots, sitemap, trackHub, trackPage,
 } from './render.ts';
 
 const CSP = [
@@ -38,6 +38,9 @@ export function serveSeo(req: IncomingMessage, res: ServerResponse, path: string
   if (key && p === `/${key}.txt`) return send(res, req, 200, 'text/plain; charset=utf-8', key, 86400);
 
   if (p === '/privacy') return html(privacyPage());
+  if (p === '/about') return html(aboutPage());
+  if (p === '/terms') return html(termsPage());
+  if (p === '/cookies') return html(cookiesPage());
   if (p === '/parcel-prices') return html(parcelPricesPage(prices));
   if (p === '/couriers') return html(couriersHub());
   if (p === '/track') return html(trackHub());

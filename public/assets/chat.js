@@ -81,7 +81,7 @@ function view() {
       <span>Parcel</span><div>${esc(d.parcel?.weightKg)} kg · ${esc(d.parcel?.lengthCm)}×${esc(d.parcel?.widthCm)}×${esc(d.parcel?.heightCm)} cm · ${esc(d.contents)} (£${esc(d.valueGbp)})</div>
       <span>Service</span><div>${esc(d.choice.serviceName)}</div><span>Label to</span><div>${esc(d.email)}</div></div>
       <button type="button" class="kc-pay" data-pay ${S.paying ? 'disabled' : ''}>${S.paying ? 'Opening the payment…' : `Pay ${gbp(d.choice.pricePence)}`}</button>
-      <span style="font-size:12px;color:#586579">Something wrong? Just tell me in the chat and I will fix it. By paying you agree to our terms.</span></div>` : '';
+      <span style="font-size:12px;color:#586579">Something wrong? Just tell me in the chat and I will fix it. By paying you agree to our <a href="/terms" target="_blank" rel="noopener">terms</a>.</span></div>` : '';
   return `${bubbles}${quotes}${sum}${S.busy ? '<div class="kc-typing"><i></i><i></i><i></i></div>' : ''}${S.err ? `<div class="kc-err">${esc(S.err)}</div>` : ''}`;
 }
 

@@ -108,7 +108,8 @@ ${col('Send abroad', Object.entries(DESTINATIONS).map(([slug, d]) => [`Parcel to
 ${col('Guides and tools', [['UK parcel prices', '/parcel-prices'], ...GUIDES.map((g) => [g.title.replace(/\s*\(.*\)$/, ''), `/guides/${g.slug}`] as [string, string]), ['Volumetric weight calculator', '/tools/volumetric-weight-calculator']])}
 </div>
 <p style="margin:18px 0 0;font-size:12.5px;line-height:1.55;opacity:.8">Kargom.co.uk is an independent service that compares and books couriers. We are not Royal Mail, Evri, DPD, InPost, Yodel, Parcelforce, UPS, DHL or FedEx, and we are not endorsed by them; their names and logos belong to them and are shown only to compare their services. We never send texts or emails asking you to pay to release or redeliver a parcel.</p>
-<div class="legal"><img src="/assets/logo-white.png" alt="Kargom.co.uk" width="120" height="22" loading="lazy"><span>© ${new Date().getFullYear()} Kargom.co.uk · All prices include VAT · <a href="/privacy" style="color:inherit">Privacy policy</a></span></div>
+${(() => { const c = company(); return `<p style="margin:8px 0 0;font-size:12.5px;line-height:1.55;opacity:.8">Kargom.co.uk is a trading name of ${esc(c.name)}, registered in England and Wales${c.number ? `, company no. ${esc(c.number)}` : ''}${c.address ? `. Registered office: ${esc(c.address)}` : ''}.${c.email ? ` Contact: <a href="mailto:${esc(c.email)}" style="color:inherit">${esc(c.email)}</a>.` : ''}<br><a href="/about" style="color:inherit">About us</a> · <a href="/terms" style="color:inherit">Terms and conditions</a> · <a href="/privacy" style="color:inherit">Privacy policy</a> · <a href="/cookies" style="color:inherit">Cookie policy</a></p>`; })()}
+<div class="legal"><img src="/assets/logo-white.png" alt="Kargom.co.uk" width="120" height="22" loading="lazy"><span>© ${new Date().getFullYear()} Kargom.co.uk · All prices include VAT</span></div>
 </div></footer>`;
 }
 
@@ -368,17 +369,162 @@ export function calculatorPage() {
 function company() {
   const admins = (process.env.ADMIN_EMAILS ?? '').split(',').map((x) => x.trim()).filter(Boolean);
   return {
-    name: process.env.COMPANY_LEGAL_NAME || 'Kargom.co.uk',
-    number: process.env.COMPANY_NUMBER || '',
+    name: process.env.COMPANY_LEGAL_NAME || 'CURACAVI LTD',
+    number: process.env.COMPANY_NUMBER || '17412069',
     address: process.env.COMPANY_ADDRESS || '',
     email: process.env.PRIVACY_EMAIL || admins[0] || '',
   };
 }
 
+export function aboutPage() {
+  const c = company();
+  const body = `
+<p><b>Kargom.co.uk</b> is the UK website of Kargom, an online courier company. Through Kargom.com we have helped customers in Turkey send parcels for about six years. Kargom.co.uk brings the same service to the UK. Kargom.co.uk is a trading name of ${esc(c.name)}, a company registered in England and Wales.</p>
+<h2>What we do</h2>
+<ul>
+<li><b>Parcels:</b> compare prices from UK and international couriers, book online, pay and print your own label.</li>
+<li><b>Freight:</b> estimates for air, sea and road freight, and requests that freight forwarders can price.</li>
+<li><b>Removals:</b> post a move and get prices from removal companies.</li>
+</ul>
+<h2>How we work</h2>
+<ul>
+<li>We are an <b>independent</b> comparison and booking service. We are not Royal Mail, Evri, DPD, InPost, Yodel, Parcelforce, UPS, DHL or FedEx, and we are not endorsed by them. We book their services for you at the prices shown.</li>
+<li>Card payments are taken by <b>Stripe</b> on its own secure form. We never see or store your card details.</li>
+<li>We never send texts or emails asking you to pay to release, redeliver or track a parcel. If you get one, it is a scam: forward texts to 7726.</li>
+</ul>
+<h2>Company details</h2>
+<p>${esc(c.name)}${c.number ? `<br>Registered in England and Wales, company number ${esc(c.number)}` : ''}${c.address ? `<br>${esc(c.address)}` : ''}${c.email ? `<br>Email: <a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : ''}</p>
+<p>Signed-in customers can also contact us from the Help page in their account. Read our <a href="/terms">terms and conditions</a>, <a href="/privacy">privacy policy</a> and <a href="/cookies">cookie policy</a>.</p>`;
+  return page({
+    title: 'About Kargom | Online Courier Company', description: 'Who runs Kargom.co.uk, what we do and how we work: an independent courier comparison and booking service with payments by Stripe.', path: '/about',
+    crumbs: [['About us', '/about']],
+    body: `<article class="in wrap art"><header class="art-h"><h1>About Kargom</h1></header><div class="prose" style="max-width:760px">${body}</div></article>`,
+  });
+}
+
+
+/** A plain legal page: title, date, prose. */
+function legalPage(o: { title: string; h1: string; description: string; path: string; updated: string; body: string }) {
+  return page({
+    title: o.title, description: o.description, path: o.path, crumbs: [[o.h1, o.path]],
+    body: `<article class="in wrap art">
+<header class="art-h"><h1>${esc(o.h1)}</h1><p class="meta">Last updated ${new Date(o.updated + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p></header>
+<div class="prose" style="max-width:760px">${o.body}</div>
+</article>`,
+  });
+}
+
+export function termsPage() {
+  const c = company();
+  const mail = c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : 'the Help page in your account';
+  const body = `
+<p>These terms apply when you use Kargom.co.uk to compare and book parcel delivery, or to request moving or freight quotes. Please read them before you book. By booking or creating an account you agree to them.</p>
+
+<h2>1. Who we are</h2>
+<p>Kargom.co.uk is a trading name of ${esc(c.name)}, a company registered in England and Wales${c.number ? ` (company number ${esc(c.number)})` : ''}${c.address ? `, registered office ${esc(c.address)}` : ''}. In these terms "Kargom", "we" and "us" mean ${esc(c.name)}. You can contact us at ${mail}.</p>
+
+<h2>2. What we do</h2>
+<p>We compare delivery services from couriers and book the one you choose on your behalf. <b>We are not the courier.</b> The courier collects, carries and delivers your parcel under its own terms of carriage, which form part of your booking and which you can read on the courier's website. Where these terms and the courier's terms differ about the carriage of your parcel, the courier's terms apply to the carriage.</p>
+<p>For removals and freight, we pass your request to independent companies and show you their offers. If you accept an offer, your contract for the move or the shipment is with that company, not with us.</p>
+
+<h2>3. Your account</h2>
+<p>You must be 18 or over to book. Keep your login details safe; you are responsible for bookings made from your account. Tell us straight away if you think someone else has used it.</p>
+
+<h2>4. Prices and payment</h2>
+<ul>
+<li>Prices are shown in pounds sterling and include VAT where it applies.</li>
+<li>The price is based on the weight, size, collection and delivery addresses and service you give us. Weight is the greater of the actual weight and the volumetric weight the courier uses.</li>
+<li>Card payments are processed by Stripe. We do not see or store your full card details. You can also pay from your Kargom wallet.</li>
+<li>Duties, import VAT and fees charged by customs abroad are not included and are payable by you or your recipient.</li>
+</ul>
+
+<h2>5. Your responsibilities</h2>
+<ul>
+<li>Give an accurate weight, size, description and value, and full, correct addresses and phone numbers.</li>
+<li>Pack each parcel so it can survive normal handling, including being stacked, dropped from a short height and moved on conveyors. Use a strong box and enough padding; parcels that are not suitably packed may not be covered for loss or damage.</li>
+<li>Attach the correct label for each parcel and remove old labels.</li>
+<li>Do not send prohibited items (see section 6), and complete customs information truthfully for parcels leaving the UK.</li>
+</ul>
+
+<h2>6. Prohibited and restricted items</h2>
+<p>You must not send anything illegal or dangerous, including: weapons, ammunition and replicas; explosives and fireworks; flammable liquids, gases and aerosols; corrosive, toxic or radioactive substances; loose lithium batteries; drugs and controlled substances; cash, bank cards and negotiable items; live animals; human or animal remains; perishable food without suitable service; and counterfeit goods. Couriers have their own lists of prohibited and restricted items, which also apply. If you send a prohibited item, the courier may refuse, return or destroy it, you will not be covered for loss or damage, and you are responsible for any costs or fines that result.</p>
+
+<h2>7. If the courier re-weighs or re-measures your parcel</h2>
+<p>Couriers check parcels in their network. If the courier finds a parcel heavier or larger than you declared and the price for its actual size or weight is higher, we will charge you the difference: from your wallet, or to the card you paid with. If the price band does not change, there is no extra charge. We will show you the courier's measurements, and you can dispute a charge by contacting us within 14 days. While an adjustment is unpaid we may pause new bookings on your account.</p>
+
+<h2>8. Cancellations and refunds</h2>
+<ul>
+<li>You can cancel a label you have not used from your account before the courier collects or scans the parcel. We refund it to your wallet once the courier confirms the label is void.</li>
+<li>Under the Consumer Contracts Regulations you normally have 14 days to cancel a service bought online. Because a delivery booking starts as soon as you print the label or the courier collects, you agree that the service starts straight away, and you lose the right to cancel once the parcel has been collected or handed in.</li>
+<li>You can ask for your wallet balance to be refunded to you at any time; we refund it within 14 days.</li>
+</ul>
+
+<h2>9. Delivery times</h2>
+<p>Delivery times shown are the courier's estimates, not guarantees, unless the service is sold as guaranteed. Delays can happen because of weather, strikes, customs checks, incorrect addresses or other events outside our and the courier's control. If a guaranteed service is late and the courier refunds it, we pass that refund to you.</p>
+
+<h2>10. Loss and damage</h2>
+<ul>
+<li>Each service includes the courier's standard cover for loss or damage, up to the amount shown when you book. Where we offer extra cover, you can buy it when you book. Cover never exceeds the value of the goods (cost price for business sellers) and is subject to the courier's terms.</li>
+<li>Some items are not covered by most couriers, such as glass, ceramics, liquids, jewellery, precious metals, antiques, artwork, electrical items without original packaging, and anything that was not suitably packed.</li>
+<li>Report damage within 7 days of delivery and loss within 28 days of the expected delivery date, keeping the packaging and damaged item. We make the claim to the courier for you and pay you what the courier pays.</li>
+</ul>
+
+<h2>11. Our liability to you</h2>
+<p>We are responsible for the services we provide with reasonable care and skill. We are not responsible for losses that were not foreseeable, for business losses (such as lost profit or lost sales), or for the courier's acts or omissions beyond what we can recover from the courier for you. Our total liability for any booking is limited to the price you paid for it plus any compensation we recover from the courier. Nothing in these terms limits liability for death or personal injury caused by negligence, for fraud, or for anything else that cannot be limited by law, and nothing affects your statutory rights as a consumer.</p>
+
+<h2>12. Moving and freight requests</h2>
+<p>Estimates on Kargom are guides based on market data, not offers. Companies on Kargom set their own prices and terms. We check that partner companies give us their business details, but we do not guarantee their work. We share your contact details only with the company whose offer you accept.</p>
+
+<h2>13. Using the site</h2>
+<p>Do not misuse the site: no automated scraping, no attempts to break its security, and no false or fraudulent bookings. We may suspend accounts that break these terms or that we reasonably suspect of fraud.</p>
+
+<h2>14. Complaints</h2>
+<p>If something goes wrong, contact us at ${mail} with your booking reference. We aim to reply within 2 working days and to resolve complaints within 14 days. If you are not happy with our answer, you can also take your complaint to the courier's own complaints process.</p>
+
+<h2>15. Changes and law</h2>
+<p>We may update these terms; the version shown when you book applies to that booking. These terms are governed by the law of England and Wales. If you are a consumer living in Scotland or Northern Ireland, you can also bring proceedings in your local courts.</p>`;
+  return legalPage({ title: 'Terms and Conditions | Kargom', h1: 'Terms and conditions', description: 'The terms for comparing and booking parcel delivery, removals and freight quotes on Kargom.co.uk.', path: '/terms', updated: '2026-10-30', body });
+}
+
+export function cookiesPage() {
+  const c = company();
+  const mail = c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : 'the Help page in your account';
+  const row = (name: string, who: string, why: string, how: string) => `<tr><td><b>${name}</b></td><td>${who}</td><td>${why}</td><td>${how}</td></tr>`;
+  const body = `
+<p>This policy explains the cookies and similar storage used on Kargom.co.uk, which is run by ${esc(c.name)}.</p>
+
+<h2>Our approach</h2>
+<p>We use only cookies that are strictly necessary for the site to work, such as keeping you signed in and taking payments securely. UK law (the Privacy and Electronic Communications Regulations) allows these without consent, so we do not show a cookie banner. <b>We do not use advertising, tracking or analytics cookies.</b> If we ever add them, we will ask for your consent first.</p>
+
+<h2>Cookies we use</h2>
+<div class="tblwrap"><table class="tbl"><thead><tr><th>Name</th><th>Set by</th><th>Purpose</th><th>How long</th></tr></thead><tbody>
+${row('kg_session', 'Kargom', 'Keeps you signed in to your account', '30 days, or until you sign out')}
+${row('kg_gstate', 'Kargom', 'Protects "Sign in with Google" from forged requests', '10 minutes')}
+${row('__stripe_mid, __stripe_sid', 'Stripe', 'Fraud prevention when you pay by card', 'Up to 1 year and 30 minutes')}
+</tbody></table></div>
+
+<h2>Storage on your device</h2>
+<p>Our pages also keep some information in your browser's local or session storage, for example a booking you have not finished, your saved parcel sizes, or the booking chat. This stays on your device, is used only to make the site work for you, and can be cleared in your browser settings.</p>
+
+<h2>Other services on our pages</h2>
+<ul>
+<li><b>Videos</b> are played from YouTube's privacy-enhanced mode (youtube-nocookie.com), which does not set cookies until you play a video.</li>
+<li><b>Maps</b> on request pages use OpenStreetMap or Google Maps, which receive your IP address to load the map.</li>
+<li><b>Fonts</b> are loaded from Google Fonts, which receives your IP address but sets no cookies.</li>
+</ul>
+
+<h2>Managing cookies</h2>
+<p>You can block or delete cookies in your browser settings. If you block the cookies above, you will not be able to sign in or pay.</p>
+
+<h2>Contact</h2>
+<p>Questions about cookies: ${mail}. See also our <a href="/privacy">privacy policy</a>.</p>`;
+  return legalPage({ title: 'Cookie Policy | Kargom', h1: 'Cookie policy', description: 'The cookies Kargom.co.uk uses: only what is strictly necessary to sign in and pay. No advertising or tracking cookies.', path: '/cookies', updated: '2026-10-30', body });
+}
+
 export const PRIVACY_UPDATED = '2026-10-30';
 export function privacyPage() {
   const c = company();
-  const who = `${esc(c.name)}${c.number ? `, a company registered in England and Wales (company number ${esc(c.number)})` : ''}${c.address ? `, ${esc(c.address)}` : ''}`;
+  const who = `${esc(c.name)}, trading as Kargom${c.number ? `, a company registered in England and Wales (company number ${esc(c.number)})` : ''}${c.address ? `, registered office ${esc(c.address)}` : ''}`;
   const mail = c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : 'the Help page in your account';
   const body = `
 <p>This notice explains what personal information Kargom.co.uk collects, why, who we share it with and your rights. The site is run by ${who} ("Kargom", "we"). We are the controller of your personal data under UK data protection law (UK GDPR and the Data Protection Act 2018). Questions or requests: ${mail}.</p>
@@ -425,7 +571,7 @@ export function privacyPage() {
 </ul>
 
 <h2>Cookies</h2>
-<p>We use one essential cookie to keep you signed in, and a short-lived one while you sign in with Google. Your browser also keeps some preferences on your device, such as a booking in progress. We do not use advertising cookies.</p>
+<p>We use only cookies that are strictly necessary to run the site, so we do not ask for cookie consent. We do not use advertising or analytics cookies. Full details are in our <a href="/cookies">cookie policy</a>.</p>
 
 <h2>Your rights</h2>
 <p>You can ask to see the personal data we hold about you, correct it, delete it, restrict or object to how we use it, or receive a copy to take elsewhere. Contact ${mail}. We reply within one month. If you are unhappy with how we handle your data, you can complain to the Information Commissioner's Office (ico.org.uk, 0303 123 1113).</p>
@@ -453,7 +599,7 @@ export function sitemap(prices: SeoPrices) {
   const uk = prices.latest(UK_WEIGHTS.map(SeoPrices.ukKey));
   const day = (iso: string | null) => (iso ?? new Date().toISOString()).slice(0, 10);
   const urls: Array<[string, string | null, string]> = [
-    ['/', uk, '1.0'], ['/parcel-prices', uk, '0.9'], ['/partner', null, '0.5'], ['/freight', null, '0.8'], ['/forwarding', null, '0.7'], ['/couriers', uk, '0.8'], ['/track', null, '0.8'], ['/send-parcel-to', null, '0.7'], ['/guides', null, '0.6'],
+    ['/', uk, '1.0'], ['/parcel-prices', uk, '0.9'], ['/about', null, '0.4'], ['/terms', null, '0.2'], ['/privacy', null, '0.2'], ['/cookies', null, '0.2'], ['/partner', null, '0.5'], ['/freight', null, '0.8'], ['/forwarding', null, '0.7'], ['/couriers', uk, '0.8'], ['/track', null, '0.8'], ['/send-parcel-to', null, '0.7'], ['/guides', null, '0.6'],
     ['/tools/volumetric-weight-calculator', '2026-10-28T00:00:00Z', '0.6'],
     ...CARRIERS.map((c) => [`/couriers/${c.slug}`, uk, '0.8'] as [string, string | null, string]),
     ...(trackPagesOn() ? CARRIERS.map((c) => [`/track/${c.slug}`, '2026-10-28T00:00:00Z', '0.7'] as [string, string | null, string]) : []),
