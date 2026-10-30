@@ -424,6 +424,8 @@ class Component extends DCLogic {
       monthName: now.toLocaleString('en-GB', { month: 'long', year: 'numeric' }),
       barsNote: monthShips.length ? `${monthShips.length} parcel${monthShips.length > 1 ? 's' : ''} this month` : 'No parcels yet this month',
       cardTxt: me.has_card ? 'Charged to your saved card' : 'Add a card at your first card payment',
+      qFromFlag: `/assets/flags/${FLAG[st.qFrom] || 'gb'}.svg`, qToFlag: `/assets/flags/${FLAG[st.qTo] || 'gb'}.svg`,
+      setQFrom: (e) => this.setState({ qFrom: e.target.value }), setQTo: (e) => this.setState({ qTo: e.target.value }),
       quickQuote: (e) => {
         e.preventDefault();
         const kg = Number(String(field('Parcel weight in kg') || '1').replace(',', '.')) || 1;
@@ -433,5 +435,7 @@ class Component extends DCLogic {
     };
   }
 }
+
+const FLAG = { 'United States': 'us', Germany: 'de', France: 'fr', Ireland: 'ie' };
 
 mount(Component, document.getElementById('tpl').textContent, document.getElementById('root'));
