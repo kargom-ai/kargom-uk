@@ -16,8 +16,8 @@ function render() {
   document.getElementById('submit-t').textContent = mode === 'login' ? 'Sign in' : 'Create account';
   const gt = document.getElementById('google-t'); if (gt) gt.textContent = mode === 'login' ? 'Sign in with Google' : 'Sign up with Google';
   document.getElementById('headline').innerHTML = mode === 'login'
-    ? '<b>Welcome back.</b>Cheaper parcel delivery, in one account.'
-    : '<b>Create your account</b>and start saving on parcel delivery.';
+    ? '<b>Welcome back.</b> Cheaper parcel delivery, in one account.'
+    : '<b>Create your account</b> and start saving on parcel delivery.';
   f.password.placeholder = mode === 'login' ? 'Your password' : 'Create a password';
   document.getElementById('hint').textContent = mode === 'register' ? 'Use at least 10 characters for your password.' : '';
   f.password.setAttribute('autocomplete', mode === 'login' ? 'current-password' : 'new-password');
