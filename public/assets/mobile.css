@@ -67,7 +67,7 @@ div[style*="overflow-x: auto"] { position: relative; }
   /* ---------- quotes ---------- */
   body[data-page="quotes"] main { padding: 14px !important; gap: 14px !important; }
   /* Results first; filters open as a sheet from the bottom. */
-  .m-filterbtn { margin-left: auto; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 14px 'Plus Jakarta Sans', sans-serif; cursor: pointer; }
+  .m-filterbtn { margin-left: auto; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; font: 700 14px 'Nunito Sans', sans-serif; cursor: pointer; }
   .m-filters { max-width: none !important; flex: 1 1 100% !important; }
   .m-filters[data-open="false"] { display: none !important; }
   .m-filters[data-open="true"] {
@@ -75,7 +75,7 @@ div[style*="overflow-x: auto"] { position: relative; }
     background: #F4F6FA; padding: 18px 14px calc(14px + env(safe-area-inset-bottom)) !important;
     border-radius: 20px 20px 0 0; box-shadow: 0 -16px 40px rgba(8,14,28,.28);
   }
-  .m-filterdone { position: sticky; bottom: 0; width: 100%; justify-content: center; align-items: center; min-height: 50px; border: 0; border-radius: 12px; background: #2463DB; color: #FFFFFF; font: 700 16px 'Plus Jakarta Sans', sans-serif; cursor: pointer; }
+  .m-filterdone { position: sticky; bottom: 0; width: 100%; justify-content: center; align-items: center; min-height: 50px; border: 0; border-radius: 12px; background: #2463DB; color: #FFFFFF; font: 700 16px 'Nunito Sans', sans-serif; cursor: pointer; }
   .m-sort > button, .m-sort > * { padding-left: 8px !important; padding-right: 8px !important; }
 
   /* ---------- customer app shell (dashboard + send) ---------- */

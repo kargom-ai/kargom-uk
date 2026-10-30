@@ -20,12 +20,12 @@ let root = null;
 
 const CSS = `
 .kc-bg{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.45);display:flex;justify-content:flex-end}
-.kc{width:min(440px,100%);height:100%;background:#F5F7FB;display:flex;flex-direction:column;box-shadow:-10px 0 40px rgba(0,0,0,.2);font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#1F2A3C}
+.kc{width:min(440px,100%);height:100%;background:#F5F7FB;display:flex;flex-direction:column;box-shadow:-10px 0 40px rgba(0,0,0,.2);font-family:'Nunito Sans',system-ui,sans-serif;color:#1F2A3C}
 .kc-h{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#1F2A3C;color:#fff}
-.kc-h b{font:700 16px 'Outfit',sans-serif;display:block}.kc-h small{color:#AEB9C9;font-size:12px}
+.kc-h b{font:700 16px 'Nunito Sans',sans-serif;display:block}.kc-h small{color:#AEB9C9;font-size:12px}
 .kc-av{width:36px;height:36px;border-radius:50%;background:#2463DB;display:grid;place-items:center;flex:none}
 .kc-x{margin-left:auto;width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#fff;font-size:26px;cursor:pointer}
-.kc-new{border:1px solid #3B4A63;background:transparent;color:#DCE4F2;border-radius:8px;padding:6px 10px;font:600 12px 'Plus Jakarta Sans',sans-serif;cursor:pointer}
+.kc-new{border:1px solid #3B4A63;background:transparent;color:#DCE4F2;border-radius:8px;padding:6px 10px;font:600 12px 'Nunito Sans',sans-serif;cursor:pointer}
 .kc-m{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch}
 .kc-b{max-width:86%;padding:10px 13px;border-radius:16px;font-size:15px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word}
 .kc-b.a{background:#fff;border:1px solid #E1E7EF;border-bottom-left-radius:4px;align-self:flex-start}
@@ -37,13 +37,13 @@ const CSS = `
 .kc-qc{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #D6E4FB;border-radius:12px;cursor:pointer;text-align:left;font-family:inherit;color:inherit}
 .kc-qc:hover{border-color:#2463DB}.kc-qc.on{border-color:#16A34A;box-shadow:0 0 0 1px #16A34A}
 .kc-qc img{width:40px;height:28px;object-fit:contain}.kc-qc .t{flex:1;min-width:0;display:flex;flex-direction:column;font-size:13px;color:#586579}.kc-qc .t b{font-size:14px;color:#1F2A3C}
-.kc-qc .p{font:700 17px 'Outfit',sans-serif}
+.kc-qc .p{font:700 17px 'Nunito Sans',sans-serif}
 .kc-sum{align-self:stretch;background:#fff;border:2px solid #16A34A;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;font-size:14px}
-.kc-sum h4{margin:0;font:700 16px 'Outfit',sans-serif}.kc-sum .r{display:grid;grid-template-columns:80px 1fr;gap:4px 10px}.kc-sum .r span{color:#586579}
-.kc-pay{min-height:50px;border:0;border-radius:12px;background:#16A34A;color:#fff;font:700 17px 'Plus Jakarta Sans',sans-serif;cursor:pointer}
+.kc-sum h4{margin:0;font:700 16px 'Nunito Sans',sans-serif}.kc-sum .r{display:grid;grid-template-columns:80px 1fr;gap:4px 10px}.kc-sum .r span{color:#586579}
+.kc-pay{min-height:50px;border:0;border-radius:12px;background:#16A34A;color:#fff;font:700 17px 'Nunito Sans',sans-serif;cursor:pointer}
 .kc-pay[disabled]{opacity:.6}
 .kc-f{display:flex;align-items:flex-end;gap:8px;padding:10px;background:#fff;border-top:1px solid #E1E7EF;padding-bottom:max(10px,env(safe-area-inset-bottom))}
-.kc-f textarea{flex:1;min-height:44px;max-height:140px;resize:none;border:1px solid #C9D6EA;border-radius:12px;padding:11px 12px;font:500 16px 'Plus Jakarta Sans',sans-serif;line-height:1.35}
+.kc-f textarea{flex:1;min-height:44px;max-height:140px;resize:none;border:1px solid #C9D6EA;border-radius:12px;padding:11px 12px;font:500 16px 'Nunito Sans',sans-serif;line-height:1.35}
 .kc-ib{width:44px;height:44px;flex:none;border-radius:12px;border:1px solid #C9D6EA;background:#fff;display:grid;place-items:center;cursor:pointer;position:relative;color:#2463DB}
 .kc-send{width:44px;height:44px;flex:none;border:0;border-radius:12px;background:#2463DB;color:#fff;display:grid;place-items:center;cursor:pointer}
 .kc-err{align-self:center;color:#B42318;font-size:13px;text-align:center}
@@ -132,7 +132,7 @@ async function pay() {
   save(S); close();
   const busy = document.createElement('div');
   busy.style.cssText = 'position:fixed;inset:0;z-index:999;background:rgba(15,23,42,.35);display:grid;place-items:center';
-  busy.innerHTML = '<div style="background:#fff;border-radius:14px;padding:16px 20px;font:600 15px \'Plus Jakarta Sans\',sans-serif;color:#1F2A3C">Opening the secure payment…</div>';
+  busy.innerHTML = '<div style="background:#fff;border-radius:14px;padding:16px 20px;font:600 15px \'Nunito Sans\',sans-serif;color:#1F2A3C">Opening the secure payment…</div>';
   document.body.append(busy);
   try {
     const r = await api('/api/guest/book', { method: 'POST', idempotencyKey: uid(), body: {

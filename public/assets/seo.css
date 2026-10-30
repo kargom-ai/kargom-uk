@@ -1,9 +1,9 @@
 /* Public guide pages (couriers, tracking, destinations, guides). Same look as the rest of Kargom. */
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:#F4F6FA;color:#1F2A3C;font:400 16px/1.6 'Plus Jakarta Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{margin:0;background:#F4F6FA;color:#1F2A3C;font:400 16px/1.6 'Nunito Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:#2463DB}a:hover{color:#1A4FB8}
-h1,h2,h3{font-family:'Outfit',sans-serif;line-height:1.15;margin:0;color:#1F2A3C}
+h1,h2,h3{font-family:'Nunito Sans',sans-serif;line-height:1.15;margin:0;color:#1F2A3C}
 img{max-width:100%;height:auto}
 .in{max-width:1120px;margin:0 auto;padding:0 24px}
 
@@ -26,11 +26,11 @@ img{max-width:100%;height:auto}
 .lead{margin:0;font-size:18px;color:#DCE4F2;max-width:560px}.lead b{color:#FFFFFF}
 
 .qf,.tf,.calc{flex:0 1 400px;width:100%;background:#FFFFFF;color:#1F2A3C;border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 50px rgba(8,14,40,.28)}
-.qf-t{font:600 19px 'Outfit',sans-serif}
+.qf-t{font:600 19px 'Nunito Sans',sans-serif}
 .qf label,.calc label,.tf label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#3E4A5C}
-.qf select,.qf input,.tf input,.calc input,.calc select{min-height:48px;border-radius:10px;border:1px solid #C9D6EA;padding:0 12px;font:500 16px 'Plus Jakarta Sans',sans-serif;color:#1F2A3C;background:#FFFFFF;width:100%}
+.qf select,.qf input,.tf input,.calc input,.calc select{min-height:48px;border-radius:10px;border:1px solid #C9D6EA;padding:0 12px;font:500 16px 'Nunito Sans',sans-serif;color:#1F2A3C;background:#FFFFFF;width:100%}
 .qf select:focus,.qf input:focus,.tf input:focus,.calc input:focus,.calc select:focus{outline:none;border-color:#2463DB;box-shadow:0 0 0 1px #2463DB}
-.qf button,.tf button,.btn{min-height:50px;border:0;border-radius:10px;background:#2463DB;color:#FFFFFF;font:700 16px 'Plus Jakarta Sans',sans-serif;cursor:pointer;padding:0 22px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+.qf button,.tf button,.btn{min-height:50px;border:0;border-radius:10px;background:#2463DB;color:#FFFFFF;font:700 16px 'Nunito Sans',sans-serif;cursor:pointer;padding:0 22px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
 .qf button:hover,.tf button:hover,.btn:hover{background:#1A4FB8;color:#FFFFFF}
 .tf-row{display:flex;gap:8px}.tf-row input{flex:1;min-width:0;text-transform:uppercase}
 .tf-out{margin:0;font-size:14px;color:#586579;min-height:1.5em}
@@ -38,8 +38,8 @@ img{max-width:100%;height:auto}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .calc-out{display:block;padding:14px;border-radius:12px;background:#F5F9FF;border:1px solid #D6E4FB;font-size:15px}
-.calc-out .v{font:700 26px 'Outfit',sans-serif;display:block}
-.calc-line{font:600 18px 'Outfit',sans-serif;padding:14px 16px;border-radius:12px;background:#F5F9FF;border:1px solid #D6E4FB}
+.calc-out .v{font:700 26px 'Nunito Sans',sans-serif;display:block}
+.calc-line{font:600 18px 'Nunito Sans',sans-serif;padding:14px 16px;border-radius:12px;background:#F5F9FF;border:1px solid #D6E4FB}
 
 .wrap{padding-top:32px;padding-bottom:56px;display:flex;flex-direction:column;gap:20px}
 .sec{background:#FFFFFF;border:1px solid #E1E7EF;border-radius:18px;padding:24px;display:flex;flex-direction:column;gap:12px}
@@ -54,7 +54,7 @@ img{max-width:100%;height:auto}
 .tbl th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#586579;background:#F8FAFD;padding:10px 14px;white-space:nowrap}
 .tbl td{padding:12px 14px;border-top:1px solid #EEF2F7;vertical-align:middle}
 .tbl td small{display:block;font-size:12px;color:#586579}
-.tbl .p{font:700 18px 'Outfit',sans-serif;white-space:nowrap}
+.tbl .p{font:700 18px 'Nunito Sans',sans-serif;white-space:nowrap}
 .tbl .c{display:flex;align-items:center;gap:10px}
 .tbl .c img{width:56px;height:28px;object-fit:contain;flex:none}
 .matrix td,.matrix th{text-align:center;white-space:nowrap}.matrix td:first-child,.matrix th:first-child{text-align:left;font-weight:700}
@@ -64,8 +64,8 @@ img{max-width:100%;height:auto}
 .card{background:#FFFFFF;border:1px solid #E1E7EF;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:8px;text-decoration:none;color:#1F2A3C;transition:border-color .15s,box-shadow .15s}
 .card:hover{border-color:#2463DB;box-shadow:0 10px 26px rgba(36,99,219,.12);color:#1F2A3C}
 .card img{width:80px;height:40px;object-fit:contain}
-.card b{font:600 19px 'Outfit',sans-serif}
-.card span{font-size:14px;color:#586579}.card span b{font:700 16px 'Plus Jakarta Sans',sans-serif;color:#1F2A3C}
+.card b{font:600 19px 'Nunito Sans',sans-serif}
+.card span{font-size:14px;color:#586579}.card span b{font:700 16px 'Nunito Sans',sans-serif;color:#1F2A3C}
 
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chips a{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;border:1px solid #C9D6EA;background:#FFFFFF;text-decoration:none;color:#1F2A3C;font-size:14px;font-weight:600}

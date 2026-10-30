@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="/assets/icon-180.png">
 <link rel="manifest" href="/assets/site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800&amp;display=swap">
 <style>
 body{margin:0;background:#F4F6FA}
 a{color:#2463DB}a:hover{color:#1A4FB8}
@@ -18,7 +18,7 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
 .book:hover{background:#1A4FB8}
 .ld{background:#FFFFFF;border:1px solid #DCE2EB;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px}
 .ld-top{display:flex;align-items:center;gap:14px}
-.ld-top b{display:block;font:600 19px 'Outfit',sans-serif}
+.ld-top b{display:block;font:600 19px 'Nunito Sans',sans-serif}
 .ld-top span{font-size:14px;color:#586579}
 .ld-spin{flex:none;width:34px;height:34px;border-radius:50%;border:4px solid #DCE8FD;border-top-color:#2463DB;animation:ldspin .8s linear infinite}
 .ld-bar{height:6px;border-radius:3px;background:#EEF2F7;overflow:hidden}
@@ -33,14 +33,14 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
 @keyframes ldshine{to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){.ld-spin,.ld-bar span,.ld-logos img,.sk i{animation:none}}
 </style>
-<style>.kg-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1F2A3C;color:#fff;padding:12px 18px;border-radius:12px;font:600 14px 'Plus Jakarta Sans',sans-serif;z-index:60;box-shadow:0 12px 30px rgba(8,14,28,.3)}</style>
+<style>.kg-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1F2A3C;color:#fff;padding:12px 18px;border-radius:12px;font:600 14px 'Nunito Sans',sans-serif;z-index:60;box-shadow:0 12px 30px rgba(8,14,28,.3)}</style>
 <script type="module" src="/assets/pages/quotes.js"></script>
 <link rel="stylesheet" href="/assets/mobile.css">
 </head>
 <body data-page="quotes">
 <div id="root"></div>
 <script type="text/x-template" id="tpl">
-<div style="font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #1F2A3C; background: #F4F6FA; width: 100%; min-height: 100vh">
+<div style="font-family: 'Nunito Sans', system-ui, sans-serif; color: #1F2A3C; background: #F4F6FA; width: 100%; min-height: 100vh">
 
   <header style="background: #1F2A3C">
     <div style="max-width: 1180px; margin: 0 auto; padding: 14px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px">
@@ -85,7 +85,7 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
 
     <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
       <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px">
-        <h1 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 26px">{{headTxt}}</h1>
+        <h1 style="margin: 0; font-family: 'Nunito Sans', sans-serif; font-size: 26px">{{headTxt}}</h1>
         <span style="font-size: 13px; color: #586579">Live prices · all prices include VAT</span>
         <button type="button" class="m-only m-filterbtn" onClick="{{toggleFilters}}" aria-expanded="{{filtersOpen}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>Filter</button>
       </div>
@@ -103,9 +103,9 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
       <sc-if value="{{loaded}}">
       <div role="tablist" aria-label="Sort" class="m-sort" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: #FFFFFF; border: 1px solid #DCE2EB; border-radius: 8px; overflow: hidden">
         <sc-for list="{{sorts}}" as="s" hint-placeholder-count="3">
-          <button type="button" role="tab" aria-selected="{{s.on}}" onClick="{{s.pick}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 16px; border: 0; border-bottom: 3px solid {{s.bar}}; background: {{s.bg}}; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; min-height: 70px">
+          <button type="button" role="tab" aria-selected="{{s.on}}" onClick="{{s.pick}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 16px; border: 0; border-bottom: 3px solid {{s.bar}}; background: {{s.bg}}; cursor: pointer; text-align: left; font-family: 'Nunito Sans', sans-serif; min-height: 70px">
             <span style="font-size: 14px; font-weight: 700; color: #1F2A3C">{{s.label}}</span>
-            <span style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 700; color: #1F2A3C; font-variant-numeric: tabular-nums">{{s.price}}</span>
+            <span style="font-family: 'Nunito Sans', sans-serif; font-size: 20px; font-weight: 700; color: #1F2A3C; font-variant-numeric: tabular-nums">{{s.price}}</span>
             <span style="font-size: 12px; color: #586579">{{s.sub}}</span>
           </button>
         </sc-for>
@@ -116,7 +116,7 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
         <article class="card" style="background: #FFFFFF; border: 1px solid #DCE2EB; border-radius: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px; padding: 16px 18px">
           <div style="width: 110px; height: 54px; flex: none; display: grid; place-items: center; background: #F4F6FA; border-radius: 6px">
             <sc-if value="{{r.hasLogo}}" hint-placeholder-val="{{ true }}"><img src="{{r.logo}}" alt="{{r.courier}}" style="max-height: 40px; max-width: 92px; object-fit: contain"></sc-if>
-            <sc-if value="{{r.noLogo}}" hint-placeholder-val="{{ false }}"><b style="font-family: 'Outfit', sans-serif; font-size: 17px">{{r.courier}}</b></sc-if>
+            <sc-if value="{{r.noLogo}}" hint-placeholder-val="{{ false }}"><b style="font-family: 'Nunito Sans', sans-serif; font-size: 17px">{{r.courier}}</b></sc-if>
           </div>
           <div style="flex: 999 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 6px">
             <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
@@ -137,7 +137,7 @@ a{color:#2463DB}a:hover{color:#1A4FB8}
             </div>
           </div>
           <div style="flex: 1 1 170px; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right">
-            <span style="font-family: 'Outfit', sans-serif; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums">{{r.price}}</span>
+            <span style="font-family: 'Nunito Sans', sans-serif; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums">{{r.price}}</span>
             <span style="font-size: 12px; color: #586579">{{r.exVat}} ex VAT</span>
             <a href="#" onClick="{{r.book}}" class="book" style="margin-top: 6px; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 26px; border-radius: 4px; background: #2463DB; color: #FFFFFF; font-weight: 700; text-decoration: none">Book</a>
           </div>

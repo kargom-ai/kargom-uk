@@ -23,20 +23,20 @@ function loadStripe(publishableKey) {
 
 const CSS = `
 .kp-back{position:fixed;inset:0;z-index:200;background:rgba(8,14,28,.62);display:flex;align-items:center;justify-content:center;padding:24px;animation:kpfade .15s ease-out}
-.kp-sheet{width:100%;max-width:470px;max-height:calc(100vh - 32px);overflow-y:auto;background:#FFFFFF;border-radius:20px;box-shadow:0 24px 60px rgba(8,14,40,.35);font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#1F2A3C}
+.kp-sheet{width:100%;max-width:470px;max-height:calc(100vh - 32px);overflow-y:auto;background:#FFFFFF;border-radius:20px;box-shadow:0 24px 60px rgba(8,14,40,.35);font-family:'Nunito Sans',system-ui,sans-serif;color:#1F2A3C}
 .kp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 22px 0}
-.kp-head h2{margin:0;font:600 22px 'Outfit',sans-serif}
+.kp-head h2{margin:0;font:600 22px 'Nunito Sans',sans-serif}
 .kp-sub{margin-top:4px;font-size:14px;color:#586579}
 .kp-x{flex:none;width:40px;height:40px;border-radius:10px;border:1px solid #E1E7EF;background:#FFFFFF;color:#3E4A5C;font:700 18px sans-serif;cursor:pointer}
 .kp-sum{margin:16px 22px 0;padding:14px 16px;border-radius:14px;background:linear-gradient(110deg,#3D6DEB 0%,#2A4FC8 55%,#1D3593 100%);color:#FFFFFF;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .kp-sum span{font-size:14px;color:#DCE4F2}
-.kp-sum b{font:700 26px 'Outfit',sans-serif;font-variant-numeric:tabular-nums}
+.kp-sum b{font:700 26px 'Nunito Sans',sans-serif;font-variant-numeric:tabular-nums}
 .kp-body{padding:18px 22px 22px;display:flex;flex-direction:column;gap:14px}
 .kp-el{min-height:120px}
 .kp-load{display:flex;align-items:center;gap:10px;font-size:14px;color:#586579;padding:18px 0}
 .kp-spin{width:18px;height:18px;border-radius:50%;border:3px solid #C9D6EA;border-top-color:#2463DB;animation:kpspin .8s linear infinite}
 .kp-err{padding:10px 12px;border-radius:10px;background:#FDECEC;color:#B42318;font-size:14px;font-weight:600}
-.kp-pay{min-height:52px;border-radius:12px;border:0;background:#2463DB;color:#FFFFFF;font:700 16px 'Plus Jakarta Sans',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.kp-pay{min-height:52px;border-radius:12px;border:0;background:#2463DB;color:#FFFFFF;font:700 16px 'Nunito Sans',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
 .kp-pay:hover{background:#1A4FB8}.kp-pay:disabled{opacity:.6;cursor:default}
 .kp-safe{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:#586579;text-align:center}
 @keyframes kpspin{to{transform:rotate(360deg)}}
@@ -122,12 +122,12 @@ export function openPaySheet({ publishableKey, clientSecret, amountTxt, title, s
     loadStripe(publishableKey).then((stripe) => {
       const elements = stripe.elements({
         clientSecret,
-        fonts: [{ cssSrc: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&display=swap' }],
+        fonts: [{ cssSrc: 'https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800&display=swap' }],
         appearance: {
           theme: 'stripe',
           variables: {
             colorPrimary: '#2463DB', colorText: '#1F2A3C', colorTextSecondary: '#586579', colorDanger: '#B42318',
-            colorBackground: '#FFFFFF', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSizeBase: '16px',
+            colorBackground: '#FFFFFF', fontFamily: "'Nunito Sans', system-ui, sans-serif", fontSizeBase: '16px',
             borderRadius: '10px', spacingUnit: '4px',
           },
           rules: {

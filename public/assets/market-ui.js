@@ -170,7 +170,7 @@ export function profileDrawer(p) {
   const since = new Date(p.memberSince).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   bg.innerHTML = `<div class="drawer" role="dialog" aria-modal="true" aria-label="${esc(p.company)}">
     <button type="button" class="x" aria-label="Close">×</button>
-    <div class="co">${logoHtml(p, '72px')}<div class="co-t"><b style="font-size:22px;font-family:Outfit,sans-serif">${esc(p.company)}</b><span>${ratingHtml(p)}</span><span class="muted" style="font-size:13px">${p.kind === 'removals' ? 'Removal company' : 'Freight company'} · on Kargom since ${esc(since)}</span></div></div>
+    <div class="co">${logoHtml(p, '72px')}<div class="co-t"><b style="font-size:22px;font-family:'Nunito Sans',sans-serif">${esc(p.company)}</b><span>${ratingHtml(p)}</span><span class="muted" style="font-size:13px">${p.kind === 'removals' ? 'Removal company' : 'Freight company'} · on Kargom since ${esc(since)}</span></div></div>
     <div class="acts"><a class="btn" href="tel:${esc(p.phone.replace(/[^\d+]/g, ''))}">📞 ${esc(p.phone)}</a><a class="btn ghost" href="mailto:${esc(p.email)}">Email</a>${p.website ? `<a class="btn ghost" href="${esc(p.website)}" target="_blank" rel="noopener nofollow">Website</a>` : ''}</div>
     <div class="kvs"><div><span>Jobs won on Kargom</span><b>${p.jobsWon}</b></div><div><span>Average rating</span><b>${p.reviewCount ? `${p.rating.toFixed(1)} / 5` : '—'}</b></div></div>
     ${p.about ? `<div><b>About</b><p style="margin:6px 0 0;line-height:1.55;color:#3E4A5C">${esc(p.about)}</p></div>` : ''}

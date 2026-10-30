@@ -65,7 +65,7 @@ ${headTags(o)}
 <link rel="manifest" href="/assets/site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="/assets/seo.css">
 <link rel="stylesheet" href="/assets/foot.css">
 <script type="module" src="/assets/pages/seo.js"></script>

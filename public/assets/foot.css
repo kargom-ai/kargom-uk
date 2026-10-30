@@ -1,5 +1,5 @@
 /* Site-wide footer with links to the guide pages (server-rendered, crawlable). */
-.foot{font-family:'Plus Jakarta Sans',system-ui,sans-serif;line-height:1.5}
+.foot{font-family:'Nunito Sans',system-ui,sans-serif;line-height:1.5}
 .foot .in{max-width:1120px;margin:0 auto;padding:0 24px}
 .foot{background:#1F2A3C;color:#AEB9C9;font-size:14px;margin-top:0}
 .foot .in{padding-top:36px;padding-bottom:28px;display:flex;flex-direction:column;gap:28px}
