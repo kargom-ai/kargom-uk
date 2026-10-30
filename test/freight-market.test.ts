@@ -52,8 +52,24 @@ test('no key: schedules are switched off quietly', async () => {
   let url = '';
   const f = (async (u: URL, init: any) => { url = String(u); assert.equal(init.headers['Consumer-Key'], 'k'); return new Response(JSON.stringify({ x: [{ departureDate: '2099-01-01', arrivalDate: '2099-02-05' }] })); }) as any;
   const r = await maerskSailings('CN', 'Ningbo', 'GB', '', f) as any;
-  assert.match(url, /collectionOriginCityName=Ningbo/);
-  assert.match(url, /deliveryDestinationCityName=Felixstowe/);
+  assert.match(url, /point-to-point-routes\?placeOfReceipt=CNNGB&placeOfDelivery=GBFXT/);
   assert.equal(r.sailings[0].days, 35);
+  delete process.env.MAERSK_CONSUMER_KEY;
+});
+
+test('DCSA routes: dates from place of receipt and delivery, vessel from the first leg', () => {
+  const j = [{ placeOfReceipt: { dateTime: '2026-11-06T08:00:00Z', location: { UNLocationCode: 'CNSHA' } }, placeOfDelivery: { dateTime: '2026-12-10T08:00:00Z' }, transitTime: 34,
+    legs: [{ transport: { modeOfTransport: 'VESSEL', vesselName: 'MAERSK HONAM', servicePartners: [{ carrierServiceName: 'AE55' }] }, departure: { dateTime: '2026-11-06T08:00:00Z' } }] }];
+  assert.deepEqual(parseSailings(j, Date.parse('2026-10-30')), [{ depart: '2026-11-06', arrive: '2026-12-10', days: 34, vessel: 'MAERSK HONAM', service: 'AE55', stops: 0 }]);
+});
+
+test('falls back to the next Maersk address when one is not switched on', async () => {
+  process.env.MAERSK_CONSUMER_KEY = 'k';
+  const seen: string[] = [];
+  const f = (async (u: URL) => { seen.push(String(u).split('?')[0]!); return String(u).includes('ocean-products')
+    ? new Response(JSON.stringify([{ departureDateTime: '2099-03-01', arrivalDateTime: '2099-04-02' }])) : new Response('{}', { status: 403 }); }) as any;
+  const r = await maerskSailings('CN', '', 'US', 'Houston', f) as any;
+  assert.equal(r.sailings.length, 1);
+  assert.equal(seen.at(-1), 'https://api.maersk.com/products/ocean-products');
   delete process.env.MAERSK_CONSUMER_KEY;
 });

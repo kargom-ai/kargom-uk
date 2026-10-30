@@ -19,7 +19,6 @@ const S = {
   qty: qs.get('qty') || '1', kg: qs.get('kg') || '', l: qs.get('l') || '', w: qs.get('w') || '', h: qs.get('h') || '',
   busy: false, res: null, err: '', me: null, fwd: null,
 };
-if (S.load === 'pallets') { S.l ||= '120'; S.w ||= '100'; S.h ||= '150'; }
 
 const IC = {
   plane: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>',
@@ -99,7 +98,7 @@ function formHtml() {
           <label class="fld">Height (cm)<input class="inp" data-k="h" inputmode="decimal" value="${esc(S.h)}" placeholder="${S.load === 'boxes' ? '40' : '150'}"></label>
         </div><span class="muted fr-tot" id="tot">${esc(totals())}</span>`}
     </div>
-    ${S.err ? `<div class="err">${esc(S.err)}</div>` : ''}
+    <div class="err" id="fr-err" ${S.err ? '' : 'hidden'}>${esc(S.err)}</div>
     <button type="button" class="btn big" data-go ${S.busy ? 'disabled' : ''}>${S.busy ? 'Finding rates…' : 'Compare freight rates'}</button>
   </section>`);
 }
@@ -113,27 +112,40 @@ function quoteHref(mode) {
 
 /* ---------- this week's container market (Drewry WCI) and real Maersk sailings ---------- */
 const niceDay = (iso) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+/** The WCI lane that matches the customer's route, named the way they think of it ("China → UK"). */
+const ASIA = ['CN', 'HK', 'VN', 'TW', 'KR', 'JP', 'TH', 'MY', 'SG', 'IN', 'BD', 'PK', 'ID', 'PH', 'LK'];
+const NEU = ['GB', 'IE', 'NL', 'BE', 'DE', 'FR', 'DK', 'SE', 'NO', 'FI', 'PL', 'LU', 'EE', 'LV', 'LT', 'IS'];
+const MED = ['IT', 'ES', 'PT', 'GR', 'TR', 'HR', 'SI', 'MT', 'CY', 'RO', 'BG', 'AL', 'IL', 'EG'];
+function routeLanes(fromC, toC) {
+  const fromName = fromC === 'CN' ? 'China' : ASIA.includes(fromC) ? place(S.from).n : '';
+  const toName = toC === 'GB' ? 'UK' : place(S.to)?.n || '';
+  if (ASIA.includes(fromC)) {
+    if (toC === 'US') return [['shaLax', `${fromName} → USA West Coast`], ['shaNyc', `${fromName} → USA East Coast`]];
+    if (MED.includes(toC)) return [['shaGoa', `${fromName} → ${toName}`]];
+    if (NEU.includes(toC) || toC === 'GB') return [['shaRtm', `${fromName} → ${toName}`]];
+  }
+  if ((NEU.includes(fromC) || MED.includes(fromC)) && ASIA.includes(toC)) return [['rtmSha', `${fromC === 'GB' ? 'UK' : place(S.from).n} → ${toC === 'CN' ? 'China' : place(S.to).n}`]];
+  if ((NEU.includes(fromC) || MED.includes(fromC)) && toC === 'US') return [['rtmNyc', `${fromC === 'GB' ? 'UK' : place(S.from).n} → USA`]];
+  if (fromC === 'US' && (NEU.includes(toC) || MED.includes(toC))) return [['nycRtm', `USA → ${toName}`]];
+  return [];
+}
+const BENCH = { shaRtm: 'Shanghai → Rotterdam', shaGoa: 'Shanghai → Genoa', shaLax: 'Shanghai → Los Angeles', shaNyc: 'Shanghai → New York', rtmSha: 'Rotterdam → Shanghai', rtmNyc: 'Rotterdam → New York', nycRtm: 'New York → Rotterdam' };
 function marketHtml() {
   const m = S.market;
   if (!m || !m.enabled) return '';
-  const fromAsia = ['CN', 'HK', 'VN', 'TW', 'KR', 'JP', 'TH', 'MY', 'SG', 'IN', 'BD'].includes(code(S.from));
-  const toCode = code(S.to);
-  const hot = fromAsia ? (toCode === 'US' ? ['shaLax', 'shaNyc'] : toCode === 'IT' || toCode === 'ES' || toCode === 'TR' ? ['shaGoa'] : ['shaRtm']) : [];
-  const show = ['shaRtm', 'shaGoa', 'shaLax', 'shaNyc'];
-  const rows = m.lanes.filter((l) => show.includes(l.key)).map((l) => {
-    const up = l.changePct > 0, down = l.changePct < 0;
-    const ch = l.changePct === null ? '' : `<span style="white-space:nowrap;font-weight:700;color:${up ? '#B42318' : down ? '#166534' : '#586579'}">${up ? '▲' : down ? '▼' : '•'} ${Math.abs(l.changePct)}%</span>`;
-    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;${hot.includes(l.key) ? 'background:#EEF4FF;' : ''}">
-      <span>${esc(l.label)}${l.key === 'shaRtm' ? ' <span class="muted" style="font-size:12px">(UK and North Europe)</span>' : ''}</span>
-      <span style="display:flex;gap:12px;align-items:baseline"><b>$${l.usd.toLocaleString('en-GB')}</b>${ch}</span></div>`;
-  }).join('');
-  const main = m.lanes.find((l) => l.key === (hot[0] || 'shaRtm'));
-  const head = main && main.changePct !== null ? `${main.label}: ${main.changePct > 0 ? 'up' : main.changePct < 0 ? 'down' : 'no change'}${main.changePct ? ` ${Math.abs(main.changePct)}%` : ''} on last week` : 'Container prices this week';
-  return `<section class="card fr-market" style="display:flex;flex-direction:column;gap:6px;margin-top:18px">
-    <span class="lbl" style="font-size:12px;font-weight:700;letter-spacing:.04em;color:#2463DB">CONTAINER MARKET · ${esc(new Date(m.week + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase())}</span>
-    <b style="font-size:18px">${esc(head)}</b>
-    <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px">${rows}</div>
-    <span class="muted" style="font-size:12px">Spot price for one 40 ft container, port to port, in US dollars. Source: Drewry World Container Index. Our sea-freight estimates use these figures.</span>
+  const by = Object.fromEntries(m.lanes.map((l) => [l.key, l]));
+  const mine = routeLanes(code(S.from), code(S.to)).filter(([k]) => by[k]);
+  const chg = (l, big) => l.changePct === null ? '' : `<span style="white-space:nowrap;font-weight:700;font-size:${big ? 15 : 13}px;color:${l.changePct > 0 ? '#B42318' : l.changePct < 0 ? '#166534' : '#586579'}">${l.changePct > 0 ? '▲' : l.changePct < 0 ? '▼' : '•'} ${Math.abs(l.changePct)}% on last week</span>`;
+  const top = mine.map(([k, name]) => { const l = by[k]; return `<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 14px;padding:12px 14px;border-radius:10px;background:#EEF4FF">
+      <span><b style="font-size:17px">${esc(name)}</b><span class="muted" style="display:block;font-size:12px">40 ft container, port to port · benchmark ${esc(BENCH[k])}</span></span>
+      <span style="display:flex;gap:12px;align-items:baseline"><b style="font-size:22px">$${l.usd.toLocaleString('en-GB')}</b>${chg(l, true)}</span></div>`; }).join('');
+  const others = ['shaRtm', 'shaGoa', 'shaLax', 'shaNyc'].filter((k) => by[k] && !mine.some(([x]) => x === k)).map((k) => { const l = by[k];
+    return `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 14px;font-size:14px"><span class="muted">${esc(BENCH[k])}</span><span style="display:flex;gap:10px"><b>$${l.usd.toLocaleString('en-GB')}</b>${chg(l, false).replace(' on last week', '')}</span></div>`; }).join('');
+  return `<section class="card fr-market" style="display:flex;flex-direction:column;gap:6px">
+    <span style="font-size:12px;font-weight:700;letter-spacing:.04em;color:#2463DB">CONTAINER MARKET THIS WEEK · ${esc(new Date(m.week + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase())}</span>
+    ${top || '<b style="font-size:17px">Container spot prices</b>'}
+    ${others ? `${top ? '<span class="muted" style="font-size:12px;margin:6px 0 0 14px">Other main routes</span>' : ''}<div style="display:flex;flex-direction:column">${others}</div>` : ''}
+    <span class="muted" style="font-size:12px">Spot price in US dollars for one 40 ft container. Source: Drewry World Container Index. UK ports price at the North Europe benchmark. Our sea-freight estimates use these figures.</span>
   </section>`;
 }
 function sailingsHtml() {
@@ -206,10 +218,14 @@ function fwdHtml() {
     <div class="fr-fwd-foot"><span class="g-attr">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></span>
       ${S.me ? '<span class="muted">WhatsApp opens with your shipment details already written.</span>' : `<span class="muted">Full numbers and WhatsApp are free for members. <a href="/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}">Sign up free</a></span>`}</div>`;
 }
+let fwdKey = '';
 async function loadForwarders() {
   const wanted = fwdPlaces();
+  const key = wanted.map((w) => w.label + w.country).join('|');
+  if (key === fwdKey && S.fwd) return;
+  fwdKey = key;
   S.fwd = wanted.map((w) => ({ ...w, busy: true, places: [], error: null }));
-  render();
+  paint();
   await Promise.all(S.fwd.map(async (g) => {
     try {
       const r = await api(`/api/freight/forwarders?${new URLSearchParams({ place: g.label, country: g.country })}`);
@@ -218,25 +234,47 @@ async function loadForwarders() {
     } catch (e) { g.error = e.message; }
     g.busy = false;
   }));
-  render();
+  paint();
 }
 
 function render() {
   root.className = 'wrap';
   root.innerHTML = `<div class="steps-head"><h1>Compare freight rates</h1><span class="muted">Air, sea and road · free estimates in seconds</span></div>
-    <div class="fr-cols">${formHtml()}${resultsHtml()}</div>${marketHtml()}${fwdHtml()}`;
+    <div class="fr-cols"><div id="fr-form">${formHtml()}</div><div id="fr-out">${marketHtml()}${resultsHtml()}</div></div><div id="fr-fwd">${fwdHtml()}</div>`;
 }
+/** Update the prices, market box and forwarders without touching the form (keeps the cursor where it is). */
+function paint() {
+  const out = document.getElementById('fr-out'), fw = document.getElementById('fr-fwd');
+  if (!out || !fw) { render(); return; }
+  out.innerHTML = marketHtml() + resultsHtml();
+  fw.innerHTML = fwdHtml();
+  const btn = root.querySelector('[data-go]');
+  if (btn) { btn.disabled = S.busy; btn.textContent = S.busy ? 'Finding rates…' : 'Compare freight rates'; }
+  const err = document.getElementById('fr-err'); if (err) err.textContent = S.err || '';
+}
+
+/** Prices follow every change: a short pause after typing, straight away for a click. */
+let timer = null, seq = 0;
+function auto(delay = 500) { clearTimeout(timer); timer = setTimeout(() => go({ auto: true }), delay); }
 
 const looksLikePostcode = (t) => /\d/.test(t) && t.length <= 10;
 const postcodeOf = (typed, p) => { const t = String(typed || '').trim(); return UK_PC.test(t) || (p.code !== 'GB' && looksLikePostcode(t)) ? t : p.pc; };
 const townOf = (typed, p) => { const t = String(typed || '').trim(); return t && !looksLikePostcode(t) ? t : p.city; };
 
-async function go() {
+/** Sample sizes so prices show straight away; the customer changes them to their own. */
+function sample() {
+  if (S.load === 'boxes') { S.kg ||= '20'; S.l ||= '50'; S.w ||= '40'; S.h ||= '40'; }
+  if (S.load === 'pallets') { S.kg ||= '300'; S.l ||= '120'; S.w ||= '100'; S.h ||= '150'; }
+}
+
+async function go({ auto: quiet = false } = {}) {
+  const fail = (msg) => { if (!quiet) { S.err = msg; paint(); } };
   const container = S.load === 'container';
-  if (!container && !(Number(S.kg) > 0)) { S.err = 'Enter the weight of one box or pallet.'; render(); return; }
-  if (S.load === 'boxes' && !(Number(S.l) > 0 && Number(S.w) > 0 && Number(S.h) > 0)) { S.err = 'Enter the size of one box (length, width and height in cm).'; render(); return; }
-  if ((S.toType === 'amazon' || S.toType === 'tiktok') && warehouses().length && !S.fc) { S.err = `Choose the ${S.toType === 'amazon' ? 'Amazon fulfilment centre' : 'TikTok Shop warehouse'}.`; render(); return; }
-  S.err = ''; S.busy = true; render();
+  if (!container && !(Number(S.kg) > 0)) return fail('Enter the weight of one box or pallet.');
+  if (S.load === 'boxes' && !(Number(S.l) > 0 && Number(S.w) > 0 && Number(S.h) > 0)) return fail('Enter the size of one box (length, width and height in cm).');
+  if ((S.toType === 'amazon' || S.toType === 'tiktok') && warehouses().length && !S.fc) return fail(`Choose the ${S.toType === 'amazon' ? 'Amazon fulfilment centre' : 'TikTok Shop warehouse'}.`);
+  const my = ++seq;
+  S.err = ''; S.busy = true; paint();
   const from = place(S.from), dest = destination();
   const fromTxt = `${S.fromCity.trim() || from.city}, ${isUk(S.from) ? 'United Kingdom' : from.n}`;
   const q = new URLSearchParams({
@@ -247,22 +285,25 @@ async function go() {
     fromTown: townOf(S.fromCity, from), toTown: townOf(dest.town || S.toPlace, place(S.to)),
   });
   try {
-    S.res = await api(`/api/freight/rates?${q}`);
+    const res = await api(`/api/freight/rates?${q}`);
+    if (my !== seq) return; // a newer search has started
+    S.res = res;
     const keep = new URLSearchParams({ from: S.from, to: S.to, toType: S.toType, load: S.load, qty: S.qty, ...(S.fromCity && { fromCity: S.fromCity }), ...(S.toPlace && { toPlace: S.toPlace }), ...(S.fc && { fc: S.fc }), ...(container ? { box: S.box } : { kg: S.kg, l: S.l, w: S.w, h: S.h }) });
     history.replaceState(null, '', `/freight?${keep}`);
-  } catch (e) { S.res = null; S.err = e.message; }
-  S.busy = false; render();
-  document.querySelector('.fr-res')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) { if (my !== seq) return; S.res = null; S.err = e.message; }
+  S.busy = false; paint();
+  if (!quiet) document.querySelector('.fr-res')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   if (S.res) { loadForwarders(); loadSailings(); }
 }
 
 async function loadSailings() {
   S.sail = null;
+  const want = `${S.from}|${S.fromCity}|${S.to}|${S.toPlace}|${S.fc}`;
   if (!S.res?.rates?.some((x) => x.mode === 'LCL' || x.mode === 'FCL')) return;
   const dest = destination();
   try {
     const r = await api(`/api/freight/sailings?${new URLSearchParams({ from: place(S.from).code, fromTown: S.fromCity.trim(), to: code(S.to), toTown: dest.town || S.toPlace || '' })}`);
-    if (r.enabled && r.sailings?.length) { S.sail = r; render(); }
+    if (r.enabled && r.sailings?.length && want === `${S.from}|${S.fromCity}|${S.to}|${S.toPlace}|${S.fc}`) { S.sail = r; paint(); }
   } catch { /* schedules are a bonus */ }
 }
 
@@ -270,17 +311,17 @@ root.addEventListener('input', (e) => {
   const k = e.target.dataset?.k;
   if (!k) return;
   S[k] = e.target.value;
-  if (k === 'from' || k === 'to' || k === 'fc' || k === 'box') { if (k === 'to') S.fc = ''; render(); return; }
+  if (k === 'from' || k === 'to' || k === 'fc' || k === 'box') { if (k === 'to') S.fc = ''; render(); auto(0); return; }
   const t = document.getElementById('tot'); if (t) t.textContent = totals();
-});
-/** "Use my location" for UK collections: phone position → nearest postcode. */
+  auto(k === 'fromCity' || k === 'toPlace' ? 900 : 600);
+});/** "Use my location" for UK collections: phone position → nearest postcode. */
 async function locate() {
   if (S.locating) return;
   S.locating = true; render();
   try {
     const { postcodeHere } = await import('../here.js');
     const r = await postcodeHere();
-    S.fromCity = r.postcode; toast(`You are near ${r.postcode}.`);
+    S.fromCity = r.postcode; toast(`You are near ${r.postcode}.`); auto(0);
   } catch (err) { toast(err.message); }
   S.locating = false; render();
 }
@@ -289,17 +330,18 @@ root.addEventListener('click', (e) => {
   const t = e.target.closest('[data-set],[data-go],[data-here]');
   if (!t) return;
   if (t.dataset.here !== undefined) { locate(); return; }
-  if (t.dataset.go !== undefined) { go(); return; }
+  if (t.dataset.go !== undefined) { clearTimeout(timer); go(); return; }
   S[t.dataset.set] = t.dataset.v;
   if (t.dataset.set === 'toType') S.fc = '';
   if (t.dataset.set === 'load') {
-    if (t.dataset.v === 'pallets') { S.l = '120'; S.w = '100'; S.h = '150'; } else if (t.dataset.v === 'boxes') { S.l = ''; S.w = ''; S.h = ''; }
+    S.kg = ''; S.l = ''; S.w = ''; S.h = '';
   }
-  S.err = ''; render();
+  sample(); S.err = ''; render(); auto(0);
 });
 
 document.getElementById('top').insertAdjacentHTML('beforeend', '<a class="toplink" href="/login">Sign in</a>');
 api('/api/me').then((me) => { S.me = me; const a = document.querySelector('#top .toplink'); if (a && me) { a.href = '/app'; a.textContent = 'My account'; } if (S.fwd) render(); }).catch(() => {});
+sample();
 render();
-api('/api/freight/market').then((m) => { S.market = m; render(); }).catch(() => {});
-if (qs.get('kg') || qs.get('box')) go();
+api('/api/freight/market').then((m) => { S.market = m; paint(); }).catch(() => {});
+go({ auto: true });
