@@ -131,7 +131,7 @@ class Component extends DCLogic {
     const SLUG = { 'Royal Mail': 'royal-mail', Evri: 'evri', DPD: 'dpd', InPost: 'inpost', Yodel: 'yodel', Parcelforce: 'parcelforce', UPS: 'ups', DHL: 'dhl', FedEx: 'fedex' };
     const couriers = [['Royal Mail', 'Tracked 24 / 48'], ['Evri', 'Drop-off & collection'], ['DPD', 'Next day, 1-hour window'], ['InPost', '24/7 lockers'],
       ['Yodel', 'Drop-off'], ['Parcelforce', 'Heavy parcels'], ['UPS', 'UK & worldwide'], ['DHL', 'UK & worldwide'], ['FedEx', 'Worldwide express']]
-      .map(([name, note]) => ({ name, note, href: `/couriers/${SLUG[name]}`, logo: LOGOS[name] ? `/assets/carriers/${LOGOS[name]}.png` : '', hasLogo: false, noLogo: true }));
+      .map(([name, note]) => ({ name, note, href: `/couriers/${SLUG[name]}`, logo: LOGOS[name] ? `/assets/carriers/${LOGOS[name]}.png` : '', hasLogo: !!LOGOS[name], noLogo: !LOGOS[name] }));
     const steps = [
       { n: '1', t: 'Compare quotes', d: 'Enter the weight, see every courier and service side by side, sorted by price or speed.' },
       { n: '2', t: 'Book and print', d: 'Pay securely, then print your label at home or show a QR code at the drop-off point.' },
