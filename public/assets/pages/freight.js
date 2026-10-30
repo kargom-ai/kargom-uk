@@ -129,9 +129,14 @@ function formHtml() {
 }
 
 function quoteHref(mode) {
-  const p = new URLSearchParams({ type: 'freight', load: QUOTE_LOAD[mode] || 'ltl', fromCountry: code(S.from), toCountry: code(S.to) });
-  if (S.load !== 'container' && S.kg) p.set('weightKg', String(Math.round(Number(S.kg) * (Number(S.qty) || 1))));
-  if (S.load === 'pallets') p.set('pallets', S.qty);
+  const p = new URLSearchParams({ type: 'freight', load: QUOTE_LOAD[mode] || 'ltl', fromCountry: code(S.from), toCountry: code(S.to), origin: S.origin, dest: S.dest,
+    ...(S.origin === 'port' && S.fromPort && { fromPort: S.fromPort }), ...(S.dest === 'port' && S.toPort && { toPort: S.toPort }), ...(S.dest === 'fc' && S.fc && { fc: S.fc }) });
+  if (S.load === 'container') { p.set('unit', S.box); p.set('units', S.qty || '1'); }
+  else {
+    p.set('unit', S.load); p.set('units', S.qty || '1');
+    if (S.kg) p.set('weightKg', String(Math.round(Number(S.kg) * (Number(S.qty) || 1))));
+    if (S.load === 'pallets') p.set('pallets', S.qty);
+  }
   return `/app/quote?${p}`;
 }
 

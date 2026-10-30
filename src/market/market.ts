@@ -115,7 +115,10 @@ export function cleanDetails(kind: Kind, d: Record<string, unknown>) {
     const cbm = Math.round(n(d.cbm) * 100) / 100;
     const details = {
       load, goods, shipUnit, units, weightKg: weightKg > 0 ? weightKg : 0, cbm: cbm > 0 && cbm < 1000 ? cbm : 0,
-      destType: oneOf(d.destType, ['business', 'home', 'amazon', 'tiktok'] as const, 'business'), fbaCode: s(d.fbaCode, 40),
+      originType: oneOf(d.originType, ['door', 'port'] as const, 'door'), portFrom: s(d.portFrom, 12).toUpperCase(),
+      destType: oneOf(d.destType, ['business', 'home', 'amazon', 'tiktok', 'port', 'warehouse'] as const, 'business'), fbaCode: s(d.fbaCode, 40), portTo: s(d.portTo, 12).toUpperCase(),
+      // marketplace prep the seller wants the forwarder to do before delivery to the fulfilment centre
+      fbaLabelling: b(d.fbaLabelling), fbaPrep: b(d.fbaPrep), fbaAppointment: b(d.fbaAppointment),
       stackable: b(d.stackable), adr: b(d.adr), tempControlled: b(d.tempControlled), notes: s(d.notes, 1000),
     };
     const UNIT: Record<string, [string, string]> = { boxes: ['box', 'boxes'], pallets: ['pallet', 'pallets'], container20: ['20 ft container', '20 ft containers'], container40: ['40 ft container', '40 ft containers'], container40HC: ['40 ft High Cube', '40 ft High Cubes'] };

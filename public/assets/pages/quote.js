@@ -1,4 +1,6 @@
 import { mountShell } from '../shell.js';
+import { portsFor, portAddress } from '../ports.js';
+import { AMAZON, TIKTOK } from '../warehouses.js';
 import { api, esc, wrapLabels, toast, resizeImage, drawMap, routeChips, getRoute, niceDate, L, UK_PC, COUNTRIES, cname, marketConfig } from '../market-ui.js';
 
 /**
@@ -18,7 +20,12 @@ const S = {
     moveType: 'home', itemsText: '', size: ['studio', '1', '2', '3', '4', '5'].includes(qs.get('size')) ? qs.get('size') : '', items: [], packing: false, dismantling: false, storage: false,
     fromPlace: { floor: 'ground', lift: false, parking: 'easy' }, toPlace: { floor: 'ground', lift: false, parking: 'easy' }, dateFlex: 'exact',
     load: ['ftl', 'ltl', 'air', 'sea'].includes(qs.get('load')) ? qs.get('load') : 'ftl', vehicle: '', pallets: qs.get('pallets') || '', palletType: 'uk', goods: '', weightKg: qs.get('weightKg') || '', stackable: false,
-    shipUnit: qs.get('load') === 'sea' ? 'container20' : 'boxes', units: qs.get('pallets') || '1', cbm: '', destType: 'business', fbaCode: '', adr: false, tempControlled: false,
+    shipUnit: ['boxes', 'pallets', 'container20', 'container40', 'container40HC'].includes(qs.get('unit')) ? qs.get('unit') : qs.get('load') === 'sea' ? 'container40' : 'boxes',
+    units: qs.get('units') || qs.get('pallets') || '1', cbm: '', adr: false, tempControlled: false,
+    // from the freight page: port or door at each end, the port codes, the fulfilment centre
+    originType: qs.get('origin') === 'port' ? 'port' : 'door', portFrom: qs.get('fromPort') || '',
+    destType: { port: 'port', warehouse: 'warehouse', business: 'business', home: 'home' }[qs.get('dest')] || (qs.get('dest') === 'fc' ? (String(qs.get('fc')).startsWith('T:') ? 'tiktok' : 'amazon') : 'business'),
+    portTo: qs.get('toPort') || '', fbaCode: String(qs.get('fc') || '').replace(/^[AT]:/, ''), fbaLabelling: false, fbaPrep: false, fbaAppointment: false,
     tailLiftCollection: false, tailLiftDelivery: false, collectWindow: 'any', deliverBy: '', notes: '',
   },
   from: { ...blankAddr(), postcode: (qs.get('from') || '').toUpperCase(), country: qs.get('fromCountry') || 'GB' }, to: { ...blankAddr(), postcode: (qs.get('to') || '').toUpperCase(), country: qs.get('toCountry') || 'GB' },
@@ -99,6 +106,39 @@ const removalSteps = () => [
 const intl = () => S.d.load === 'air' || S.d.load === 'sea';
 const loadSum = () => (S.d.load === 'ftl' ? `FTL · ${L.vehicle[S.d.vehicle] || ''}` : S.d.load === 'ltl' ? `LTL · ${S.d.pallets || '?'} pallets`
   : `${L.load[S.d.load]} · ${S.d.units || 1} × ${L.shipUnit[S.d.shipUnit]}`);
+/* ---- ports and fulfilment centres (sea and air): no address needed, we know where they are ---- */
+const countryPick = (who) => `<label class="fld">Country<select class="inp" data-k="${who}.country">${COUNTRIES.map(([c, n]) => `<option value="${c}" ${S[who].country === c ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`;
+function portPick(who) {
+  const key = who === 'from' ? 'd.portFrom' : 'd.portTo', val = who === 'from' ? S.d.portFrom : S.d.portTo;
+  const list = portsFor(S[who].country);
+  if (!list.length) return `<p class="hint" style="margin:0">We do not list ports for ${esc(cname(S[who].country))} yet. Type the port or airport below.</p>${addressFields(who)}`;
+  const grp = (k, label) => { const l = list.filter((x) => x[2] === k); return l.length ? `<optgroup label="${label}">${l.map(([c, n]) => `<option value="${c}" ${c === val ? 'selected' : ''}>${esc(n)} (${c})</option>`).join('')}</optgroup>` : ''; };
+  return `<label class="fld">Port or airport <i>*</i><select class="inp" data-port="${who}" data-k="${key}"><option value="">Choose…</option>${grp('sea', 'Sea ports')}${grp('air', 'Airports')}</select></label>`;
+}
+const fcList = () => S.d.destType === 'tiktok' ? (TIKTOK[S.to.country] || []).map(([town, pc]) => ({ v: town, t: town, line1: `TikTok Shop warehouse ${town}`, city: town.replace(/,.*$| \(.*\)$/, ''), pc }))
+  : (AMAZON[S.to.country] || []).map(([fc, town, pc]) => ({ v: fc, t: `${fc} · ${town}`, line1: `Amazon ${fc}`, city: town.replace(/,.*$| \(.*\)$/, ''), pc }));
+function fcPick() {
+  const list = fcList(), amz = S.d.destType === 'amazon';
+  const pick = list.length ? `<label class="fld">${amz ? 'Amazon fulfilment centre' : 'TikTok Shop warehouse'} <i>*</i><select class="inp" data-fc="1" data-k="d.fbaCode"><option value="">Choose…</option>${list.map((w) => `<option value="${esc(w.v)}" ${w.v === S.d.fbaCode ? 'selected' : ''}>${esc(w.t)}</option>`).join('')}</select></label>`
+    : `<label class="fld">${amz ? 'Fulfilment centre code' : 'Warehouse'} <em>(optional)</em><input class="inp up" data-k="d.fbaCode" value="${esc(S.d.fbaCode)}" placeholder="${amz ? 'e.g. LTN7' : 'e.g. Rugby'}"></label>${addressFields('to')}`;
+  return `${pick}
+    <div><span class="lbl">Do you need these ${amz ? 'Amazon FBA' : 'TikTok Shop'} services?</span>
+      <div class="toggles" style="flex-direction:column;align-items:flex-start">${sw('d.fbaLabelling', `${amz ? 'FBA' : 'FBT'} labelling: FNSKU product labels and carton labels`, S.d.fbaLabelling)}${sw('d.fbaPrep', 'Prep and packaging: poly bags, bubble wrap, bundles', S.d.fbaPrep)}${sw('d.fbaAppointment', 'Book the warehouse delivery appointment for me', S.d.fbaAppointment)}</div>
+      <span class="hint">Freight companies include these in their price. They show on your request PDF.</span></div>`;
+}
+/** Fill the address from the chosen port or fulfilment centre, so the request carries a real place. */
+function syncPlaces() {
+  if (!intl()) return;
+  if (S.d.originType === 'port' && S.d.portFrom) { const a = portAddress(S.from.country, S.d.portFrom); if (a) S.from = a; }
+  if (S.d.destType === 'port' && S.d.portTo) { const a = portAddress(S.to.country, S.d.portTo); if (a) S.to = a; }
+  if ((S.d.destType === 'amazon' || S.d.destType === 'tiktok') && S.d.fbaCode) {
+    const w = fcList().find((x) => x.v === S.d.fbaCode);
+    if (w) S.to = { line1: w.line1, line2: '', city: w.city, postcode: w.pc, country: S.to.country };
+  }
+}
+const portEnd = (who) => intl() && (who === 'from' ? S.d.originType === 'port' && portsFor(S.from.country).length : S.d.destType === 'port' && portsFor(S.to.country).length);
+const fcEnd = () => intl() && (S.d.destType === 'amazon' || S.d.destType === 'tiktok') && fcList().length;
+
 const freightSteps = () => [
   {
     t: 'Your load', sum: () => [loadSum(), S.d.weightKg && `${S.d.weightKg} kg`].filter(Boolean).join(' · '),
@@ -124,20 +164,20 @@ const freightSteps = () => [
   },
   {
     t: 'Collection', sum: () => [addrSum('from'), niceDate(S.date)].filter(Boolean).join(' · '),
-    body: () => `${addressFields('from')}
+    body: () => `${intl() ? `<div><span class="lbl">Where are the goods?</span>${chips('d.originType', [['door', 'Collect from an address'], ['port', 'At a port / airport']], S.d.originType)}</div>` : ''}
+      ${portEnd('from') ? `${countryPick('from')}${portPick('from')}` : addressFields('from')}
       <div class="row"><label class="fld">${intl() ? 'Goods ready on' : 'Collection date'} <i>*</i><input class="inp" type="date" min="${todayIso}" data-k="date" value="${esc(S.date)}"></label></div>
       ${intl() ? '' : `<div><span class="lbl">Collection time</span>${chips('d.collectWindow', L.collectWindow, S.d.collectWindow)}</div>
       <div class="toggles">${sw('d.tailLiftCollection', 'Needs a tail lift (no forklift on site)', S.d.tailLiftCollection)}</div>`}`,
-    check: () => addrCheck('from', 'collection') || (!S.date ? 'Choose the collection date' : S.date < todayIso ? 'The date is in the past' : ''),
+    check: () => (portEnd('from') ? (!S.d.portFrom ? 'Choose the port or airport' : '') : addrCheck('from', 'collection')) || (!S.date ? 'Choose the collection date' : S.date < todayIso ? 'The date is in the past' : ''),
   },
   {
     t: 'Delivery', sum: () => [addrSum('to'), S.d.deliverBy && `by ${niceDate(S.d.deliverBy)}`].filter(Boolean).join(' · '),
     body: () => `${intl() ? `<div><span class="lbl">Delivering to</span>${chips('d.destType', L.destType, S.d.destType)}</div>
-      ${S.d.destType === 'amazon' || S.d.destType === 'tiktok' ? `<label class="fld">${S.d.destType === 'amazon' ? 'Fulfilment centre code' : 'Warehouse'} <em>(optional)</em><input class="inp up" data-k="d.fbaCode" value="${esc(S.d.fbaCode)}" placeholder="${S.d.destType === 'amazon' ? 'e.g. LTN7 or BHX4' : 'e.g. Rugby'}"></label>` : ''}` : ''}
-      ${addressFields('to')}
-      ${intl() ? '' : `<div class="row"><label class="fld">Deliver by <em>(optional)</em><input class="inp" type="date" min="${S.date || todayIso}" data-k="d.deliverBy" value="${esc(S.d.deliverBy)}"></label></div>
+      ${portEnd('to') ? `${countryPick('to')}${portPick('to')}` : fcEnd() ? `${countryPick('to')}${fcPick()}` : S.d.destType === 'amazon' || S.d.destType === 'tiktok' ? fcPick() : addressFields('to')}`
+      : `${addressFields('to')}<div class="row"><label class="fld">Deliver by <em>(optional)</em><input class="inp" type="date" min="${S.date || todayIso}" data-k="d.deliverBy" value="${esc(S.d.deliverBy)}"></label></div>
       <div class="toggles">${sw('d.tailLiftDelivery', 'Needs a tail lift at delivery', S.d.tailLiftDelivery)}</div>`}`,
-    check: () => addrCheck('to', 'delivery'),
+    check: () => (portEnd('to') ? (!S.d.portTo ? 'Choose the port or airport' : '') : fcEnd() ? (!S.d.fbaCode ? 'Choose the fulfilment centre' : '') : addrCheck('to', 'delivery')),
   },
   {
     t: 'Notes and photos', sum: () => [S.d.notes && 'Notes added', S.photos.length && `${S.photos.length} photos`].filter(Boolean).join(' · ') || 'None',
@@ -168,6 +208,7 @@ function addrCheck(w, label) {
 const tick = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>';
 
 function render() {
+  syncPlaces();
   if (!S.type) {
     root.className = 'wrap';
     root.innerHTML = `<div class="steps-head"><h1>Get a quote</h1><span class="muted">Free · companies send you prices · you choose</span></div>
@@ -309,6 +350,9 @@ root.addEventListener('click', (e) => {
     const v = t.dataset.v;
     set(t.dataset.set, v);
     if (t.dataset.set === 'd.moveType') { S.d.size = ''; }
+    // switching between a port, a fulfilment centre and an address starts that end afresh
+    if (t.dataset.set === 'd.originType') { S.d.portFrom = ''; S.from = { ...blankAddr(), country: S.from.country }; }
+    if (t.dataset.set === 'd.destType') { S.d.portTo = ''; S.d.fbaCode = ''; S.to = { ...blankAddr(), country: S.to.country }; }
     render(); return;
   }
   if (t.dataset.go) { S.step = Number(t.dataset.go); S.err = ''; render(); return; }
@@ -325,7 +369,11 @@ root.addEventListener('input', (e) => {
 });
 root.addEventListener('change', async (e) => {
   const t = e.target;
-  if (t.dataset.k === 'from.country' || t.dataset.k === 'to.country') { render(); return; }
+  if (t.dataset.k === 'from.country' || t.dataset.k === 'to.country') {
+    if (t.dataset.k === 'from.country') S.d.portFrom = ''; else { S.d.portTo = ''; S.d.fbaCode = ''; }
+    render(); return;
+  }
+  if (t.dataset.port || t.dataset.fc) { render(); return; }
   if (t.dataset.k === 'date') render();
   if (t.dataset.pick) {
     const who = t.dataset.pick, a = S.lk[who].items[Number(t.value)];

@@ -20,7 +20,7 @@ const L = {
   dateFlex: { exact: 'This date only', week: 'Within a few days', flexible: 'Flexible' },
   load: { ftl: 'Full truck load (FTL)', ltl: 'Part load / pallets (LTL)', air: 'Air freight', sea: 'Sea freight' },
   shipUnit: { boxes: 'boxes / cartons', pallets: 'pallets', container20: '20 ft container', container40: '40 ft container', container40HC: '40 ft High Cube' },
-  destType: { business: 'Business address', home: 'Home address', amazon: 'Amazon FBA warehouse', tiktok: 'TikTok Shop warehouse' },
+  destType: { business: 'Business address', home: 'Home address', amazon: 'Amazon FBA warehouse', tiktok: 'TikTok Shop warehouse', port: 'Port / airport (customer collects)', warehouse: 'Warehouse' },
   vehicle: { van: 'Large van (up to 1.2 t)', '7.5t': '7.5 tonne lorry', '18t': '18 tonne rigid', '26t': '26 tonne rigid', artic: 'Articulated lorry (13.6 m)' },
   palletType: { uk: 'UK standard 120 x 100 cm', euro: 'Euro 120 x 80 cm', half: 'Half pallet', quarter: 'Quarter pallet', other: 'Other / mixed' },
   collectWindow: { any: 'Any time', am: 'Morning', pm: 'Afternoon' },
@@ -63,8 +63,8 @@ export function requestSheet(job: SheetJob, photos: Buffer[]): Buffer {
     card(M, 'A', '#2463DB', 'MOVING FROM', job.from, p('fromPlace'));
     card(M + half + 14, 'B', '#16A34A', 'MOVING TO', job.to, p('toPlace'));
   } else {
-    card(M, 'A', '#2463DB', 'COLLECTION', job.from, d.load === 'air' || d.load === 'sea' ? [`Ready ${day(job.date)}`] : [`${day(job.date)} · ${L.collectWindow[d.collectWindow] ?? 'Any time'}`, `Tail lift needed: ${yes(d.tailLiftCollection)}`]);
-    card(M + half + 14, 'B', '#16A34A', 'DELIVERY', job.to, d.load === 'air' || d.load === 'sea' ? [L.destType[d.destType] ?? 'Business address'] : [`Deliver by: ${d.deliverBy ? day(d.deliverBy) : 'Flexible'}`, `Tail lift needed: ${yes(d.tailLiftDelivery)}`]);
+    card(M, 'A', '#2463DB', d.originType === 'port' ? 'FROM PORT / AIRPORT' : 'COLLECTION', job.from, d.load === 'air' || d.load === 'sea' ? [d.originType === 'port' ? `Customer delivers to the port · ready ${day(job.date)}` : `Ready ${day(job.date)}`] : [`${day(job.date)} · ${L.collectWindow[d.collectWindow] ?? 'Any time'}`, `Tail lift needed: ${yes(d.tailLiftCollection)}`]);
+    card(M + half + 14, 'B', '#16A34A', d.destType === 'port' ? 'TO PORT / AIRPORT' : 'DELIVERY', job.to, d.load === 'air' || d.load === 'sea' ? [L.destType[d.destType] ?? 'Business address'] : [`Deliver by: ${d.deliverBy ? day(d.deliverBy) : 'Flexible'}`, `Tail lift needed: ${yes(d.tailLiftDelivery)}`]);
   }
   y += 130;
 
@@ -85,7 +85,13 @@ export function requestSheet(job: SheetJob, photos: Buffer[]): Buffer {
     ['Goods', String(d.goods ?? '-')],
     ...(d.weightKg ? [['Total weight', `${Number(d.weightKg).toLocaleString('en-GB')} kg`] as [string, string]] : []),
     ...(d.cbm ? [['Total volume', `${d.cbm} m3`] as [string, string]] : []),
+    ['Service', `${d.originType === 'port' ? 'Port' : 'Door'} to ${d.destType === 'port' ? 'port' : 'door'}`],
     ['Delivering to', `${L.destType[d.destType] ?? 'Business address'}${d.fbaCode ? ` (${d.fbaCode})` : ''}`],
+    ...(d.destType === 'amazon' || d.destType === 'tiktok' ? [
+      [`${d.destType === 'amazon' ? 'FBA' : 'FBT'} labelling (FNSKU and carton labels)`, yes(d.fbaLabelling)],
+      ['Prep and packaging', yes(d.fbaPrep)],
+      ['Book delivery appointment', yes(d.fbaAppointment)],
+    ] as Array<[string, string]> : []),
     ['Hazardous goods', yes(d.adr)],
     ['Temperature controlled', yes(d.tempControlled)],
   ] : [

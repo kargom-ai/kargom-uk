@@ -161,7 +161,7 @@ export const L = {
   dateFlex: { exact: 'This date only', week: 'Within a few days', flexible: 'Flexible' },
   load: { ftl: 'Full truck load (FTL)', ltl: 'Part load / pallets (LTL)', air: 'Air freight', sea: 'Sea freight' },
   shipUnit: { boxes: 'Boxes / cartons', pallets: 'Pallets', container20: '20 ft container', container40: '40 ft container', container40HC: '40 ft High Cube' },
-  destType: { business: 'Business address', home: 'Home address', amazon: 'Amazon FBA warehouse', tiktok: 'TikTok Shop warehouse' },
+  destType: { port: 'Port / airport', warehouse: 'Warehouse', amazon: 'Amazon FBA warehouse', tiktok: 'TikTok Shop warehouse', business: 'Business address', home: 'Home address' },
   vehicle: { van: 'Large van (up to 1.2 t)', '7.5t': '7.5 tonne lorry', '18t': '18 tonne rigid', '26t': '26 tonne rigid', artic: 'Articulated lorry (13.6 m)' },
   palletType: { uk: 'UK standard (120 × 100 cm)', euro: 'Euro (120 × 80 cm)', half: 'Half pallet', quarter: 'Quarter pallet', other: 'Other / mixed' },
   collectWindow: { any: 'Any time', am: 'Morning', pm: 'Afternoon' },
@@ -190,6 +190,8 @@ export function detailsHtml(job) {
     <div><span>Goods</span><b>${esc(d.goods)}</b><span>${[d.weightKg ? `${d.weightKg.toLocaleString('en-GB')} kg` : '', d.cbm ? `${d.cbm} m³` : ''].filter(Boolean).join(' · ') || (ctr ? 'Weight not given' : '')}</span></div>
     <div><span>Ready to collect</span><b>${esc(niceDate(job.date))}</b></div>
     <div><span>Delivering to</span><b>${esc(L.destType[d.destType] || 'Business address')}</b>${d.fbaCode ? `<span>${esc(d.fbaCode)}</span>` : ''}</div>
+    ${d.originType === 'port' || d.destType === 'port' ? `<div><span>Service</span><b>${d.originType === 'port' ? 'Port' : 'Door'} to ${d.destType === 'port' ? 'port' : 'door'}</b></div>` : ''}
+    ${d.fbaLabelling || d.fbaPrep || d.fbaAppointment ? `<div><span>${d.destType === 'tiktok' ? 'FBT' : 'FBA'} services</span><b>${esc([d.fbaLabelling && 'Labelling', d.fbaPrep && 'Prep and packaging', d.fbaAppointment && 'Delivery appointment'].filter(Boolean).join(', '))}</b></div>` : ''}
   </div>
   ${d.stackable || d.adr || d.tempControlled ? `<div class="tags">${yes(d.stackable, 'Stackable')}${yes(d.adr, 'Hazardous goods')}${yes(d.tempControlled, 'Temperature controlled')}</div>` : ''}
   ${d.notes ? `<div><span class="lbl">Notes</span><p style="margin:6px 0 0;line-height:1.55">${esc(d.notes)}</p></div>` : ''}`;

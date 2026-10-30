@@ -2,11 +2,12 @@
  * Main container ports and cargo airports per country: [code, name, 'sea' | 'air'].
  * Codes are UN/LOCODEs for ports and IATA codes for airports, as forwarders write them.
  */
-const P = (code, name) => [code, name, 'sea'];
-const A = (code, name) => [code, name, 'air'];
+const P = (code, name, pc) => [code, name, 'sea', pc];
+const A = (code, name, pc) => [code, name, 'air', pc];
 export const PORTS = {
-  GB: [P('GBFXT', 'Felixstowe'), P('GBLGP', 'London Gateway'), P('GBSOU', 'Southampton'), P('GBLIV', 'Liverpool'), P('GBTIL', 'Tilbury'), P('GBIMM', 'Immingham'), P('GBTEE', 'Teesport'), P('GBGRG', 'Grangemouth'), P('GBBEL', 'Belfast'),
-    A('LHR', 'London Heathrow'), A('STN', 'London Stansted'), A('MAN', 'Manchester Airport'), A('EMA', 'East Midlands Airport'), A('BHX', 'Birmingham Airport')],
+  // UK entries carry the terminal postcode, so a port works as a UK address
+  GB: [P('GBFXT', 'Felixstowe', 'IP11 3SY'), P('GBLGP', 'London Gateway', 'SS17 9DY'), P('GBSOU', 'Southampton', 'SO15 1HJ'), P('GBLIV', 'Liverpool', 'L20 1BY'), P('GBTIL', 'Tilbury', 'RM18 7EH'), P('GBIMM', 'Immingham', 'DN40 2LZ'), P('GBTEE', 'Teesport', 'TS6 6UD'), P('GBGRG', 'Grangemouth', 'FK3 8UE'), P('GBBEL', 'Belfast', 'BT3 9AG'),
+    A('LHR', 'London Heathrow', 'TW6 2GA'), A('STN', 'London Stansted', 'CM24 1QW'), A('MAN', 'Manchester Airport', 'M90 1QX'), A('EMA', 'East Midlands Airport', 'DE74 2SA'), A('BHX', 'Birmingham Airport', 'B26 3QJ')],
   CN: [P('CNSHA', 'Shanghai'), P('CNNGB', 'Ningbo'), P('CNYTN', 'Shenzhen (Yantian)'), P('CNSHK', 'Shenzhen (Shekou)'), P('CNNSA', 'Guangzhou (Nansha)'), P('CNTAO', 'Qingdao'), P('CNXMN', 'Xiamen'), P('CNTXG', 'Tianjin (Xingang)'), P('CNDLC', 'Dalian'),
     A('PVG', 'Shanghai Pudong Airport'), A('CAN', 'Guangzhou Airport'), A('SZX', 'Shenzhen Airport'), A('PEK', 'Beijing Airport'), A('HGH', 'Hangzhou Airport'), A('CGO', 'Zhengzhou Airport')],
   HK: [P('HKHKG', 'Hong Kong'), A('HKG', 'Hong Kong Airport')],
@@ -51,3 +52,11 @@ export const PORTS = {
 };
 export const portsFor = (country) => PORTS[country] || [];
 export const portByCode = (country, c) => portsFor(country).find(([code]) => code === c) || null;
+
+/** A port or airport as an address for a request: the code stands in for a postcode abroad. */
+export function portAddress(country, c) {
+  const p = portByCode(country, c);
+  if (!p) return null;
+  const [code, name, kind, pc] = p;
+  return { line1: `${kind === 'air' ? '' : 'Port of '}${name} (${code})`, line2: '', city: name.replace(/ \(.*\)$/, '').replace(/ Airport$/, ''), postcode: pc || code, country };
+}
