@@ -26,9 +26,17 @@ const IC = {
 
 function priceHtml() {
   const e = S.est;
+  if (S.trq && !S.busy) {
+    const best = S.trq[0];
+    return wrapLabels(`<section class="card fw-calc"><h2>How much to forward my parcel?</h2>
+      <div class="fw-row"><label class="fld">Shop in<select class="inp" data-k="from">${SHOP_IN.map((c) => `<option value="${c}" ${c === S.from ? 'selected' : ''}>${esc(placeByCode(c)?.n || c)}</option>`).join('')}</select></label>
+        <label class="fld">Weight (kg)<input class="inp" data-k="kg" inputmode="decimal" value="${esc(S.kg)}" placeholder="e.g. 2"></label><button type="button" class="btn" data-go>See price</button></div>
+      <div class="est"><span class="est-l">Turkey to the UK, ${esc(S.kg)} kg</span><b>from ${money(best.pence)}</b>
+        <span class="est-n">${S.trq.map((q) => `${esc(q.name)} ${money(q.pence)} (${q.daysMin}–${q.daysMax} working days)`).join(' · ')}. Includes handling. The final price comes from your packed box. UK import VAT, and duty over £135, is paid to the courier on delivery.</span></div></section>`);
+  }
   const body = S.busy ? '<div class="ldr"><span class="spin" aria-hidden="true"></span><b>Working out the price…</b></div>'
     : e ? `<div class="est"><span class="est-l">Estimated delivery to ${esc(name(S.to))}</span><b>${money(e.totalLowPence)} – ${money(e.totalHighPence)}</b>
-        <span class="est-n">For a ${esc(S.kg)} kg parcel (box about ${e.box.l}×${e.box.w}×${e.box.h} cm) by DHL, UPS or FedEx, ${e.daysMin}–${e.daysMax} working days. Includes ${money(e.handlingPence)} for receiving, photos and repacking. Import VAT and any duty are extra.</span></div>`
+        <span class="est-n">For a ${esc(S.kg)} kg parcel (box about ${e.box.l}×${e.box.w}×${e.box.h} cm) by DHL, UPS or FedEx, ${e.daysMin}–${e.daysMax} working days. Includes ${money(e.handlingPence)} for receiving and repacking. Import VAT and any duty are extra.</span></div>`
     : S.err ? `<div class="err">${esc(S.err)}</div>` : '<p class="muted" style="margin:0">Enter the weight to see the price.</p>';
   return wrapLabels(`<section class="card fw-calc">
     <h2>How much to forward my parcel?</h2>
@@ -43,6 +51,11 @@ function priceHtml() {
 }
 
 function joinHtml() {
+  if (S.from === 'TR') {
+    return `<section class="card fw-join"><div><b>Get your free Turkish address</b>
+      <span>Our Istanbul warehouse takes parcels from Trendyol, Hepsiburada, Amazon.com.tr and any Turkish shop. Sign up to get your own code, then shop.</span></div>
+      <a class="btn" href="${S.me ? '/app/turkey' : '/login?mode=register&next=%2Fapp%2Fturkey'}">Get my Turkish address</a></section>`;
+  }
   if (S.joined) return `<section class="card fw-join ok-box"><b>You are on the list</b><span>You are number ${S.joined} on the waiting list. We will email you your free Kargom ${S.from === 'US' ? 'US' : esc(placeByCode(S.from)?.n || '')} address as soon as it opens.</span></section>`;
   return `<section class="card fw-join"><div><b>Get your free ${S.from === 'US' ? 'US' : esc(placeByCode(S.from)?.n || '')} address</b>
       <span>Kargom forwarding opens soon. Join the waiting list and be first to get your address, with no membership fee.</span></div>
@@ -52,15 +65,15 @@ function joinHtml() {
 function render() {
   root.className = 'wrap fw';
   root.innerHTML = `<section class="fw-hero">
-      <h1>Shop in ${esc(name(S.from))}. We deliver it to ${esc(name(S.to))}.</h1>
-      <p>Get a Kargom address at a warehouse in ${esc(name(S.from))}. Buy from any store there, from Amazon and Nike to small shops that do not ship abroad. We receive your parcels, send you photos, combine them into one box and deliver them to your door.</p>
+      <h1>Shop in ${S.from === 'TR' ? 'Turkey' : esc(name(S.from))}. We deliver it to ${esc(name(S.to))}.</h1>
+      <p>${S.from === 'TR' ? 'Get your own address at our Istanbul warehouse. Buy from Trendyol, Hepsiburada, Amazon.com.tr and Turkish shops that do not ship to the UK. We receive your parcels, combine them into one box and deliver them to your door.' : `Get a Kargom address at a warehouse in ${esc(name(S.from))}. Buy from any store there, from Amazon and Nike to small shops that do not ship abroad. We receive your parcels, combine them into one box and deliver them to your door.`}</p>
     </section>
     <div class="fw-cols">${priceHtml()}${joinHtml()}</div>
     <section class="fw-steps"><h2>How it works</h2><div class="fw-grid">
-      <div class="tile"><span class="ic">${IC.pin}</span><b>1. Get your address</b><span>Sign up and get your own address with a personal code, for example Suite KG-10234.</span></div>
+      <div class="tile"><span class="ic">${IC.pin}</span><b>1. Get your address</b><span>Sign up and get your own address with a personal code, for example KG10234.</span></div>
       <div class="tile"><span class="ic">${IC.bag}</span><b>2. Shop and send it there</b><span>Use the address at checkout, like any local customer. Many stores give free delivery to it.</span></div>
-      <div class="tile"><span class="ic">${IC.cam}</span><b>3. We receive and combine</b><span>We email you a photo and the weight. Buying from several stores? We put it all in one box to save you money.</span></div>
-      <div class="tile"><span class="ic">${IC.plane}</span><b>4. Pay and we deliver</b><span>Compare DHL, UPS and FedEx prices, pay, and track your parcel to your door.</span></div>
+      <div class="tile"><span class="ic">${IC.cam}</span><b>3. We receive and combine</b><span>We email you when it arrives, with the weight. Buying from several stores? We put it all in one box to save you money.</span></div>
+      <div class="tile"><span class="ic">${IC.plane}</span><b>4. Pay and we deliver</b><span>Compare courier prices, pay, and track your parcel to your door.</span></div>
     </div></section>
     <section class="fw-faq"><h2>Good to know</h2>
       <details><summary>Do I pay import VAT and duty?</summary><p>Usually, yes. In the UK, goods worth up to £135 have 20% VAT and no duty. Above £135 there is VAT and, for some goods, customs duty. The courier collects these before delivery. We put the real value on the customs form, as the law requires.</p></details>
@@ -72,7 +85,11 @@ function render() {
 async function estimate() {
   const kg = Number(String(S.kg).replace(',', '.'));
   if (!(kg > 0)) { S.err = 'Enter the weight in kg.'; S.est = null; render(); return; }
-  S.busy = true; S.err = ''; render();
+  S.busy = true; S.err = ''; S.trq = null; render();
+  if (S.from === 'TR' && S.to === 'GB') {
+    try { const t = await api(`/api/tr/estimate?kg=${encodeURIComponent(kg)}`); if (t.quotes?.length) S.trq = t.quotes; } catch { /* fall back to the general estimate */ }
+    if (S.trq) { S.busy = false; history.replaceState(null, '', `/forwarding?${new URLSearchParams({ from: 'TR', to: 'GB', kg: String(kg) })}`); render(); return; }
+  }
   try {
     const r = await api(`/api/forwarding/estimate?${new URLSearchParams({ from: S.from, to: S.to, kg: String(kg) })}`);
     S.est = r.estimate; if (!r.estimate) S.err = 'We cannot price this route yet.';
@@ -91,7 +108,7 @@ async function join() {
 root.addEventListener('input', (e) => {
   const k = e.target.dataset?.k; if (!k) return;
   S[k] = e.target.value;
-  if (k === 'from' || k === 'to') { S.est = null; if (S.kg) estimate(); else render(); }
+  if (k === 'from' || k === 'to') { S.est = null; S.trq = null; if (S.kg) estimate(); else render(); }
 });
 root.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.dataset?.k === 'kg') estimate(); });
 root.addEventListener('click', (e) => {

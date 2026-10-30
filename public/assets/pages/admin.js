@@ -133,7 +133,7 @@ class Component extends DCLogic {
     } catch (e) { this.say(e.message); }
   }
 
-  go(v) { this.setState({ view: v }); this.loadView(v); history.replaceState(null, '', v === 'over' ? '/admin' : `/admin?view=${v}`); }
+  go(v) { if (v === 'tr') { location.href = '/admin/turkey'; return; } this.setState({ view: v }); this.loadView(v); history.replaceState(null, '', v === 'over' ? '/admin' : `/admin?view=${v}`); }
 
   pickFirstTicket() {
     const first = this.state.tickets.find((t) => this.state.qTab === 'all' || t.status === this.state.qTab) || this.state.tickets[0];
@@ -179,7 +179,7 @@ class Component extends DCLogic {
 
     // ---- nav + header
     const NAV = [['over', 'Overview', ''], ['flow', 'Shipment flow', ''], ['adj', 'Weight adjustments', String(openAdj.length)], ['sup', 'Support', String(usCount)], ['fin', 'Finance', ''],
-      ['cust', 'Customers', ''], ['conn', 'Connections', ''], ['price', 'Pricing rules', '']];
+      ['cust', 'Customers', ''], ['conn', 'Connections', ''], ['price', 'Pricing rules', ''], ['tr', 'Turkey warehouse', '']];
     const vv = st.view === 'prof' ? 'cust' : st.view;
     const nav = NAV.map(([id, label, badge]) => ({ label, badge: badge === '0' ? '' : badge, badgeBg: badge && badge !== '0' ? '#E5484D' : 'transparent', cur: vv === id ? 'page' : 'false',
       bg: vv === id ? '#2C3A50' : 'transparent', fg: vv === id ? '#FFFFFF' : '#C9D6EA', dot: vv === id ? '#33AEEF' : '#3B4A63', pick: go(id) }));

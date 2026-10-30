@@ -22,9 +22,9 @@ function card(p) {
     <div class="offer-top"><div class="co">${logoHtml(p)}<div class="co-t"><b>${esc(p.company)}</b><span>${rating}</span>${where ? `<span class="muted" style="font-size:13px">${esc(where)}</span>` : ''}</div></div>
       ${p.onKargom ? '<span class="badge booked">On Kargom</span>' : ''}</div>
     <div class="acts">
-      ${p.whatsapp || p.onKargom ? `<a class="btn wa" href="${signup}">${WA}WhatsApp</a>` : ''}
-      ${p.phone ? `<a class="btn ghost" href="${signup}" aria-label="Sign up free to see the full number">📞 ${esc(p.phone)}</a>` : ''}
-      <a class="btn ghost" href="${signup}">Get a quote</a>
+      ${p.whatsapp || p.onKargom ? `<a class="btn wa" href="${signup}">${WA}Sign up to WhatsApp</a>` : ''}
+      ${p.phone ? `<a class="btn ghost" href="${signup}" >📞 Sign up to see number</a>` : ''}
+      <a class="btn ghost" href="${signup}">Sign up to get a quote</a>
     </div>
   </article>`;
 }
@@ -48,7 +48,7 @@ async function main() {
     ${r.estimate ? `<div style="margin-top:16px">${estimateHtml(r.estimate, 'Get real quotes free and pick the best one.')}</div>` : ''}
     ${r.google.filter((p) => p.whatsapp).length > 1 ? `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-top:16px;padding:14px 16px;border-radius:12px;background:#ECFDF3;border:1px solid #86EFAC">
       <span style="flex:1 1 260px;font-size:14px;color:#3E4A5C"><b style="display:block;font-size:16px;color:#1F2A3C">Ask all ${r.google.filter((p) => p.whatsapp).length} companies on WhatsApp</b>Describe your move once. We make a PDF and you send it to every company in a few taps.</span>
-      <a class="btn wa" href="${signup}">${WA}Ask them all</a></div>` : ''}
+      <a class="btn wa" href="${signup}">${WA}Sign up to ask them all</a></div>` : ''}
     ${all.length ? `<div class="list" style="margin-top:16px">${all.map(card).join('')}</div>
       ${r.google.length ? '<p class="g-attr" style="margin-top:10px;justify-content:flex-end;display:flex">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></p>' : ''}
       <p class="muted" style="font-size:13px;margin-top:6px">Full phone numbers and WhatsApp are free for members. <a href="${signup}">Sign up free</a> or <a href="/login?next=${encodeURIComponent(next)}">sign in</a>.</p>`

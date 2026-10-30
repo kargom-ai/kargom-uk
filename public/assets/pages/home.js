@@ -125,13 +125,13 @@ class Component extends DCLogic {
       uk: [L('Cheapest way to send a parcel', '/guides/cheapest-way-to-send-a-parcel-uk'), L('Volumetric weight calculator', '/tools/volumetric-weight-calculator'), L('UK prices by weight', '/parcel-prices'), L('Track a parcel', '/track')],
       freight: [L('China to Amazon FBA UK', '/freight?from=China&to=United+Kingdom&toType=amazon'), L('UK to Amazon USA', '/freight?from=United+Kingdom&to=United+States&toType=amazon'), L('Road freight: FTL / LTL', '/app/quote?type=freight'), L('Freight company? Join as a partner', '/partner')],
       move: [L('Removal company? Join as a partner', '/partner')],
-      fwd: [L('How parcel forwarding works', '/forwarding'), L('Shop in the USA, deliver to the UK', '/forwarding?from=US&to=GB'), L('Track a parcel', '/track')],
+      fwd: [L('Shop in Turkey, deliver to the UK', '/forwarding?from=TR&to=GB'), L('How parcel forwarding works', '/forwarding'), L('Shop in the USA, deliver to the UK', '/forwarding?from=US&to=GB'), L('Track a parcel', '/track')],
       track: [L('Where is my tracking number?', '/track'), L('Royal Mail tracking', '/track/royal-mail'), L('Evri tracking', '/track/evri')],
     };
     const SLUG = { 'Royal Mail': 'royal-mail', Evri: 'evri', DPD: 'dpd', InPost: 'inpost', Yodel: 'yodel', Parcelforce: 'parcelforce', UPS: 'ups', DHL: 'dhl', FedEx: 'fedex' };
     const couriers = [['Royal Mail', 'Tracked 24 / 48'], ['Evri', 'Drop-off & collection'], ['DPD', 'Next day, 1-hour window'], ['InPost', '24/7 lockers'],
       ['Yodel', 'Drop-off'], ['Parcelforce', 'Heavy parcels'], ['UPS', 'UK & worldwide'], ['DHL', 'UK & worldwide'], ['FedEx', 'Worldwide express']]
-      .map(([name, note]) => ({ name, note, href: `/couriers/${SLUG[name]}`, logo: LOGOS[name] ? `/assets/carriers/${LOGOS[name]}.png` : '', hasLogo: !!LOGOS[name], noLogo: !LOGOS[name] }));
+      .map(([name, note]) => ({ name, note, href: `/couriers/${SLUG[name]}`, logo: LOGOS[name] ? `/assets/carriers/${LOGOS[name]}.png` : '', hasLogo: false, noLogo: true }));
     const steps = [
       { n: '1', t: 'Compare quotes', d: 'Enter the weight, see every courier and service side by side, sorted by price or speed.' },
       { n: '2', t: 'Book and print', d: 'Pay securely, then print your label at home or show a QR code at the drop-off point.' },
@@ -143,7 +143,7 @@ class Component extends DCLogic {
       modes, fields: F[st.mode], cta: { label: CTA[st.mode][0], href: CTA[st.mode][1], go: (e) => this.getQuotes(e) }, links: LINKS[st.mode],
       showDims: isParcel && st.dims, laterOn: !st.dims, nowOn: st.dims,
       dimsLater: () => this.setState({ dims: false }), dimsNow: () => this.setState({ dims: true }),
-      video: st.video, vidYt: st.vid?.kind === 'youtube', vidFile: st.vid?.kind === 'file', vidNone: !st.vid, vidSrc: st.vid?.src || '', openVideo: () => this.setState({ video: true }), chatOn: Boolean(st.chat), noChat: !st.chat, openChat: () => import('../chat.js').then((m) => m.openChat()), closeVideo: () => this.setState({ video: false }),
+      video: st.video, vidYt: st.vid?.kind === 'youtube', vidFile: st.vid?.kind === 'file', vidNone: !st.vid, hasVid: Boolean(st.vid), vidSrc: st.vid?.src || '', openVideo: () => this.setState({ video: true }), chatOn: Boolean(st.chat), noChat: !st.chat, openChat: () => import('../chat.js').then((m) => m.openChat()), closeVideo: () => this.setState({ video: false }),
       couriers, steps,
       nav1: me ? { href: me.role === 'admin' ? '/admin' : '/app', label: me.role === 'admin' ? 'Admin' : 'My account' } : { href: '/login?mode=register', label: 'Sign up' },
       nav2: me ? { href: '/app', label: me.name.split(' ')[0] } : { href: '/login', label: 'Log in' },

@@ -1,4 +1,5 @@
 import { Market } from './market/market.ts';
+import { TurkeyForwarding } from './forwarding/turkey.ts';
 import type { Db } from './db/db.ts';
 import { migrate } from './db/migrate.ts';
 import { systemClock, type Clock } from './core/clock.ts';
@@ -71,8 +72,15 @@ export async function createApp(db: Db, config: AppConfig, payments: PaymentGate
     notifier.configure(channels, env.PUBLIC_URL ?? '', policy);
     return channels.map((c) => c.id);
   };
+  const turkey = new TurkeyForwarding(db, clock, ledger, wallet, payments);
+  turkey.publicUrl = market.publicUrl;
+  turkey.notify = async (customerId, subject, heading, lines, link) => {
+    const c = await db.get<{ email: string }>('SELECT email FROM customers WHERE id = $1', [customerId]);
+    return c?.email ? notifier.emailNotice(c.email, subject, heading, lines, link) : null;
+  };
+  webhooks.onFwdPaid = (id, courierId, pi, amount) => turkey.onCardPaid(id, courierId, pi, amount);
   bookings.onLabelReady = (id, instant) => { notifier.labelReady(id, { instant }).catch((e) => console.warn(`[notify] ${id}: ${(e as Error).message}`)); };
-  return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments, notifier, refreshNotifier, market };
+  return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments, notifier, refreshNotifier, market, turkey };
 }
 
 export type App = Awaited<ReturnType<typeof createApp>>;

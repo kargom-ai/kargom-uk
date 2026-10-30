@@ -390,6 +390,36 @@ export function buildRouter(app: App) {
   const freightLimiter = new RateLimiter(40, 60_000);
   on('GET', '/api/forwarding/estimate', 'public', async (c) => { freightLimiter.check(ip(c)); return forwardingEstimate(c.query.get('from'), c.query.get('to'), c.query.get('kg')); });
   on('POST', '/api/forwarding/waitlist', 'public', async (c) => { publicLimiter.check(ip(c)); return joinForwardingWaitlist(app.db, c.body ?? {}, c.user?.customerId ?? null, new Date().toISOString()); });
+
+  // ---------- Turkey warehouse (shop in Turkey, we forward to the UK)
+  on('GET', '/api/tr/estimate', 'public', async (c) => { freightLimiter.check(ip(c)); return app.turkey.estimate(c.query.get('kg'), c.query.get('dims'), c.query.get('parcels') ?? 1); });
+  on('GET', '/api/tr', 'customer', async (c) => app.turkey.overview(me(c)));
+  on('POST', '/api/tr/packages', 'customer', async (c) => app.turkey.addPackage(me(c), c.body ?? {}));
+  on('POST', '/api/tr/packages/:id', 'customer', async (c) => app.turkey.updatePackage(me(c), c.params.id!, c.body ?? {}));
+  on('POST', '/api/tr/packages/:id/remove', 'customer', async (c) => app.turkey.removePackage(me(c), c.params.id!));
+  on('POST', '/api/tr/shipments', 'customer', async (c) => app.turkey.requestShipment(me(c), c.body ?? {}));
+  on('POST', '/api/tr/shipments/:id/cancel', 'customer', async (c) => app.turkey.cancelShipment(me(c), c.params.id!));
+  on('POST', '/api/tr/shipments/:id/pay', 'customer', async (c) => {
+    const r = await app.turkey.pay(me(c), c.params.id!, c.body ?? {}, siteBase(c.req));
+    // Test mode: there is no real Stripe page, so complete the card payment straight away.
+    if ('url' in r && app.payments instanceof FakeGateway) {
+      const ov = await app.turkey.overview(me(c));
+      const sh = ov.shipments.find((x) => x.id === c.params.id);
+      const q = sh?.quotes.find((x) => x.courierId === c.body?.courierId);
+      if (q) await app.webhooks.stripe({ id: `evt_dev_fwd_${c.params.id}_${Date.now()}`, type: 'payment_intent.succeeded',
+        data: { object: { id: `pi_dev_fwd_${c.params.id}_${Date.now()}`, amount_received: q.pence, metadata: { purpose: 'fwd', customer_id: me(c), fwd_id: c.params.id!, courier_id: q.courierId } } } });
+    }
+    return r;
+  });
+  on('GET', '/api/admin/tr', 'admin', async () => app.turkey.adminOverview());
+  on('POST', '/api/admin/tr/settings', 'admin', async (c) => app.turkey.saveSettings(c.body ?? {}));
+  on('POST', '/api/admin/tr/couriers', 'admin', async (c) => app.turkey.saveCourier(c.body ?? {}));
+  on('POST', '/api/admin/tr/couriers/:id/delete', 'admin', async (c) => app.turkey.deleteCourier(c.params.id!));
+  on('POST', '/api/admin/tr/receive', 'admin', async (c) => app.turkey.receive(c.body ?? {}));
+  on('POST', '/api/admin/tr/packages/:id', 'admin', async (c) => app.turkey.adminPackageNote(c.params.id!, c.body ?? {}));
+  on('POST', '/api/admin/tr/shipments/:id/measure', 'admin', async (c) => app.turkey.measure(c.params.id!, c.body ?? {}, Boolean(c.body?.preview)));
+  on('POST', '/api/admin/tr/shipments/:id/ship', 'admin', async (c) => app.turkey.ship(c.params.id!, c.body ?? {}));
+  on('POST', '/api/admin/tr/shipments/:id/delivered', 'admin', async (c) => app.turkey.delivered(c.params.id!));
   on('GET', '/api/freight/forwarders', 'public', async (c) => { publicLimiter.check(ip(c)); return freightForwarders(c.query.get('place'), c.query.get('country'), Boolean(c.user)); });
   on('GET', '/api/freight/rates', 'public', async (c) => { freightLimiter.check(ip(c)); return freightRates(parseFreightQuery(c.query)); });
   /** Next Maersk ships between the main ports (needs MAERSK_CONSUMER_KEY). */

@@ -6,7 +6,7 @@ const gbp = (p) => `£${(p / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',
 
 export const NAV = [
   ['dash', 'Dashboard', '/app'], ['ship', 'Shipments', '/app?view=ship'], ['wallet', 'Wallet', '/app?view=wallet'], ['inv', 'Invoices', '/app?view=inv'],
-  ['addr', 'Address book', '/app?view=addr'], ['req', 'Moving & freight', '/app/requests'], ['int', 'Integrations', '/app?view=int'], ['set', 'Settings', '/app?view=set'], ['help', 'Help', '/app?view=help'],
+  ['addr', 'Address book', '/app?view=addr'], ['req', 'Moving & freight', '/app/requests'], ['tr', 'Shop from Turkey', '/app/turkey'], ['int', 'Integrations', '/app?view=int'], ['set', 'Settings', '/app?view=set'], ['help', 'Help', '/app?view=help'],
 ];
 
 const plus = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>';

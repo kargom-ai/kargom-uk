@@ -285,3 +285,73 @@ CREATE TABLE IF NOT EXISTS market_index (
   source     TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+-- Turkey warehouse (shop in Turkey, we forward to the UK).
+CREATE TABLE IF NOT EXISTS fw_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS fw_suites (
+  customer_id TEXT PRIMARY KEY REFERENCES customers(id),
+  code        TEXT NOT NULL UNIQUE,            -- KG48213: goes on every order's address
+  created_at  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS fw_couriers (
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,                 -- "UPS Express Saver"
+  active        INTEGER NOT NULL DEFAULT 1,
+  divisor       INTEGER NOT NULL DEFAULT 5000, -- volumetric: L×W×H cm / divisor = kg
+  fuel_bp       INTEGER NOT NULL DEFAULT 0,    -- fuel surcharge on the rate, basis points
+  rates         TEXT NOT NULL,                 -- JSON [[upToKg, pence], …] ascending
+  extra_kg_pence INTEGER NOT NULL DEFAULT 0,   -- each kg above the last band (0 = not allowed)
+  max_kg        INTEGER NOT NULL DEFAULT 30,
+  days_min      INTEGER NOT NULL DEFAULT 2,
+  days_max      INTEGER NOT NULL DEFAULT 5,
+  tracking_url  TEXT,                          -- https://…{n}… ({n} = tracking number)
+  note          TEXT,
+  sort          INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS fw_packages (
+  id               TEXT PRIMARY KEY,
+  customer_id      TEXT NOT NULL REFERENCES customers(id),
+  status           TEXT NOT NULL,              -- expected | received | requested | shipped | discarded
+  store            TEXT,
+  order_no         TEXT,
+  inbound_tracking TEXT,
+  description      TEXT,
+  value_try        INTEGER,                    -- what the customer paid, whole lira
+  weight_g         INTEGER,
+  dims             TEXT,                       -- "40x30x20" cm, as measured on arrival
+  admin_note       TEXT,
+  hold             INTEGER NOT NULL DEFAULT 0, -- customer asked us to keep it for now
+  shipment_id      TEXT,
+  received_at      TEXT,
+  created_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS fw_packages_customer ON fw_packages(customer_id);
+CREATE TABLE IF NOT EXISTS fw_shipments (
+  id           TEXT PRIMARY KEY,
+  ref          TEXT NOT NULL UNIQUE,           -- TR-10001
+  customer_id  TEXT NOT NULL REFERENCES customers(id),
+  status       TEXT NOT NULL,                  -- requested | quoted | paid | shipped | delivered | cancelled
+  address      TEXT NOT NULL,                  -- JSON UK delivery address
+  note         TEXT,
+  weight_g     INTEGER,
+  dims         TEXT,
+  quotes       TEXT,                           -- JSON price per courier, fixed when we measure
+  courier_id   TEXT,
+  courier_name TEXT,
+  price_pence  INTEGER,
+  paid_via     TEXT,                           -- wallet | card
+  payment_ref  TEXT,
+  tracking_no  TEXT,
+  tracking_url TEXT,
+  admin_note   TEXT,
+  created_at   TEXT NOT NULL,
+  quoted_at    TEXT,
+  paid_at      TEXT,
+  shipped_at   TEXT,
+  delivered_at TEXT
+);
+CREATE INDEX IF NOT EXISTS fw_shipments_customer ON fw_shipments(customer_id);

@@ -366,11 +366,11 @@ class Component extends DCLogic {
     const helpBadge = String(st.tickets.filter((t) => t.status === 'waiting_customer').length || '');
 
     // ---- nav
-    const navItems = [['dash', 'Dashboard', ''], ['ship', 'Shipments', String(all.length || '')], ['wallet', 'Wallet', ''], ['inv', 'Invoices', ''], ['addr', 'Address book', ''], ['req', 'Moving & freight', ''],
+    const navItems = [['dash', 'Dashboard', ''], ['ship', 'Shipments', String(all.length || '')], ['wallet', 'Wallet', ''], ['inv', 'Invoices', ''], ['addr', 'Address book', ''], ['req', 'Moving & freight', ''], ['tr', 'Shop from Turkey', ''],
       ['int', 'Integrations', ''], ['set', 'Settings', ''], ['help', 'Help', helpBadge]];
     const nav = navItems.map(([id, label, badge]) => ({ label, badge, cur: st.nav === id ? 'page' : 'false',
       bg: st.nav === id ? '#EAF2FE' : 'transparent', fg: st.nav === id ? '#1D4FB8' : '#3E4A5C', dot: st.nav === id ? '#2463DB' : '#C9D6EA',
-      pick: () => { if (id === 'req') { location.href = '/app/requests'; return; } this.setState({ nav: id }); if (id === 'help' && !st.hT && st.tickets[0]) this.openTicket(st.tickets[0].id); } }));
+      pick: () => { if (id === 'req') { location.href = '/app/requests'; return; } if (id === 'tr') { location.href = '/app/turkey'; return; } this.setState({ nav: id }); if (id === 'help' && !st.hT && st.tickets[0]) this.openTicket(st.tickets[0].id); } }));
 
     const low = st.bal < 20;
     return {

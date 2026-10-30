@@ -242,8 +242,8 @@ function fwdCard(p) {
   const signup = `/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}`;
   const rating = p.rating ? `${stars(p.rating)}<span class="stars-n">${p.rating.toFixed(1)} · ${p.reviewCount} Google review${p.reviewCount === 1 ? '' : 's'}</span>` : '<span class="stars-n">No reviews yet</span>';
   const member = Boolean(S.me);
-  const wa = p.whatsapp ? `<a class="btn wa sm" href="${member && p.intlPhone ? esc(`https://wa.me/${p.intlPhone.replace(/\D/g, '')}?text=${encodeURIComponent(shipText())}`) : signup}" ${member ? 'target="_blank" rel="noopener"' : ''}>${WA}WhatsApp</a>` : '';
-  const tel = p.phone ? `<a class="btn ghost sm" href="${member ? `tel:${esc(String(p.intlPhone || p.phone).replace(/[^\d+]/g, ''))}` : signup}">📞 ${esc(p.phone)}</a>` : '';
+  const wa = p.whatsapp ? `<a class="btn wa sm" href="${member && p.intlPhone ? esc(`https://wa.me/${p.intlPhone.replace(/\D/g, '')}?text=${encodeURIComponent(shipText())}`) : signup}" ${member ? 'target="_blank" rel="noopener"' : ''}>${WA}${member ? 'WhatsApp' : 'Sign up to WhatsApp'}</a>` : '';
+  const tel = p.phone ? `<a class="btn ghost sm" href="${member ? `tel:${esc(String(p.intlPhone || p.phone).replace(/[^\d+]/g, ''))}` : signup}">📞 ${member ? esc(p.phone) : 'Sign up to see number'}</a>` : '';
   const more = member ? `${p.website ? `<a class="btn ghost sm" href="${esc(p.website)}" target="_blank" rel="noopener nofollow">Website</a>` : ''}${p.mapsUrl ? `<a class="btn ghost sm" href="${esc(p.mapsUrl)}" target="_blank" rel="noopener">Map</a>` : ''}` : '';
   return `<article class="offer gplace"><div class="offer-top"><div class="co">${logoHtml(p)}<div class="co-t"><b>${esc(p.company)}</b><span>${rating}</span>${p.area ? `<span class="muted" style="font-size:13px">${esc(p.area)}</span>` : ''}</div></div></div>
     <div class="acts">${wa}${tel}${more}</div></article>`;

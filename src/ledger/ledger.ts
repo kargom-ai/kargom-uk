@@ -25,7 +25,7 @@ export const acct = {
 } as const;
 
 export type Line = { account: string; amount: Pence };
-export type EntryKind = 'topup' | 'hold' | 'capture' | 'release' | 'refund' | 'adjustment' | 'card_sale' | 'provider_cost' | 'credit';
+export type EntryKind = 'topup' | 'hold' | 'capture' | 'release' | 'refund' | 'adjustment' | 'card_sale' | 'provider_cost' | 'credit' | 'fwd_sale';
 
 export type PostInput = {
   idempotencyKey: string;
