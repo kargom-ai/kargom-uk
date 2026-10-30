@@ -265,21 +265,45 @@ function shipText() {
   const dest = destination().text + (toKind() === 'amazon' && S.fc ? ` (Amazon ${S.fc.slice(2)})` : toKind() === 'tiktok' ? ' (TikTok Shop warehouse)' : '');
   return `Hello, I found you on Kargom.co.uk. Could you quote me for this shipment?\n\nFrom: ${originPlace().text}\nTo: ${dest}\nGoods: ${what}\n\nPlease send your best price for air and sea, door to door. Thank you.`;
 }
-function fwdCard(p) {
+function fwdCard(p, where = '') {
   const signup = `/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}`;
   const rating = p.rating ? `${stars(p.rating)}<span class="stars-n">${p.rating.toFixed(1)} · ${p.reviewCount} Google review${p.reviewCount === 1 ? '' : 's'}</span>` : '<span class="stars-n">No reviews yet</span>';
   const member = Boolean(S.me);
   const wa = p.whatsapp ? `<a class="btn wa sm" href="${member && p.intlPhone ? esc(`https://wa.me/${p.intlPhone.replace(/\D/g, '')}?text=${encodeURIComponent(shipText())}`) : signup}" ${member ? 'target="_blank" rel="noopener"' : ''}>${WA}${member ? 'WhatsApp' : 'Sign up to WhatsApp'}</a>` : '';
   const tel = p.phone ? `<a class="btn ghost sm" href="${member ? `tel:${esc(String(p.intlPhone || p.phone).replace(/[^\d+]/g, ''))}` : signup}">📞 ${member ? esc(p.phone) : 'Sign up to see number'}</a>` : '';
   const more = member ? `${p.website ? `<a class="btn ghost sm" href="${esc(p.website)}" target="_blank" rel="noopener nofollow">Website</a>` : ''}${p.mapsUrl ? `<a class="btn ghost sm" href="${esc(p.mapsUrl)}" target="_blank" rel="noopener">Map</a>` : ''}` : '';
-  return `<article class="offer gplace"><div class="offer-top"><div class="co">${logoHtml(p)}<div class="co-t"><b>${esc(p.company)}</b><span>${rating}</span>${p.area ? `<span class="muted" style="font-size:13px">${esc(p.area)}</span>` : ''}</div></div></div>
+  return `<article class="offer gplace"><div class="offer-top"><div class="co">${logoHtml(p)}<div class="co-t"><b>${esc(p.company)}</b><span>${rating}</span>${where ? `<span class="fr-where">${esc(where)}</span>` : ''}${p.area ? `<span class="muted" style="font-size:13px">${esc(p.area)}</span>` : ''}</div></div></div>
     <div class="acts">${wa}${tel}${more}</div></article>`;
+}
+/** Best first: good rating with enough reviews to trust it. */
+const fwdScore = (p) => (p.rating || 0) * Math.min(1, (p.reviewCount || 0) / 25) + Math.min(p.reviewCount || 0, 500) / 100000;
+/** The pick shown right under the prices: the 2 best at the destination and the best at the origin. */
+function topPicks() {
+  if (!S.fwd) return [];
+  const best = (side, n) => {
+    const g = S.fwd.find((x) => x.side === side);
+    return g ? [...g.places].sort((a, b) => fwdScore(b) - fwdScore(a)).slice(0, n).map((p) => ({ p, where: `In ${g.label.split(', ').pop()}` })) : [];
+  };
+  return [...best('to', 2), ...best('from', 1)];
+}
+const pickKey = (p) => p.placeId || p.id || `${p.company}|${p.phone || ''}`;
+function topHtml() {
+  if (!S.res || !S.fwd) return '';
+  if (S.fwd.some((g) => g.busy)) return '<section class="card fr-top"><b class="fr-top-h">Recommended forwarders</b><p class="muted" style="margin:0">Finding companies…</p></section>';
+  const picks = topPicks();
+  if (!picks.length) return '';
+  return `<section class="fr-top"><div class="fr-top-head"><h2>Recommended forwarders</h2><span class="muted">Best rated on Google at both ends of your route</span></div>
+    <div class="list">${picks.map(({ p, where }) => fwdCard(p, where)).join('')}</div></section>`;
 }
 function fwdHtml() {
   if (!S.fwd) return '';
-  const cols = S.fwd.map((g) => `<section class="fr-fwd-col"><h3>Freight forwarders in ${esc(g.label)}</h3>
-    ${g.busy ? '<p class="muted" style="margin:0">Finding companies…</p>' : g.places.length ? `<div class="list">${g.places.map(fwdCard).join('')}</div>`
-      : `<p class="muted" style="margin:0">${g.error ? esc(g.error) : 'No companies listed here yet.'}</p>`}</section>`).join('');
+  const shown = new Set(topPicks().map(({ p }) => pickKey(p)));
+  const cols = S.fwd.map((g) => {
+    const rest = g.places.filter((p) => !shown.has(pickKey(p)));
+    return `<section class="fr-fwd-col"><h3>${shown.size ? 'More f' : 'F'}reight forwarders in ${esc(g.label)}</h3>
+    ${g.busy ? '<p class="muted" style="margin:0">Finding companies…</p>' : rest.length ? `<div class="list">${rest.map((p) => fwdCard(p)).join('')}</div>`
+      : `<p class="muted" style="margin:0">${g.error ? esc(g.error) : g.places.length ? 'All shown above.' : 'No companies listed here yet.'}</p>`}</section>`;
+  }).join('');
   if (S.fwd.every((g) => !g.busy && !g.places.length && !g.error)) return '';
   return `<div class="fr-fwd">${cols}</div>
     <div class="fr-fwd-foot"><span class="g-attr">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></span>
@@ -307,7 +331,7 @@ async function loadForwarders() {
 function render() {
   root.className = 'wrap';
   root.innerHTML = `<div class="steps-head"><h1>Compare freight rates</h1><span class="muted">Air, sea and road · free estimates in seconds</span></div>
-    <div class="fr-cols"><div id="fr-form">${formHtml()}</div><div id="fr-out">${marketHtml()}${resultsHtml()}</div></div><div id="fr-fwd">${fwdHtml()}</div>`;
+    <div class="fr-cols ${S.res || S.busy ? 'has-res' : ''}"><div id="fr-form">${formHtml()}</div><div id="fr-out">${marketHtml()}${resultsHtml()}</div><div id="fr-top">${topHtml()}</div></div><div id="fr-fwd">${fwdHtml()}</div>`;
 }
 /** Update the prices, market box and forwarders without touching the form (keeps the cursor where it is). */
 function paint() {
@@ -315,6 +339,8 @@ function paint() {
   if (!out || !fw) { render(); return; }
   out.innerHTML = marketHtml() + resultsHtml();
   fw.innerHTML = fwdHtml();
+  const top = document.getElementById('fr-top'); if (top) top.innerHTML = topHtml();
+  root.querySelector('.fr-cols')?.classList.toggle('has-res', Boolean(S.res || S.busy));
   const btn = root.querySelector('[data-go]');
   if (btn) { btn.disabled = S.busy; btn.innerHTML = S.busy ? 'Finding rates…' : `Compare freight rates ${FX.arrow}`; }
   const err = document.getElementById('fr-err'); if (err) err.textContent = S.err || '';

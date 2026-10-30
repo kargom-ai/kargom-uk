@@ -317,3 +317,20 @@ textarea.inp { min-height: 96px; padding: 10px 12px; resize: vertical; line-heig
   .fx select.inp { padding-right: 34px; }
   .fx .fx-chev { right: 10px; }
 }
+
+/* freight page order: form | prices + recommended forwarders. On phones, after a search: prices, recommended, then the form. */
+.fr-cols { grid-template-areas: "form out" "form top"; }
+#fr-form { grid-area: form; }
+#fr-out { grid-area: out; min-width: 0; }
+#fr-top { grid-area: top; min-width: 0; }
+#fr-top:empty { display: none; }
+.fr-top { display: flex; flex-direction: column; gap: 10px; }
+.fr-top-head { display: flex; flex-direction: column; gap: 2px; }
+.fr-top-head h2 { margin: 0; font: 700 22px 'Nunito Sans', sans-serif; }
+.fr-top-head .muted { font-size: 14px; }
+.fr-top-h { font-size: 16px; }
+.fr-where { align-self: flex-start; margin: 2px 0; padding: 2px 9px; border-radius: 999px; background: #EAF2FE; color: #1D4FB8; font-size: 12px; font-weight: 700; }
+@media (max-width: 900px) {
+  .fr-cols { grid-template-areas: "form" "out" "top"; }
+  .fr-cols.has-res { grid-template-areas: "out" "top" "form"; }
+}
