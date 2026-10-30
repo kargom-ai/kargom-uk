@@ -13,6 +13,7 @@ function render() {
   document.getElementById('t-register').setAttribute('aria-selected', String(mode === 'register'));
   document.getElementById('reg-fields').hidden = mode !== 'register';
   document.getElementById('submit-t').textContent = mode === 'login' ? 'Sign in' : 'Create account';
+  const gt = document.getElementById('google-t'); if (gt) gt.textContent = mode === 'login' ? 'Sign in with Google' : 'Sign up with Google';
   document.getElementById('headline').innerHTML = mode === 'login'
     ? '<b>Welcome back.</b>Cheaper parcel delivery, in one account.'
     : '<b>Create your account</b>and start saving on parcel delivery.';
@@ -24,6 +25,21 @@ function render() {
 document.getElementById('t-login').addEventListener('click', () => { mode = 'login'; msg.replaceChildren(); render(); });
 document.getElementById('t-register').addEventListener('click', () => { mode = 'register'; msg.replaceChildren(); render(); });
 render();
+
+/* Continue with Google: shown when the site has Google keys; returns here with ?error= if it fails */
+api('/api/auth/providers').then((p) => {
+  if (!p.google) return;
+  document.getElementById('google').href = `/api/auth/google${next ? `?next=${encodeURIComponent(next)}` : ''}`;
+  document.getElementById('google-g').hidden = !p.googleLogo;
+  document.getElementById('google-box').hidden = false;
+}).catch(() => {});
+const GOOGLE_ERR = {
+  google_cancelled: 'Google sign-in was cancelled.',
+  google_state: 'That Google sign-in link expired. Please try again.',
+  google_failed: 'We could not sign you in with Google. Please try again, or use your email.',
+  google_off: 'Google sign-in is not switched on yet. Please use your email.',
+};
+if (GOOGLE_ERR[params.get('error')]) { const d = document.createElement('div'); d.className = 'err'; d.textContent = GOOGLE_ERR[params.get('error')]; msg.replaceChildren(d); }
 const eye = document.getElementById('eye');
 eye.addEventListener('click', () => {
   const show = f.password.type === 'password';

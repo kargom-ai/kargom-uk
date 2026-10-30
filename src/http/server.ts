@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
@@ -17,6 +18,7 @@ import { addressFromImage, addressFromText } from '../address/fromImage.ts';
 import { chatTurn } from '../chat/agent.ts';
 import { GuestCheckout } from '../guest/guest.ts';
 import { routeInfo, coords } from '../market/route.ts';
+import { googleEnabled, googleAuthUrl, googleUser, newState } from '../auth/google.ts';
 import { placeLogo } from '../market/places.ts';
 import { freightRates, parseFreightQuery } from '../freight/rates.ts';
 import { freightForwarders } from '../freight/forwarders.ts';
@@ -218,6 +220,40 @@ export function buildRouter(app: App) {
     c.res.setHeader('Set-Cookie', `kg_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 86400}`);
     const partner = await app.market.partnerOf(principal.customerId);
     return { token, role: principal.role, partner: Boolean(partner) };
+  });
+  /* ---------- Continue with Google */
+  const safeNext = (v: unknown) => { const x = String(v ?? ''); return x.startsWith('/') && !x.startsWith('//') && !x.includes('\\') ? x.slice(0, 300) : ''; };
+  const redirect = (c: Ctx, to: string, cookies: string[] = []) => { c.res.writeHead(302, { Location: to, 'Cache-Control': 'no-store', ...(cookies.length ? { 'Set-Cookie': cookies } : {}) }); c.res.end(); return null; };
+  // Google's official "G" mark, if it has been added to public/assets (see .env.example)
+  const googleLogo = existsSync(new URL('../../public/assets/google-g.svg', import.meta.url));
+  on('GET', '/api/auth/providers', 'public', async () => ({ google: googleEnabled(), googleLogo }));
+  on('GET', '/api/auth/google', 'public', async (c) => {
+    loginLimiter.check(ip(c));
+    if (!googleEnabled()) return redirect(c, '/login?error=google_off');
+    const state = newState();
+    const next = safeNext(c.query.get('next'));
+    // the state is checked on the way back, so nobody can finish a sign-in they did not start
+    return redirect(c, googleAuthUrl(`${siteBase(c.req)}/api/auth/google/callback`, state),
+      [`kg_gstate=${state}.${Buffer.from(next).toString('base64url')}; Path=/api/auth/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`]);
+  });
+  on('GET', '/api/auth/google/callback', 'public', async (c) => {
+    loginLimiter.check(ip(c));
+    const clear = 'kg_gstate=; Path=/api/auth/google; HttpOnly; Secure; SameSite=Lax; Max-Age=0';
+    const cookie = /(?:^|;\s*)kg_gstate=([^;]+)/.exec(String(c.req.headers.cookie ?? ''))?.[1] ?? '';
+    const [state, nextB64] = cookie.split('.');
+    const next = safeNext(Buffer.from(nextB64 ?? '', 'base64url').toString('utf8'));
+    if (c.query.get('error')) return redirect(c, `/login?error=google_cancelled${next ? `&next=${encodeURIComponent(next)}` : ''}`, [clear]);
+    if (!state || state !== c.query.get('state') || !c.query.get('code')) return redirect(c, '/login?error=google_state', [clear]);
+    try {
+      const g = await googleUser(String(c.query.get('code')), `${siteBase(c.req)}/api/auth/google/callback`);
+      const { token, principal } = await app.auth.googleSignIn(g);
+      const partner = await app.market.partnerOf(principal.customerId);
+      const to = next || (principal.role === 'admin' ? '/admin' : partner ? '/partner' : '/app');
+      return redirect(c, to, [clear, `kg_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 86400}`]);
+    } catch (e) {
+      console.warn(`[google] ${(e as Error).message}`);
+      return redirect(c, '/login?error=google_failed', [clear]);
+    }
   });
   on('POST', '/api/auth/logout', 'customer', async (c) => {
     const t = tokenFrom(c.req);

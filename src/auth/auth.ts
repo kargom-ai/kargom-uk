@@ -62,10 +62,37 @@ export class AuthService {
       await this.db.run("UPDATE customers SET role = 'admin' WHERE id = $1", [c.id]);
       c.role = 'admin';
     }
+    return this.startSession(c.id, c.role);
+  }
+
+  private async startSession(id: string, role: 'customer' | 'admin') {
     const token = randomBytes(32).toString('base64url');
     const expires = new Date(this.clock.now().getTime() + this.sessionDays * 86_400_000).toISOString();
-    await this.db.run('INSERT INTO sessions (token_hash, customer_id, expires_at) VALUES ($1,$2,$3)', [sha256(token), c.id, expires]);
-    return { token, principal: { customerId: c.id, role: c.role } };
+    await this.db.run('INSERT INTO sessions (token_hash, customer_id, expires_at) VALUES ($1,$2,$3)', [sha256(token), id, expires]);
+    return { token, principal: { customerId: id, role } };
+  }
+
+  /**
+   * Sign in with a Google-verified email: the existing account with that email, or a new one.
+   * A Google-made account has no password (the stored value can never match one), so it signs in
+   * with Google only.
+   */
+  async googleSignIn(g: { email: string; name: string }): Promise<{ token: string; principal: Principal; created: boolean }> {
+    const email = g.email.trim().toLowerCase();
+    let c = await this.db.get<{ id: string; role: 'customer' | 'admin' }>('SELECT id, role FROM customers WHERE email = $1', [email]);
+    let created = false;
+    if (!c) {
+      const id = newId('cus');
+      await this.db.run(
+        `INSERT INTO customers (id, email, name, account_type, password_hash, created_at) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [id, email, g.name.trim() || email.split('@')[0] || email, 'personal', `google$${randomBytes(16).toString('base64url')}`, this.clock.now().toISOString()],
+      );
+      c = { id, role: 'customer' };
+      created = true;
+    }
+    const admins = (process.env.ADMIN_EMAILS ?? '').toLowerCase().split(',').map((x) => x.trim()).filter(Boolean);
+    if (c.role !== 'admin' && admins.includes(email)) { await this.db.run("UPDATE customers SET role = 'admin' WHERE id = $1", [c.id]); c.role = 'admin'; }
+    return { ...(await this.startSession(c.id, c.role)), created };
   }
 
   async authenticate(token: string | undefined): Promise<Principal> {

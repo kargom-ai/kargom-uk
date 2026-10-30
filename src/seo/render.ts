@@ -99,7 +99,7 @@ ${col('Track a parcel', CARRIERS.filter((c) => c.key !== 'fedex').map((c) => [`$
 ${col('Send abroad', Object.entries(DESTINATIONS).map(([slug, d]) => [`Parcel to ${d.name.replace(/^the /, '')}`, `/send-parcel-to/${slug}`]))}
 ${col('Guides and tools', [['UK parcel prices', '/parcel-prices'], ...GUIDES.map((g) => [g.title.replace(/\s*\(.*\)$/, ''), `/guides/${g.slug}`] as [string, string]), ['Volumetric weight calculator', '/tools/volumetric-weight-calculator']])}
 </div>
-<div class="legal"><img src="/assets/logo-white.png" alt="Kargom.co.uk" width="120" height="22" loading="lazy"><span>© ${new Date().getFullYear()} Kargom.co.uk · All prices include VAT</span></div>
+<div class="legal"><img src="/assets/logo-white.png" alt="Kargom.co.uk" width="120" height="22" loading="lazy"><span>© ${new Date().getFullYear()} Kargom.co.uk · All prices include VAT · <a href="/privacy" style="color:inherit">Privacy policy</a></span></div>
 </div></footer>`;
 }
 
@@ -343,6 +343,84 @@ export function calculatorPage() {
 <a class="btn" id="calc-go" href="/quotes?from=United+Kingdom&amp;to=United+Kingdom&amp;kg=2&amp;l=30&amp;w=20&amp;h=15">Compare prices for this parcel</a>
 </form>`)}
 <div class="in wrap"><section class="sec prose"><h2>How it works</h2><p>Couriers charge for whichever is greater: what your parcel weighs on the scales, or its volumetric weight, which is length × width × height ÷ 5,000. A small heavy parcel is charged by weight. A big light one is charged by size.</p><p>Read the full explanation, with examples, in <a href="/guides/volumetric-weight-explained">volumetric weight explained</a>.</p></section>${faqBlock(faq)}</div>`,
+  });
+}
+
+/** Who we are, from Render settings, so the legal pages never carry made-up details. */
+function company() {
+  const admins = (process.env.ADMIN_EMAILS ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+  return {
+    name: process.env.COMPANY_LEGAL_NAME || 'Kargom.co.uk',
+    number: process.env.COMPANY_NUMBER || '',
+    address: process.env.COMPANY_ADDRESS || '',
+    email: process.env.PRIVACY_EMAIL || admins[0] || '',
+  };
+}
+
+export const PRIVACY_UPDATED = '2026-10-30';
+export function privacyPage() {
+  const c = company();
+  const who = `${esc(c.name)}${c.number ? `, a company registered in England and Wales (company number ${esc(c.number)})` : ''}${c.address ? `, ${esc(c.address)}` : ''}`;
+  const mail = c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : 'the Help page in your account';
+  const body = `
+<p>This notice explains what personal information Kargom.co.uk collects, why, who we share it with and your rights. The site is run by ${who} ("Kargom", "we"). We are the controller of your personal data under UK data protection law (UK GDPR and the Data Protection Act 2018). Questions or requests: ${mail}.</p>
+
+<h2>What we collect</h2>
+<ul>
+<li><b>Account details:</b> your name, email address, phone number, company name if you give one, and your password (stored only as a secure hash). If you sign in with Google, we receive your name and verified email address from Google. We do not receive your Google password.</li>
+<li><b>Shipping details:</b> sender and recipient names, addresses, phone numbers and emails, parcel sizes, weights, contents and values, and customs details for shipments abroad.</li>
+<li><b>Moving and freight requests:</b> the addresses, dates, goods, photos and notes you add to a request.</li>
+<li><b>Payments:</b> card payments are taken by Stripe. Your card number goes to Stripe, never to us. We keep a record of what you paid and your wallet balance.</li>
+<li><b>Photos and pasted text you ask us to read an address from</b>, and messages you write to our booking chat assistant.</li>
+<li><b>Your location, only if you press "Use my location"</b> and allow it in your browser. We use it once to find the nearest postcode and do not store it.</li>
+<li><b>Technical data:</b> your IP address and browser details in our server logs, kept for security and to stop abuse.</li>
+</ul>
+
+<h2>Why we use it (and our legal basis)</h2>
+<ul>
+<li>To give you prices, book your shipments, print labels, track parcels and send your requests to removal and freight companies: <b>to perform our contract with you</b>.</li>
+<li>To take payment, keep accounts and meet tax and accounting rules: <b>contract and legal obligation</b>.</li>
+<li>To keep the site secure, prevent fraud and improve our service: <b>legitimate interests</b>.</li>
+<li>To send you service emails about your bookings and requests: <b>contract</b>. We send marketing emails only if you agree, and you can stop them at any time.</li>
+</ul>
+
+<h2>Who we share it with</h2>
+<p>We share only what each one needs to do its job:</p>
+<ul>
+<li><b>Couriers and shipping platforms</b> (for example Royal Mail, Evri, DPD, InPost, UPS, DHL, FedEx, and booking platforms such as ShipStation, Packlink, Eurosender and Cargoboard): the shipment and address details needed to collect and deliver.</li>
+<li><b>Removal and freight companies on Kargom:</b> the details of your request. Your phone number and exact address are shared only with the company whose offer you accept.</li>
+<li><b>Stripe</b> for payments; <b>Google</b> for sign-in, maps, address and company search, and reading text from photos; <b>Anthropic</b> to run the address reading and booking chat assistant; <b>postcodes.io</b> and our address lookup provider for postcode searches; our email provider to send emails; and <b>Render</b>, which hosts the site.</li>
+<li>Customs authorities and couriers abroad when you send a parcel outside the UK, and authorities where the law requires it.</li>
+</ul>
+<p>We never sell your personal data.</p>
+
+<h2>International transfers</h2>
+<p>Some of these providers process data outside the UK, for example in the USA or the EU, and a shipment abroad goes to the destination country. Where data leaves the UK we rely on UK adequacy regulations or the UK International Data Transfer Agreement or Addendum, as the law requires.</p>
+
+<h2>How long we keep it</h2>
+<ul>
+<li>Bookings, payments and invoices: 6 years, as UK tax law requires.</li>
+<li>Your account: until you ask us to close it, then removed except what we must keep by law.</li>
+<li>Moving and freight requests: up to 2 years after the move date.</li>
+<li>Photos and text read for addresses and chat messages: not kept after the answer is returned, except what you save to a booking.</li>
+<li>Server logs: up to 90 days.</li>
+</ul>
+
+<h2>Cookies</h2>
+<p>We use one essential cookie to keep you signed in, and a short-lived one while you sign in with Google. Your browser also keeps some preferences on your device, such as a booking in progress. We do not use advertising cookies.</p>
+
+<h2>Your rights</h2>
+<p>You can ask to see the personal data we hold about you, correct it, delete it, restrict or object to how we use it, or receive a copy to take elsewhere. Contact ${mail}. We reply within one month. If you are unhappy with how we handle your data, you can complain to the Information Commissioner's Office (ico.org.uk, 0303 123 1113).</p>
+
+<h2>Changes</h2>
+<p>We update this notice when our service changes. The date at the top shows the latest version.</p>`;
+  return page({
+    title: 'Privacy Policy | Kargom', description: 'How Kargom.co.uk collects, uses and protects your personal data, who we share it with and your rights.', path: '/privacy',
+    crumbs: [['Privacy policy', '/privacy']],
+    body: `<article class="in wrap art">
+<header class="art-h"><h1>Privacy policy</h1><p class="meta">Last updated ${new Date(PRIVACY_UPDATED + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p></header>
+<div class="prose" style="max-width:760px">${body}</div>
+</article>`,
   });
 }
 

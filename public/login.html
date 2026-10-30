@@ -84,6 +84,10 @@ input:focus{outline:none;border-color:#2463DB;box-shadow:inset 0 0 0 1px #2463DB
         <button type="button" class="tab" role="tab" id="t-register" aria-selected="false">Create account</button>
       </div>
       <form id="f" novalidate style="padding:24px;display:flex;flex-direction:column;gap:14px">
+        <div id="google-box" hidden style="display:flex;flex-direction:column;gap:14px">
+          <a id="google" href="/api/auth/google" style="display:flex;align-items:center;justify-content:center;gap:10px;min-height:48px;border:1px solid #C9D3E0;border-radius:12px;background:#FFFFFF;color:#1F2A3C;font:700 15px 'Plus Jakarta Sans',sans-serif;text-decoration:none"><img id="google-g" src="/assets/google-g.svg" alt="" width="20" height="20" hidden><span id="google-t">Continue with Google</span></a>
+          <div style="display:flex;align-items:center;gap:10px;color:#8593A8;font-size:13px"><span style="flex:1;height:1px;background:#E1E7EF"></span>or with your email<span style="flex:1;height:1px;background:#E1E7EF"></span></div>
+        </div>
         <div id="reg-fields" hidden style="display:flex;flex-direction:column;gap:14px">
           <div role="radiogroup" aria-label="Account type" style="display:flex;gap:10px">
             <label class="type"><input type="radio" name="accountType" value="personal" checked><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="7.5" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0z"></path></svg>Personal</label>
@@ -97,7 +101,7 @@ input:focus{outline:none;border-color:#2463DB;box-shadow:inset 0 0 0 1px #2463DB
         <span id="hint" style="font-size:13px;color:#586579"></span>
         <div id="msg" role="status"></div>
         <button class="go" id="submit" type="submit"><span id="submit-t">Sign in</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-        <span style="font-size:12px;color:#8593A8;text-align:center">By continuing you agree to the Kargom terms and privacy policy.</span>
+        <span style="font-size:12px;color:#8593A8;text-align:center">By continuing you agree to the Kargom terms and <a href="/privacy">privacy policy</a>.</span>
         <a href="/partner" style="font-size:13px;font-weight:700;text-align:center;text-decoration:none">Removal or freight company? Partner sign in →</a>
       </form>
     </section>
