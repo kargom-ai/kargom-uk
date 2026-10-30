@@ -90,15 +90,24 @@ function header() {
 </nav></div></header>`;
 }
 
+/**
+ * Courier tracking guide pages (/track/royal-mail …) are switched off while Google reviews the site,
+ * because brand tracking pages on a new domain look like delivery scams to its classifier.
+ * Set TRACK_PAGES=on in Render to bring them back.
+ */
+export const trackPagesOn = () => process.env.TRACK_PAGES === 'on';
+const trackHref = (slug: string) => (trackPagesOn() ? `/track/${slug}` : '/track');
+
 export function footer() {
   const col = (t: string, links: Array<[string, string]>) => `<div><b>${t}</b>${links.map(([n, h]) => `<a href="${h}">${esc(n)}</a>`).join('')}</div>`;
   return `<footer class="foot"><div class="in">
 <div class="cols">
 ${col('Couriers', CARRIERS.map((c) => [c.name, `/couriers/${c.slug}`]))}
-${col('Track a parcel', CARRIERS.filter((c) => c.key !== 'fedex').map((c) => [`${c.name} tracking`, `/track/${c.slug}`]))}
+${trackPagesOn() ? col('Track a parcel', CARRIERS.filter((c) => c.key !== 'fedex').map((c) => [`${c.name} tracking`, `/track/${c.slug}`])) : col('Track a parcel', [['Track any parcel', '/track']])}
 ${col('Send abroad', Object.entries(DESTINATIONS).map(([slug, d]) => [`Parcel to ${d.name.replace(/^the /, '')}`, `/send-parcel-to/${slug}`]))}
 ${col('Guides and tools', [['UK parcel prices', '/parcel-prices'], ...GUIDES.map((g) => [g.title.replace(/\s*\(.*\)$/, ''), `/guides/${g.slug}`] as [string, string]), ['Volumetric weight calculator', '/tools/volumetric-weight-calculator']])}
 </div>
+<p style="margin:18px 0 0;font-size:12.5px;line-height:1.55;opacity:.8">Kargom.co.uk is an independent service that compares and books couriers. We are not Royal Mail, Evri, DPD, InPost, Yodel, Parcelforce, UPS, DHL or FedEx, and we are not endorsed by them; their names and logos belong to them and are shown only to compare their services. We never send texts or emails asking you to pay to release or redeliver a parcel.</p>
 <div class="legal"><img src="/assets/logo-white.png" alt="Kargom.co.uk" width="120" height="22" loading="lazy"><span>© ${new Date().getFullYear()} Kargom.co.uk · All prices include VAT · <a href="/privacy" style="color:inherit">Privacy policy</a></span></div>
 </div></footer>`;
 }
@@ -196,6 +205,7 @@ export function courierPage(c: CarrierInfo, prices: SeoPrices) {
   return page({
     title, description, path: `/couriers/${c.slug}`, crumbs: [['Couriers', '/couriers'], [c.name, `/couriers/${c.slug}`]], ld,
     body: `${hero(`${esc(c.name)} parcel delivery`, `${esc(c.short)}${from ? ` Today from <b>${gbp(from)}</b> inc VAT.` : ''}`, quoteForm({ title: `Price ${an(c.name)} parcel` }))}
+${notCourier(c.name)}
 <div class="in wrap">
 ${rows.length ? `<section class="sec"><h2>${esc(c.name)} prices today</h2><div class="tblwrap"><table class="tbl"><thead><tr><th>Weight</th><th>Service</th><th>Delivery</th><th>From</th></tr></thead><tbody>
 ${rows.map(([kg, q]) => `<tr><td>${kgTxt(kg)}</td><td>${esc(q!.serviceName)}<small>${q!.dropOff ? 'Drop-off' : 'Collection'}</small></td><td>${days(q!)}</td><td class="p"><a href="/quotes?from=United+Kingdom&amp;to=United+Kingdom&amp;kg=${kg}">${gbp(q!.price)}</a></td></tr>`).join('')}
@@ -205,7 +215,7 @@ ${rows.map(([kg, q]) => `<tr><td>${kgTxt(kg)}</td><td>${esc(q!.serviceName)}<sma
 <div class="ways">${c.ways.map(([t, d]) => `<div><b>${esc(t)}</b><span>${esc(d)}</span></div>`).join('')}</div></section>
 <section class="sec"><h2>Good for</h2><ul class="ticks">${c.goodFor.map((g) => `<li>${esc(g)}</li>`).join('')}</ul></section>
 ${intl.length ? `<section class="sec"><h2>${esc(c.name)} abroad</h2><p>A 2 kg parcel today:</p><div class="chips">${intl.map(([slug, d, q]) => `<a href="/send-parcel-to/${slug}">${esc(d.name.replace(/^the /, ''))} <b>${gbp(q!.price)}</b></a>`).join('')}</div></section>` : ''}
-<section class="sec"><h2>Track ${esc(an(c.name))} parcel</h2><p>${esc(c.track.format)} <a href="/track/${c.slug}">Track ${esc(an(c.name))} parcel</a>.</p></section>
+<section class="sec"><h2>Track ${esc(an(c.name))} parcel</h2><p>${esc(c.track.format)} <a href="${trackHref(c.slug)}">Track ${esc(an(c.name))} parcel</a>.</p></section>
 ${faqBlock(c.faq)}
 <section class="sec"><h2>Compare with other couriers</h2><div class="chips">${others.map((o) => `<a href="/couriers/${o.slug}">${esc(o.name)}</a>`).join('')}<a href="/parcel-prices">All UK prices</a></div></section>
 </div>`,
@@ -227,14 +237,21 @@ export function trackHub() {
     title: 'Track a Parcel: Royal Mail, Evri, DPD, Yodel, UPS and More | Kargom', path: '/track',
     description: 'Paste any tracking number and we work out the courier for you, then take you straight to the right tracking page. Royal Mail, Evri, DPD, Yodel, Parcelforce, UPS, DHL and FedEx.',
     crumbs: [['Track a parcel', '/track']],
-    body: `${hero('Track a parcel', 'Not sure which courier has it? Paste the tracking number and we will recognise the courier from its format.', trackForm())}
+    body: `${hero('Track a parcel', 'Not sure which courier has it? Paste the tracking number and we will recognise the courier and open its own tracking page.', trackForm())}
+${notCourier('')}
 <div class="in wrap">
 <section class="sec"><h2>Tracking number formats</h2><div class="tblwrap"><table class="tbl"><thead><tr><th>Courier</th><th>What the number looks like</th></tr></thead><tbody>
-${CARRIERS.map((c) => `<tr><td class="c">${logo(c.key)}<a href="/track/${c.slug}">${esc(c.name)}</a></td><td>${esc(c.track.format)}</td></tr>`).join('')}
+${CARRIERS.map((c) => `<tr><td class="c">${trackPagesOn() ? `${logo(c.key)}<a href="/track/${c.slug}">${esc(c.name)}</a>` : esc(c.name)}</td><td>${esc(c.track.format)}</td></tr>`).join('')}
 </tbody></table></div></section>
 <section class="sec prose"><h2>Cannot find your tracking number?</h2><p>If you booked with Kargom it is on your label and in your booking email. If you are waiting for something you bought online, it is usually in the shop's dispatch email, sometimes behind a "track my order" button. Marketplaces such as eBay and Vinted show it on the order page once the seller has added it.</p></section>
 </div>`,
   });
+}
+
+/** Said plainly on every courier page: we are not the courier, and we never charge to release a parcel. */
+function notCourier(name: string) {
+  if (!name) return `<div class="in wrap"><p style="margin:14px 0 0;padding:12px 16px;border-radius:12px;background:#FFF8E6;border:1px solid #F5D48A;color:#5C4300;font-size:14px;line-height:1.5"><b>Kargom is an independent price comparison site, not a courier.</b> We are not part of, or endorsed by, any courier. Tracking opens on the courier's own website. We never ask you to pay a fee to release, redeliver or track a parcel: if a text or email asks you to, it is a scam. Forward scam texts to 7726.</p></div>`;
+  return `<div class="in wrap"><p style="margin:14px 0 0;padding:12px 16px;border-radius:12px;background:#FFF8E6;border:1px solid #F5D48A;color:#5C4300;font-size:14px;line-height:1.5"><b>Kargom is an independent price comparison site, not ${esc(name)}.</b> We are not part of, or endorsed by, ${esc(name)}. Tracking opens on ${esc(name)}'s own website. We never ask you to pay a fee to release, redeliver or track a parcel: if a text or email asks you to, it is a scam. Report it to ${esc(name)} and forward scam texts to 7726.</p></div>`;
 }
 
 export function trackPage(c: CarrierInfo) {
@@ -244,10 +261,11 @@ export function trackPage(c: CarrierInfo) {
     { q: `My ${c.name} tracking has not updated. What should I do?`, a: 'Tracking can go quiet for a day while a parcel moves between depots, especially over weekends and bank holidays. If it has not changed for three working days, contact whoever sent it: the sender is the courier\'s customer and can open an enquiry.' },
   ];
   return page({
-    title: `${c.name} Tracking: Track Your ${c.name} Parcel | Kargom`, path: `/track/${c.slug}`,
+    title: `${c.name} Tracking Guide: How to Track a ${c.name} Parcel | Kargom`, path: `/track/${c.slug}`,
     description: `Track ${an(c.name)} parcel. ${c.track.format} What each ${c.name} tracking status means and what to do if it stops updating.`,
     crumbs: [['Track a parcel', '/track'], [`${c.name} tracking`, `/track/${c.slug}`]], ld: [faqLd(faq)],
-    body: `${hero(`${esc(c.name)} tracking`, `Enter your ${esc(c.name)} tracking number and we will open ${esc(c.name)}'s tracking page for it.${c.track.deep ? '' : ' We copy the number for you so you can paste it.'}`, trackForm(c))}
+    body: `${hero(`${esc(c.name)} tracking guide`, `Enter your ${esc(c.name)} tracking number and we will open ${esc(c.name)}'s own tracking page for it.${c.track.deep ? '' : ' We copy the number for you so you can paste it.'}`, trackForm(c))}
+${notCourier(c.name)}
 <div class="in wrap">
 <section class="sec"><h2>What the ${esc(c.name)} statuses mean</h2><dl class="dl">${c.track.statuses.map(([s, d]) => `<dt>${esc(s)}</dt><dd>${esc(d)}</dd>`).join('')}</dl></section>
 ${faqBlock(faq)}
@@ -438,7 +456,7 @@ export function sitemap(prices: SeoPrices) {
     ['/', uk, '1.0'], ['/parcel-prices', uk, '0.9'], ['/partner', null, '0.5'], ['/freight', null, '0.8'], ['/forwarding', null, '0.7'], ['/couriers', uk, '0.8'], ['/track', null, '0.8'], ['/send-parcel-to', null, '0.7'], ['/guides', null, '0.6'],
     ['/tools/volumetric-weight-calculator', '2026-10-28T00:00:00Z', '0.6'],
     ...CARRIERS.map((c) => [`/couriers/${c.slug}`, uk, '0.8'] as [string, string | null, string]),
-    ...CARRIERS.map((c) => [`/track/${c.slug}`, '2026-10-28T00:00:00Z', '0.7'] as [string, string | null, string]),
+    ...(trackPagesOn() ? CARRIERS.map((c) => [`/track/${c.slug}`, '2026-10-28T00:00:00Z', '0.7'] as [string, string | null, string]) : []),
     ...Object.keys(DESTINATIONS).map((s) => [`/send-parcel-to/${s}`, prices.latest(INTL_WEIGHTS.map((kg) => SeoPrices.intlKey(s, kg))), '0.7'] as [string, string | null, string]),
     ...GUIDES.map((g) => [`/guides/${g.slug}`, `${g.updated}T00:00:00Z`, '0.6'] as [string, string | null, string]),
   ];

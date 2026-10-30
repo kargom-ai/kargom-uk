@@ -36,7 +36,7 @@ test('seo: price snapshots feed the guide pages, survive a restart, and the site
   const map = sitemap(prices);
   const urls = [...map.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]!);
   assert.equal(new Set(urls).size, urls.length, 'no duplicate URLs');
-  assert.ok(urls.some((u) => u.endsWith('/couriers/evri')) && urls.some((u) => u.endsWith('/track/royal-mail')) && urls.some((u) => u.endsWith('/send-parcel-to/united-states')));
+  assert.ok(urls.some((u) => u.endsWith('/couriers/evri')) && urls.some((u) => u.endsWith('/send-parcel-to/united-states')));
   assert.match(robots(), /Disallow: \/admin/);
   assert.match(robots(), /Sitemap: .+\/sitemap\.xml/);
 });
@@ -49,4 +49,12 @@ test('seo: tracking numbers are matched to the right courier', () => {
   assert.deepEqual(guess('15501234567890'), ['dpd']);
   assert.deepEqual(guess('1234567890'), ['dhl', 'dpd'], 'ambiguous numbers offer both');
   for (const c of CARRIERS) if (c.track.example) assert.ok(guess(c.track.example).includes(c.key), `${c.slug} example matches its own pattern`);
+});
+
+test('seo: courier tracking pages stay out of the sitemap until TRACK_PAGES=on', () => {
+  delete process.env.TRACK_PAGES;
+  assert.ok(!sitemap(new SeoPrices(null as never)).includes('/track/royal-mail'));
+  process.env.TRACK_PAGES = 'on';
+  assert.ok(sitemap(new SeoPrices(null as never)).includes('/track/royal-mail'));
+  delete process.env.TRACK_PAGES;
 });

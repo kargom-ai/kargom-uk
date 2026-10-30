@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { SeoPrices } from './prices.ts';
 import {
   calculatorPage, courierPage, couriersHub, destinationPage, destinationsHub, guidePage, guidesHub, notFoundPage,
-  parcelPricesPage, privacyPage, resolve, robots, sitemap, trackHub, trackPage,
+  parcelPricesPage, privacyPage, trackPagesOn, resolve, robots, sitemap, trackHub, trackPage,
 } from './render.ts';
 
 const CSP = [
@@ -48,6 +48,7 @@ export function serveSeo(req: IncomingMessage, res: ServerResponse, path: string
   let m = /^\/couriers\/([a-z-]+)$/.exec(p);
   if (m) { const c = resolve.carrierBySlug(m[1]!); return c ? html(courierPage(c, prices)) : notFound(); }
   m = /^\/track\/([a-z-]+)$/.exec(p);
+  if (m && !trackPagesOn()) { res.writeHead(302, { Location: '/track', 'Cache-Control': 'no-store' }); res.end(); return true; }
   if (m) { const c = resolve.carrierBySlug(m[1]!); return c ? html(trackPage(c)) : notFound(); }
   m = /^\/send-parcel-to\/([a-z-]+)$/.exec(p);
   if (m) return resolve.DESTINATIONS[m[1]!] ? html(destinationPage(m[1]!, prices)) : notFound();
