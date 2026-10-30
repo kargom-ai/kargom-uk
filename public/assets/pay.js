@@ -105,19 +105,10 @@ export function openPaySheet({ publishableKey, clientSecret, amountTxt, title, s
 
     if (demoPay) {
       // Test mode without Stripe: same sheet, simulated card. No real money moves.
+      // No card boxes at all in test mode: a page asking for card details that do not go to Stripe
+      // looks like phishing to Google Safe Browsing, so the test sheet only has a confirm button.
       mountPoint.innerHTML = `
-        <div style="padding:10px 12px;border-radius:10px;background:#FFF4E0;color:#9A5B00;font-size:13px;font-weight:700;margin-bottom:12px">TEST MODE · no real money is taken</div>
-        <div style="display:flex;gap:8px;margin-bottom:14px">
-          <span style="flex:1;padding:10px;border-radius:10px;border:1px solid #2463DB;box-shadow:0 0 0 1px #2463DB;font-size:14px;font-weight:700">Card</span>
-          <span style="flex:1;padding:10px;border-radius:10px;border:1px solid #E1E7EF;font-size:14px;font-weight:700;color:#8593A8">Apple Pay</span>
-          <span style="flex:1;padding:10px;border-radius:10px;border:1px solid #E1E7EF;font-size:14px;font-weight:700;color:#8593A8">Google Pay</span>
-        </div>
-        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#3E4A5C">Card number<input class="kp-in" value="4242 4242 4242 4242" inputmode="numeric" autocomplete="off"></label>
-        <div style="display:flex;gap:10px;margin-top:12px">
-          <label style="flex:1;display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#3E4A5C">Expiry<input class="kp-in" value="12 / 30" autocomplete="off"></label>
-          <label style="flex:1;display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#3E4A5C">CVC<input class="kp-in" value="123" inputmode="numeric" autocomplete="off"></label>
-        </div>`;
-      for (const i of mountPoint.querySelectorAll('.kp-in')) i.setAttribute('style', "min-height:46px;border-radius:10px;border:1px solid #C9D6EA;padding:0 12px;font:500 16px 'Plus Jakarta Sans',sans-serif;color:#1F2A3C");
+        <div style="padding:12px 14px;border-radius:10px;background:#FFF4E0;color:#9A5B00;font-size:14px;font-weight:700;line-height:1.45">TEST MODE · card payments are not switched on yet.<br><span style="font-weight:500">Press the button to finish this booking as a test. No card is needed and no money is taken.</span></div>`;
       pay.disabled = false;
       pay.addEventListener('click', async () => {
         if (busy) return;
