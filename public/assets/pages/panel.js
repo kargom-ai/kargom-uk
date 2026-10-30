@@ -101,7 +101,10 @@ class Component extends DCLogic {
         isShip: true, isJob: false, hasLogo: Boolean(CARRIER_LOGO[s.carrier]), noLogo: !CARRIER_LOGO[s.carrier], at: s.created_at,
         labelUrl: s.label_url || '#', trackUrl: s.tracking_number ? `https://kargoradari.com/?q=${encodeURIComponent(s.tracking_number)}` : '#',
         ...adjOf(s), on: on ? 'true' : 'false', ring: on ? '#2463DB' : '#9FB0C8', box: on ? '#2463DB' : '#FFFFFF',
-        toggle: () => this.setState({ shipSel: { ...st.shipSel, [s.id]: !on } }) };
+        toggle: () => this.setState({ shipSel: { ...st.shipSel, [s.id]: !on } }),
+        ...card({ to: `${to.city} ${to.postcode}`, toFull: `${to.name}, ${to.city} ${to.postcode}`, carrier: CARRIER_NAME[s.carrier] || '', service: shortService(s.carrier, s.service_name), date: shortDate(s.created_at), price: gbp(s.price_pence / 100),
+          act: key === 'print' ? 'Label' : 'Track', actCls: key === 'print' ? 'print' : '', actUrl: key === 'print' ? (s.label_url || '#') : (s.tracking_number ? `https://kargoradari.com/?q=${encodeURIComponent(s.tracking_number)}` : '#'),
+          moreUrl: s.tracking_number ? `https://kargoradari.com/?q=${encodeURIComponent(s.tracking_number)}` : (s.label_url || '#') }) };
     };
     const all = st.shipments.map(shipRow);
     // Moving & freight requests sit in the same "Recent" list on the dashboard.
@@ -112,7 +115,9 @@ class Component extends DCLogic {
       return { id: j.id, no: `#${j.ref}`, date: shortDate(j.createdAt), to: `${j.fromArea} → ${j.toArea}`, city: j.date ? `on ${new Date(`${j.date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : '',
         service: j.title, logo: '', hasLogo: false, noLogo: true, svc: j.kind === 'removals' ? 'Removals' : 'Freight', key: 'move', status: offers || label, sBg: offers ? '#E6F4EA' : bg, sFg: offers ? '#166534' : fg,
         price: j.bestPence ? `from ${gbp(j.bestPence / 100)}` : '—', isShip: false, isJob: true, jobUrl: `/app/requests/${j.id}`, at: j.createdAt,
-        adj: false, adjShort: '', aBg: '', aFg: '', aDot: '', openAdj: () => {}, labelUrl: '#', trackUrl: '#' };
+        adj: false, adjShort: '', aBg: '', aFg: '', aDot: '', openAdj: () => {}, labelUrl: '#', trackUrl: '#',
+        ...card({ to: `${j.fromArea} → ${j.toArea}`, service: shortJob(j.title), when: j.date ? `${shortDate(j.createdAt)} → ${new Date(`${j.date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : shortDate(j.createdAt),
+          price: j.bestPence ? `from ${gbp(j.bestPence / 100)}` : '', icoShip: j.kind !== 'removals', icoTruck: j.kind === 'removals', act: 'View', actUrl: `/app/requests/${j.id}`, actTarget: '_self', moreUrl: `/app/requests/${j.id}`, moreTarget: '_self' }) };
     });
     // Boxes from the Turkey warehouse, once they leave for the UK, are shipments too.
     const fwdRows = st.fwd.map((b) => {
@@ -121,7 +126,9 @@ class Component extends DCLogic {
       return { id: b.id, no: b.trackingNo || b.ref, date: shortDate(b.shippedAt || b.createdAt), to: b.address.name, city: `${b.address.city} ${b.address.postcode}`,
         service: `${b.courierName} · ${what.slice(0, 2).join(', ')}${what.length > 2 ? ` +${what.length - 2}` : ''}`, logo: b.courierLogo || '', hasLogo: Boolean(b.courierLogo), noLogo: !b.courierLogo, svc: 'TR → UK', key,
         status: b.status === 'delivered' ? 'Delivered' : 'In transit', sBg: S[key][1], sFg: S[key][2], price: gbp((b.pricePence || 0) / 100), isShip: false, isJob: true,
-        jobUrl: b.trackingUrl || '/app/turkey', at: b.shippedAt || b.createdAt, adj: false, adjShort: '', aBg: '', aFg: '', aDot: '', openAdj: () => {}, labelUrl: '#', trackUrl: '#' };
+        jobUrl: b.trackingUrl || '/app/turkey', at: b.shippedAt || b.createdAt, adj: false, adjShort: '', aBg: '', aFg: '', aDot: '', openAdj: () => {}, labelUrl: '#', trackUrl: '#',
+        ...card({ to: `${b.address.city} ${b.address.postcode}`, toFull: `${b.address.name}, ${b.address.city} ${b.address.postcode}`, carrier: b.courierName, service: `${b.courierName} · from Türkiye`, date: shortDate(b.shippedAt || b.createdAt), price: gbp((b.pricePence || 0) / 100),
+          icoWh: !b.courierLogo, act: 'Track', actUrl: b.trackingUrl || '/app/turkey', actTarget: b.trackingUrl ? '_blank' : '_self', moreUrl: '/app/turkey', moreTarget: '_self' }) };
     });
     const dashAll = [...all, ...jobRows, ...fwdRows].sort((x, y) => (x.at < y.at ? 1 : -1));
     const rows = (st.tab === 'all' ? dashAll : dashAll.filter((r) => r.key === st.tab)).slice(0, 6);
@@ -435,6 +442,21 @@ class Component extends DCLogic {
     };
   }
 }
+
+/** Fields every Recent shipments card needs, with defaults. */
+const card = (c) => ({ cTo: c.to, toFull: c.toFull || c.to, cSvc: c.service, cDate: c.when ? '' : c.date, cWhen: c.when || '', cPrice: c.price, carrier: c.carrier || '', icoShip: !!c.icoShip, icoTruck: !!c.icoTruck, icoWh: !!c.icoWh,
+  act: c.act, actUrl: c.actUrl, actCls: c.actCls || '', actTarget: c.actTarget || '_blank', moreUrl: c.moreUrl, moreTarget: c.moreTarget || '_blank' });
+
+/** "Royal Mail Tracked 48 Small Parcel Collection" -> "Royal Mail · Tracked 48". */
+function shortService(carrier, name) {
+  const brand = CARRIER_NAME[carrier] || '';
+  const drop = new Set([...brand.toLowerCase().split(' '), 'uk', 'collection', 'drop-off', 'dropoff', 'service', 'parcel', 'small', 'medium', 'large', 'drop', 'off']);
+  const rest = String(name || '').split(/\s+/).filter((w) => w && !drop.has(w.toLowerCase())).slice(0, 2).join(' ').replace(/\s+(to|from|and|&)$/i, '');
+  return [brand, rest].filter(Boolean).join(' · ') || name;
+}
+
+/** "Sea freight · 1 40 ft container" -> "Sea freight · 1 × 40 ft". */
+const shortJob = (t) => String(t || '').replace(/(\d+) (\d+ ?ft) container/i, '$1 × $2').replace(/\s*container\b/i, '');
 
 const FLAG = { 'United States': 'us', Germany: 'de', France: 'fr', Ireland: 'ie' };
 
