@@ -132,7 +132,8 @@ export function storageFor(receivedAt: string | null, now: Date, s: FwSettings):
 }
 
 type PkgRow = { id: string; customer_id: string; status: string; store: string | null; order_no: string | null; inbound_tracking: string | null; description: string | null;
-  value_try: number | null; weight_g: number | null; dims: string | null; admin_note: string | null; hold: number; shipment_id: string | null; received_at: string | null; created_at: string };
+  value_try: number | null; weight_g: number | null; dims: string | null; admin_note: string | null; hold: number; shipment_id: string | null; received_at: string | null; created_at: string;
+  auto_send?: number; auto_pref?: string | null };
 type ShipRow = { id: string; ref: string; customer_id: string; status: string; address: string; note: string | null; weight_g: number | null; dims: string | null; quotes: string | null;
   courier_id: string | null; courier_name: string | null; price_pence: number | null; paid_via: string | null; payment_ref: string | null; tracking_no: string | null; tracking_url: string | null;
   admin_note: string | null; created_at: string; quoted_at: string | null; paid_at: string | null; shipped_at: string | null; delivered_at: string | null };
@@ -142,10 +143,24 @@ type CourierRow = { id: string; name: string; active: number; divisor: number; f
 const toCourier = (r: CourierRow): Courier => ({ id: r.id, name: r.name, active: Boolean(r.active), divisor: r.divisor, fuelBp: r.fuel_bp, rates: JSON.parse(r.rates),
   extraKgPence: r.extra_kg_pence, maxKg: r.max_kg, daysMin: r.days_min, daysMax: r.days_max, trackingUrl: r.tracking_url, note: r.note, sort: r.sort });
 const pkgOut = (p: PkgRow) => ({ id: p.id, status: p.status, store: p.store, orderNo: p.order_no, tracking: p.inbound_tracking, description: p.description, valueTry: p.value_try,
-  weightKg: p.weight_g ? p.weight_g / 1000 : null, dims: p.dims, note: p.admin_note, hold: Boolean(p.hold), shipmentId: p.shipment_id, receivedAt: p.received_at, createdAt: p.created_at });
+  weightKg: p.weight_g ? p.weight_g / 1000 : null, dims: p.dims, note: p.admin_note, hold: Boolean(p.hold), shipmentId: p.shipment_id, receivedAt: p.received_at, createdAt: p.created_at,
+  autoSend: Boolean(p.auto_send), autoPref: p.auto_pref === 'fastest' ? 'fastest' : 'cheapest' });
 const shipOut = (s: ShipRow) => ({ id: s.id, ref: s.ref, status: s.status, address: JSON.parse(s.address), note: s.note, weightKg: s.weight_g ? s.weight_g / 1000 : null, dims: s.dims,
   quotes: s.quotes ? (JSON.parse(s.quotes) as CourierQuote[]) : [], courierId: s.courier_id, courierName: s.courier_name, pricePence: s.price_pence, paidVia: s.paid_via,
   trackingNo: s.tracking_no, trackingUrl: s.tracking_url, adminNote: s.admin_note, createdAt: s.created_at, quotedAt: s.quoted_at, paidAt: s.paid_at, shippedAt: s.shipped_at, deliveredAt: s.delivered_at });
+
+export type UkAddress = { name: string; line1: string; line2: string | null; city: string; postcode: string; phone: string; email: string | null };
+/** A UK delivery address, checked. Throws a message the customer can act on. */
+export function parseUkAddress(v: unknown): UkAddress {
+  const a = (v ?? {}) as Record<string, unknown>;
+  const address = { name: text(a.name, 80), line1: text(a.line1, 120), line2: text(a.line2, 120), city: text(a.city, 80), postcode: text(a.postcode, 10)?.toUpperCase() ?? null, phone: text(a.phone, 30), email: text(a.email, 120) };
+  if (!address.name || !address.line1 || !address.city || !address.postcode) throw new AppError('bad_request', 'Enter the UK delivery address: name, street, town and postcode');
+  if (!/^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/.test(address.postcode)) throw new AppError('bad_request', 'Enter a valid UK postcode');
+  if (!address.phone || address.phone.replace(/\D/g, '').length < 10) throw new AppError('bad_request', 'Enter a phone number: couriers need it for delivery and customs');
+  return address as UkAddress;
+}
+const pickQuote = (quotes: CourierQuote[], pref: string | null | undefined) =>
+  pref === 'fastest' ? [...quotes].sort((a, b) => a.daysMax - b.daysMax || a.daysMin - b.daysMin || a.pence - b.pence)[0] : quotes[0];
 
 export type FwNotify = (customerId: string, subject: string, heading: string, lines: string[], link: { href: string; text: string }) => Promise<unknown>;
 
@@ -265,6 +280,8 @@ export class TurkeyForwarding {
     const ready = Boolean(s.whLine1 && s.whCity);
     return {
       suite: code,
+      ukAddress: await this.ukAddress(customerId),
+      balancePence: await this.wallet.balance(customerId),
       address: ready ? {
         name: `${(cust?.name || 'Kargom').trim()} ${code}`, line1: s.whLine1, line2: [s.whLine2, code].filter(Boolean).join(' · '), district: s.whDistrict, city: s.whCity,
         postcode: s.whPostcode, phone: s.whPhone, country: 'Türkiye',
@@ -278,6 +295,17 @@ export class TurkeyForwarding {
     };
   }
 
+  async ukAddress(customerId: string, q: Queryable = this.db): Promise<UkAddress | null> {
+    const r = await q.get<{ uk_address: string | null }>('SELECT uk_address FROM fw_suites WHERE customer_id = $1', [customerId]);
+    try { return r?.uk_address ? JSON.parse(r.uk_address) as UkAddress : null; } catch { return null; }
+  }
+  async saveUkAddress(customerId: string, input: unknown) {
+    const address = parseUkAddress(input);
+    await this.suite(customerId);
+    await this.db.run('UPDATE fw_suites SET uk_address = $1 WHERE customer_id = $2', [JSON.stringify(address), customerId]);
+    return { ukAddress: address };
+  }
+
   async addPackage(customerId: string, input: Record<string, unknown>) {
     const store = text(input.store, 60);
     const description = text(input.description, 300);
@@ -287,9 +315,12 @@ export class TurkeyForwarding {
     const open = await this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM fw_packages WHERE customer_id = $1 AND status = 'expected'`, [customerId]);
     if (Number(open?.n ?? 0) >= 100) throw new AppError('bad_request', 'You have 100 parcels on the way already');
     await this.suite(customerId);
+    const autoSend = input.autoSend === true || input.autoSend === 'true';
+    if (input.address) await this.saveUkAddress(customerId, input.address);
+    if (autoSend && !(await this.ukAddress(customerId))) throw new AppError('bad_request', 'Add your UK address first, so we know where to send it');
     const id = newId('frp');
-    await this.db.run(`INSERT INTO fw_packages (id, customer_id, status, store, order_no, inbound_tracking, description, value_try, created_at) VALUES ($1,$2,'expected',$3,$4,$5,$6,$7,$8)`,
-      [id, customerId, store, text(input.orderNo, 60), text(input.tracking, 60), description, value, this.now()]);
+    await this.db.run(`INSERT INTO fw_packages (id, customer_id, status, store, order_no, inbound_tracking, description, value_try, auto_send, auto_pref, created_at) VALUES ($1,$2,'expected',$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [id, customerId, store, text(input.orderNo, 60), text(input.tracking, 60), description, value, autoSend ? 1 : 0, input.autoPref === 'fastest' ? 'fastest' : 'cheapest', this.now()]);
     return { id };
   }
 
@@ -309,6 +340,11 @@ export class TurkeyForwarding {
     if ('description' in input) { const d = text(input.description, 300); if (!d) throw new AppError('bad_request', 'Say what is in the parcel'); put('description', d); }
     if ('valueTry' in input) put('value_try', int(input.valueTry, 'Price paid (TL)', 1, 5_000_000));
     if ('hold' in input) put('hold', input.hold ? 1 : 0);
+    if ('autoSend' in input) {
+      if (input.autoSend && !(await this.ukAddress(customerId))) throw new AppError('bad_request', 'Add your UK address first, so we know where to send it');
+      put('auto_send', input.autoSend ? 1 : 0);
+    }
+    if ('autoPref' in input) put('auto_pref', input.autoPref === 'fastest' ? 'fastest' : 'cheapest');
     if (!sets.length) return { ok: true };
     vals.push(id);
     await this.db.run(`UPDATE fw_packages SET ${sets.join(', ')} WHERE id = $${vals.length}`, vals);
@@ -326,25 +362,52 @@ export class TurkeyForwarding {
   async requestShipment(customerId: string, input: Record<string, unknown>) {
     const ids = Array.isArray(input.packageIds) ? [...new Set(input.packageIds.map(String))].slice(0, 20) : [];
     if (!ids.length) throw new AppError('bad_request', 'Choose the parcels to send');
-    const a = (input.address ?? {}) as Record<string, unknown>;
-    const address = { name: text(a.name, 80), line1: text(a.line1, 120), line2: text(a.line2, 120), city: text(a.city, 80), postcode: text(a.postcode, 10)?.toUpperCase() ?? null, phone: text(a.phone, 30), email: text(a.email, 120) };
-    if (!address.name || !address.line1 || !address.city || !address.postcode) throw new AppError('bad_request', 'Enter the UK delivery address: name, street, town and postcode');
-    if (!/^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/.test(address.postcode)) throw new AppError('bad_request', 'Enter a valid UK postcode');
-    if (!address.phone || address.phone.replace(/\D/g, '').length < 10) throw new AppError('bad_request', 'Enter a phone number: couriers need it for delivery and customs');
+    const saved = await this.ukAddress(customerId);
+    const address = input.address ? parseUkAddress(input.address) : saved;
+    if (!address) throw new AppError('bad_request', 'Enter the UK delivery address');
+    if (input.address) await this.saveUkAddress(customerId, address);
     return this.db.tx(async (tx) => {
       const pk = await Promise.all(ids.map((id) => this.ownPackage(customerId, id, tx)));
       const notHere = pk.filter((p) => p.status !== 'received');
       if (notHere.length) throw new AppError('conflict', 'Only parcels that are in our warehouse can be sent');
       const noInfo = pk.filter((p) => !p.description || !p.value_try);
       if (noInfo.length) throw new AppError('bad_request', 'Add what is in each parcel and the price you paid (Edit). Customs needs it.');
-      const seq = await tx.get<{ n: number }>('SELECT COUNT(*) AS n FROM fw_shipments');
-      const id = newId('frs');
-      const ref = `TR-${10_001 + Number(seq?.n ?? 0)}`;
-      await tx.run(`INSERT INTO fw_shipments (id, ref, customer_id, status, address, note, created_at) VALUES ($1,$2,$3,'requested',$4,$5,$6)`,
-        [id, ref, customerId, JSON.stringify(address), text(input.note, 500), this.now()]);
-      for (const p of pk) await tx.run(`UPDATE fw_packages SET status = 'requested', shipment_id = $1, hold = 0 WHERE id = $2`, [id, p.id]);
-      return { id, ref };
+      return this.createShipment(tx, customerId, pk.map((p) => p.id), address, text(input.note, 500));
     });
+  }
+
+  private async createShipment(tx: Queryable, customerId: string, packageIds: string[], address: UkAddress, note: string | null) {
+    const seq = await tx.get<{ n: number }>('SELECT COUNT(*) AS n FROM fw_shipments');
+    const id = newId('frs');
+    const ref = `TR-${10_001 + Number(seq?.n ?? 0)}`;
+    await tx.run(`INSERT INTO fw_shipments (id, ref, customer_id, status, address, note, created_at) VALUES ($1,$2,$3,'requested',$4,$5,$6)`,
+      [id, ref, customerId, JSON.stringify(address), note, this.now()]);
+    for (const pid of packageIds) await tx.run(`UPDATE fw_packages SET status = 'requested', shipment_id = $1, hold = 0 WHERE id = $2`, [id, pid]);
+    return { id, ref };
+  }
+
+  /** Customer asked "send it as soon as it arrives": box it, price it, and pay from the wallet if the money is there. */
+  private async autoShip(p: PkgRow): Promise<{ status: 'paid' | 'quoted'; ref: string; pence: number } | null> {
+    const address = await this.ukAddress(p.customer_id);
+    if (!address || !p.weight_g || !p.description || !p.value_try) return null;
+    const sh = await this.db.tx((tx) => this.createShipment(tx, p.customer_id, [p.id], address, 'Send as soon as it arrives'));
+    const { quotes } = await this.measure(sh.id, { weightKg: p.weight_g / 1000, dims: p.dims }, false, true);
+    const q = pickQuote(quotes, p.auto_pref)!;
+    try {
+      await this.payFromWallet(p.customer_id, sh.id, sh.ref, q);
+      this.tell(p.customer_id, `Your parcel ${sh.ref} is on its way to being sent`, 'Paid from your wallet, sending now', [
+        `${p.store ?? 'Your parcel'}: ${p.description} arrived and you asked us to send it straight away.`,
+        `We took ${'£' + (q.pence / 100).toFixed(2)} from your wallet for ${q.name} (${q.daysMin}–${q.daysMax} working days). We email the tracking number as soon as it leaves.`,
+      ]);
+      return { status: 'paid', ref: sh.ref, pence: q.pence };
+    } catch (e) {
+      if ((e as AppError).code !== 'insufficient_funds') throw e;
+      this.tell(p.customer_id, `Your parcel ${sh.ref} is ready: pay to send it`, 'Your parcel is ready to send', [
+        `${p.store ?? 'Your parcel'}: ${p.description} arrived. Sending it with ${q.name} costs £${(q.pence / 100).toFixed(2)}.`,
+        'Your wallet did not have enough money, so pay by card or top up and we send it the same or next working day.',
+      ]);
+      return { status: 'quoted', ref: sh.ref, pence: q.pence };
+    }
   }
 
   private async ownShipment(customerId: string, id: string, q: Queryable = this.db) {
@@ -384,14 +447,18 @@ export class TurkeyForwarding {
       });
       return { url: cs.url };
     }
+    await this.payFromWallet(customerId, id, s.ref, q);
+    return { ok: true, paid: true };
+  }
+
+  private async payFromWallet(customerId: string, id: string, ref: string, q: CourierQuote) {
     await this.db.tx(async (tx) => {
       const bal = await this.wallet.balance(customerId, tx);
       if (bal < q.pence) throw new AppError('insufficient_funds', 'Not enough money in your wallet', { balance: bal, needed: q.pence });
-      await this.ledger.post({ idempotencyKey: `fwd:${id}`, kind: 'fwd_sale', ref: s.ref, memo: `Turkey to UK ${s.ref}`,
+      await this.ledger.post({ idempotencyKey: `fwd:${id}`, kind: 'fwd_sale', ref, memo: `Turkey to UK ${ref}`,
         lines: [{ account: acct.wallet(customerId), amount: q.pence }, { account: FW_REVENUE, amount: -q.pence }] }, tx);
       await this.markPaid(tx, id, q, 'wallet', `fwd:${id}`);
     });
-    return { ok: true, paid: true };
   }
 
   private async markPaid(tx: Queryable, id: string, q: CourierQuote, via: string, ref: string) {
@@ -447,6 +514,7 @@ export class TurkeyForwarding {
     }
     if (pkg) {
       if (pkg.status !== 'expected' && pkg.status !== 'received') throw new AppError('conflict', 'This parcel is already in a shipment');
+      if (pkg.auto_send && pkg.status === 'expected' && !dims) throw new AppError('bad_request', 'Enter the size: this customer asked us to send it as soon as it arrives');
       await this.db.run(`UPDATE fw_packages SET status = 'received', weight_g = $1, dims = $2, admin_note = COALESCE($3, admin_note), inbound_tracking = COALESCE(inbound_tracking, $4), received_at = COALESCE(received_at, $5) WHERE id = $6`,
         [weightG, dimsText(dims), text(input.note, 300), tracking, now, pkg.id]);
     } else {
@@ -459,7 +527,11 @@ export class TurkeyForwarding {
       pkg = await this.db.get<PkgRow>('SELECT * FROM fw_packages WHERE id = $1', [id]);
     }
     const s = await this.settings();
-    const p = pkg!;
+    const p = (await this.db.get<PkgRow>('SELECT * FROM fw_packages WHERE id = $1', [pkg!.id]))!;
+    if (p.auto_send && p.status === 'received') {
+      const auto = await this.autoShip(p);
+      if (auto) return { id: p.id, customerId: p.customer_id, auto };
+    }
     this.tell(p.customer_id, 'Your parcel is in our Turkey warehouse', 'Your parcel has arrived', [
       `${p.store ?? 'Your parcel'}${p.description ? `: ${p.description}` : ''} is in our Istanbul warehouse (${(weightG / 1000).toFixed(2)} kg).`,
       `Storage is free for ${s.freeDays} days. Send it now, or wait for more parcels and we will combine them into one box.`,
@@ -469,7 +541,7 @@ export class TurkeyForwarding {
   }
 
   /** Box packed: enter its real weight and size, we price every courier and the customer chooses and pays. */
-  async measure(id: string, input: Record<string, unknown>, preview = false) {
+  async measure(id: string, input: Record<string, unknown>, preview = false, silent = false) {
     const s = await this.db.get<ShipRow>('SELECT * FROM fw_shipments WHERE id = $1', [id]);
     if (!s) throw new AppError('not_found', 'Shipment not found');
     if (!preview && !['requested', 'quoted'].includes(s.status)) throw new AppError('conflict', 'This shipment is paid already');
@@ -486,7 +558,7 @@ export class TurkeyForwarding {
     await this.db.run(`UPDATE fw_shipments SET status = 'quoted', weight_g = $1, dims = $2, quotes = $3, admin_note = COALESCE($4, admin_note), quoted_at = $5 WHERE id = $6`,
       [weightG, dimsText(dims), JSON.stringify(quotes), text(input.note, 300), now.toISOString(), id]);
     const cheapest = quotes[0]!;
-    this.tell(s.customer_id, `Your box ${s.ref} is packed: choose a courier and pay`, 'Your box is ready to send', [
+    if (!silent) this.tell(s.customer_id, `Your box ${s.ref} is packed: choose a courier and pay`, 'Your box is ready to send', [
       `We packed ${pk.length} parcel${pk.length > 1 ? 's' : ''} into one box: ${(weightG / 1000).toFixed(2)} kg, ${dimsText(dims)} cm.`,
       `Prices start at £${(cheapest.pence / 100).toFixed(2)} with ${cheapest.name}. Choose a courier and pay, and we send it the same or next working day.`,
     ]);

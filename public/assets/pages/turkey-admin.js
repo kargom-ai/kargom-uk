@@ -1,196 +1,287 @@
-import { api, esc, gbp, toast, niceDate } from '../market-ui.js';
+import { mountAdminShell } from '../admin-shell.js';
+import { api, esc, gbp, toast } from '../market-ui.js';
 
 /**
- * Admin: Turkey warehouse. Receive parcels, pack and price boxes, send them, and manage the
- * courier price lists and warehouse settings.
+ * Admin: Turkey warehouse, inside the normal admin frame.
+ * One list of every customer order with its stage; each stage has one clear action
+ * (arrived → pack & price → ship → delivered). Couriers and settings live on their own tabs.
  */
-const root = document.getElementById('root');
-root.classList.add('tr-admin');
-const TABS = [['recv', 'Receive'], ['wh', 'In warehouse'], ['box', 'Boxes'], ['cour', 'Couriers'], ['set', 'Settings']];
-const S = { d: null, tab: new URLSearchParams(location.search).get('tab') || 'recv', q: '', recv: {}, preview: {}, draft: {}, edit: null, busy: false };
-const BOX = { requested: 'To pack', quoted: 'Waiting for payment', paid: 'Paid: send it', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled' };
+let root, shell;
+const S = { d: null, view: new URLSearchParams(location.search).get('tab') || 'list', stage: 'all', q: '', drawer: null, preview: null, busy: false };
+
+const STAGE = {
+  coming: ['Coming to warehouse', '#FFF4E0', '#9A5B00'],
+  here: ['In warehouse', '#E6F4EA', '#166534'],
+  pack: ['To pack', '#EAF2FE', '#1D4FB8'],
+  pay: ['Awaiting payment', '#F1E9FE', '#5B2BB5'],
+  ship: ['Ready to ship', '#FDECEC', '#B42318'],
+  sent: ['Shipped', '#E3F6F5', '#0F766E'],
+  done: ['Delivered', '#EEF2F7', '#3E4A5C'],
+  gone: ['Discarded', '#EEF2F7', '#8593A8'],
+};
+const STAT_ORDER = ['coming', 'here', 'pack', 'pay', 'ship', 'sent'];
 const kg = (v) => (v == null ? '–' : `${Number(v).toFixed(2).replace(/\.?0+$/, '')} kg`);
+const tl = (v) => (v ? `${Number(v).toLocaleString('tr-TR')} TL` : '');
+const day = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '');
+const daysSince = (iso) => (iso ? Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)) : 0);
+const pill = (k) => `<span class="tw-pill" style="background:${STAGE[k][1]};color:${STAGE[k][2]}"><i></i>${STAGE[k][0]}</span>`;
 const pounds = (p) => (p / 100).toFixed(2);
-const match = (o) => !S.q || JSON.stringify(o).toLowerCase().includes(S.q.toLowerCase());
 
-function recvTab() {
-  const exp = S.d.packages.filter((p) => p.status === 'expected' && match(p));
-  const r = S.recv;
-  return `<section class="tr-card" id="rf"><h2>Receive a parcel</h2>
-    <span class="muted" style="font-size:14px">Scan or type the tracking number. If the customer told us about it, it matches by itself. If not, type the KG code from the label.</span>
-    <div class="grid2">
-      <label class="fld">Tracking number<input class="inp" name="tracking" value="${esc(r.tracking || '')}" autofocus></label>
-      <label class="fld">Suite code <em>(only if not matched)</em><input class="inp" name="suite" value="${esc(r.suite || '')}" placeholder="KG12345" style="text-transform:uppercase"></label>
-      <label class="fld">Weight (kg)<input class="inp" name="weightKg" inputmode="decimal" value="${esc(r.weightKg || '')}"></label>
-      <label class="fld">Size cm <em>(L x W x H)</em><input class="inp" name="dims" value="${esc(r.dims || '')}" placeholder="40x30x20"></label>
-      <label class="fld">Shop <em>(new parcels)</em><select class="inp" name="store">${S.d.stores.map((s) => `<option ${s === r.store ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
-      <label class="fld">What is in it <em>(new parcels)</em><input class="inp" name="description" value="${esc(r.description || '')}"></label>
-    </div>
-    <label class="fld">Note for the customer <em>(damage, missing items…)</em><input class="inp" name="note" value="${esc(r.note || '')}"></label>
-    ${r.packageId ? `<div class="tr-info">Receiving the pre-alert for <b>${esc(r.label)}</b>. <button type="button" class="btn ghost sm" data-act="clearRecv">Clear</button></div>` : ''}
-    <button type="button" class="btn big" data-act="receive" ${S.busy ? 'disabled' : ''}>Received</button>
-  </section>
-  <section class="tr-card"><h2>Expected (${exp.length})</h2>
-    <div class="tr-scroll"><table class="tr-tbl"><tr><th>Code</th><th>Customer</th><th>Shop</th><th>What</th><th>Tracking</th><th>Value</th><th>Told us</th><th></th></tr>
-    ${exp.map((p) => `<tr><td><b>${esc(p.suite)}</b></td><td>${esc(p.customer)}</td><td>${esc(p.store)}</td><td>${esc(p.description)}</td><td>${esc(p.tracking || '–')}</td><td>${p.valueTry ? `${p.valueTry.toLocaleString('tr-TR')} TL` : ''}</td><td>${esc(niceDate(p.createdAt))}</td>
-      <td><button type="button" class="btn sm" data-recv="${p.id}">Receive</button></td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nothing expected.</td></tr>'}</table></div></section>`;
+/** Boxes count once, loose parcels count each. */
+const uniq = (list) => new Set(list.map((r) => (r.s && !['here', 'coming'].includes(r.stage) ? r.s.id : r.p.id))).size;
+
+/** One row per customer order, with the stage of the box it is in. */
+function rows() {
+  const ships = Object.fromEntries(S.d.shipments.map((s) => [s.id, s]));
+  return S.d.packages.map((p) => {
+    const s = p.shipmentId ? ships[p.shipmentId] : null;
+    let stage = p.status === 'expected' ? 'coming' : p.status === 'received' ? 'here' : p.status === 'discarded' ? 'gone' : 'pack';
+    if (s) stage = { requested: 'pack', quoted: 'pay', paid: 'ship', shipped: 'sent', delivered: 'done', cancelled: 'here' }[s.status] || stage;
+    const at = s ? (s.deliveredAt || s.shippedAt || s.paidAt || s.quotedAt || s.createdAt) : (p.receivedAt || p.createdAt);
+    return { p, s, stage, at };
+  });
 }
 
-function whTab() {
-  const here = S.d.packages.filter((p) => p.status === 'received' && match(p));
-  return `<section class="tr-card"><h2>In the warehouse (${here.length})</h2>
-    <div class="tr-scroll"><table class="tr-tbl"><tr><th>Code</th><th>Customer</th><th>Parcel</th><th>Weight / size</th><th>Arrived</th><th>Storage</th><th>Note</th><th></th></tr>
-    ${here.map((p) => `<tr><td><b>${esc(p.suite)}</b></td><td>${esc(p.customer)}<br><span class="muted">${esc(p.email)}</span></td><td>${esc(p.store)}: ${esc(p.description || '–')}${p.hold ? '<br><span class="badge expected">Customer: keep</span>' : ''}</td>
-      <td>${kg(p.weightKg)}<br>${esc(p.dims || '')}</td><td>${esc(niceDate(p.receivedAt))}</td><td>${p.storagePence ? gbp(p.storagePence) : 'free'}</td>
-      <td><input class="inp" data-note="${p.id}" value="${esc(p.note || '')}" style="min-width:160px"></td>
-      <td><button type="button" class="btn ghost sm" data-discard="${p.id}">Discard</button></td></tr>`).join('') || '<tr><td colspan="8" class="muted">Empty.</td></tr>'}</table></div></section>`;
+function statCards(all) {
+  const n = (k) => uniq(all.filter((r) => r.stage === k));
+  return `<div class="tw-stats">${STAT_ORDER.map((k) => `<button type="button" class="tw-stat" data-stage="${k}" aria-pressed="${S.stage === k}">
+    <span class="ic" style="background:${STAGE[k][1]}"><i style="background:${STAGE[k][2]}"></i></span><span>${STAGE[k][0]}<b>${n(k)}</b></span></button>`).join('')}</div>`;
 }
 
-function quoteList(quotes) {
-  return quotes?.length ? `<div class="tr-opts">${quotes.map((x) => `<div class="tr-opt"><span class="n"><b>${esc(x.name)}</b><span>${x.chargeableKg} kg charged · ${x.daysMin}–${x.daysMax} days</span>
-    <span class="tr-break">shipping ${gbp(x.breakdown.shipping)} + fuel ${gbp(x.breakdown.fuel)} + handling ${gbp(x.breakdown.handling)}${x.breakdown.consolidation ? ` + combining ${gbp(x.breakdown.consolidation)}` : ''}${x.breakdown.storage ? ` + storage ${gbp(x.breakdown.storage)}` : ''}</span></span><span class="p">${gbp(x.pence)}</span></div>`).join('')}</div>` : '';
+function actionFor(r) {
+  if (r.stage === 'coming') return `<button type="button" class="tw-btn sm" data-open="arrive" data-id="${r.p.id}">Arrived</button>`;
+  if (r.stage === 'pack') return `<button type="button" class="tw-btn sm" data-open="pack" data-id="${r.s.id}">Pack &amp; price</button>`;
+  if (r.stage === 'ship') return `<button type="button" class="tw-btn sm green" data-open="ship" data-id="${r.s.id}">Ship</button>`;
+  if (r.stage === 'pay') return `<span class="tw-muted">${gbp(r.s.quotes?.[0]?.pence || 0)}+</span>`;
+  if (r.stage === 'sent') return `<button type="button" class="tw-btn ghost sm" data-deliv="${r.s.id}">Delivered</button>`;
+  if (r.stage === 'here') return `<button type="button" class="tw-btn ghost sm" data-open="note" data-id="${r.p.id}">Note</button>`;
+  return '';
 }
 
-function boxCard(s) {
-  const a = s.address;
-  const pk = s.packages.map((p) => `<li>${esc(p.store)}: ${esc(p.description || '–')} · ${p.valueTry ? `${p.valueTry.toLocaleString('tr-TR')} TL` : 'no value'} · ${kg(p.weightKg)}${p.dims ? ` · ${esc(p.dims)}` : ''}</li>`).join('');
-  const total = s.packages.reduce((x, p) => x + (p.valueTry || 0), 0);
-  let act = '';
-  if (s.status === 'requested' || s.status === 'quoted') {
-    act = `<div class="grid2"><label class="fld">Packed weight (kg)<input class="inp" data-w="${s.id}" inputmode="decimal" value="${esc(S.draft[s.id]?.weightKg ?? s.weightKg ?? '')}"></label>
-      <label class="fld">Box size cm<input class="inp" data-d="${s.id}" value="${esc(S.draft[s.id]?.dims ?? s.dims ?? '')}" placeholder="40x30x20"></label></div>
-      ${quoteList(S.preview[s.id] || (s.status === 'quoted' ? s.quotes : null))}
-      <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn ghost" data-prev="${s.id}">Preview prices</button>
-      <button type="button" class="btn" data-measure="${s.id}" ${S.busy ? 'disabled' : ''}>${s.status === 'quoted' ? 'Update the price' : 'Send price to customer'}</button></div>`;
-  }
-  if (s.status === 'paid') {
-    act = `<div class="tr-info">Paid <b>${gbp(s.pricePence)}</b> by ${esc(s.paidVia)} · <b>${esc(s.courierName)}</b> · ${kg(s.weightKg)} · ${esc(s.dims)} cm</div>
-      <div class="tr-calc"><label class="fld">${esc(s.courierName)} tracking number<input class="inp" data-t="${s.id}"></label><button type="button" class="btn" data-ship="${s.id}" ${S.busy ? 'disabled' : ''}>Mark as sent</button></div>`;
-  }
-  if (s.status === 'shipped') act = `<div class="tr-calc"><span>${esc(s.courierName)} · ${s.trackingUrl ? `<a href="${esc(s.trackingUrl)}" target="_blank" rel="noopener">${esc(s.trackingNo)}</a>` : esc(s.trackingNo)}</span><button type="button" class="btn ghost sm" data-deliv="${s.id}">Mark delivered</button></div>`;
-  return `<article class="tr-box"><div class="tr-box-h"><b>${esc(s.ref)} · ${esc(s.suite)} · ${esc(s.customer)}</b><span class="badge ${s.status}">${BOX[s.status]}</span></div>
-    <div class="kvs"><div><span>Deliver to</span><b>${esc([a.name, a.line1, a.line2, a.city, a.postcode].filter(Boolean).join(', '))}</b></div><div><span>Phone</span><b>${esc(a.phone || '–')}</b></div><div><span>Asked</span><b>${esc(niceDate(s.createdAt))}</b></div></div>
-    ${s.note ? `<div class="tr-warn">Customer note: ${esc(s.note)}</div>` : ''}
-    <div><b style="font-size:14px">${s.packages.length} parcel${s.packages.length > 1 ? 's' : ''} (customs: ${total.toLocaleString('tr-TR')} TL)</b><ul style="margin:6px 0 0;padding-left:20px;font-size:14px">${pk}</ul></div>
-    ${act}</article>`;
+function listView() {
+  const all = rows().filter((r) => r.stage !== 'gone' || S.stage === 'all');
+  const q = S.q.trim().toLowerCase();
+  let list = all.filter((r) => (S.stage === 'all' || r.stage === S.stage) && (!q || JSON.stringify([r.p, r.s?.ref, r.s?.trackingNo]).toLowerCase().includes(q)));
+  // Work queues: oldest first. Everything else: newest first.
+  const queue = ['coming', 'here', 'pack', 'ship'].includes(S.stage);
+  list = list.sort((a, b) => (queue ? 1 : -1) * String(a.at).localeCompare(String(b.at)));
+  const chips = [['all', 'All'], ...STAT_ORDER.map((k) => [k, STAGE[k][0]]), ['done', 'Delivered']];
+  const count = (k) => (k === 'all' ? all.length : uniq(all.filter((r) => r.stage === k)));
+  const hereView = S.stage === 'here';
+  return `${statCards(all)}
+  <section class="tw-card">
+    <div class="tw-card-h"><h2>${S.stage === 'all' ? 'All shipments' : STAGE[S.stage][0]}</h2>
+      <label class="tw-search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8593A8" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+        <input id="q" placeholder="Code, name, tracking, TR-…" value="${esc(S.q)}" aria-label="Search"></label></div>
+    <div class="tw-chips">${chips.map(([k, l]) => `<button type="button" class="tw-chip" data-stage="${k}" aria-pressed="${S.stage === k}">${l} · ${count(k)}</button>`).join('')}</div>
+    <div style="overflow-x:auto"><table class="tw-tbl"><thead><tr><th>Customer</th><th>Item</th><th>Tracking in Turkey</th><th>Weight · size</th><th>${hereView ? 'Waiting' : 'Box'}</th><th>Status</th><th></th></tr></thead><tbody>
+    ${list.map((r) => {
+      const p = r.p;
+      const tags = [p.autoSend && ['coming', 'here'].includes(r.stage) ? `<span class="tw-tag blue">⚡ Send on arrival · ${p.autoPref}</span>` : '', p.hold && r.stage === 'here' ? '<span class="tw-tag">Keep</span>' : ''].join(' ');
+      const wait = daysSince(p.receivedAt);
+      return `<tr><td><span class="two"><b>${esc(p.customer)}</b><small class="mono">${esc(p.suite || '')}</small></span></td>
+        <td><span class="two"><b>${esc(p.description || 'No description yet')}</b><small>${esc(p.store || '')}${p.valueTry ? ` · ${tl(p.valueTry)}` : ''}</small></span></td>
+        <td class="mono">${esc(p.tracking || '–')}</td>
+        <td><span class="two"><b>${kg(p.weightKg)}</b><small>${esc(p.dims ? `${p.dims} cm` : '')}</small></span></td>
+        <td>${hereView ? `<span class="two"><b style="color:${wait > S.d.settings.freeDays ? '#B42318' : 'inherit'}">${wait} day${wait === 1 ? '' : 's'}</b><small>since ${day(p.receivedAt)}</small></span>`
+          : r.s ? `<span class="two"><b class="mono">${esc(r.s.ref)}</b><small>${r.s.courierName ? esc(r.s.courierName) : `${S.d.packages.filter((x) => x.shipmentId === r.s.id).length} parcel(s)`}</small></span>` : '<span class="tw-muted">–</span>'}</td>
+        <td><span class="two" style="gap:4px;align-items:flex-start">${pill(r.stage)}${tags}</span></td>
+        <td>${actionFor(r)}</td></tr>`;
+    }).join('') || `<tr><td colspan="7"><div class="tw-empty"><b>Nothing here</b>${S.q ? 'Try another search.' : 'New orders show up here as soon as customers add them.'}</div></td></tr>`}
+    </tbody></table></div>
+  </section>`;
 }
 
-function boxTab() {
-  const order = ['requested', 'paid', 'quoted', 'shipped', 'delivered', 'cancelled'];
-  const list = S.d.shipments.filter(match).sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
-  return `<div class="tr-list">${list.map(boxCard).join('') || '<div class="empty-box"><b>No boxes yet</b></div>'}</div>`;
-}
-
-const ratesText = (rates) => rates.map(([k, p]) => `${k} = ${pounds(p)}`).join('\n');
-function courTab() {
-  const e = S.edit;
-  const form = e ? `<section class="tr-card" id="cf"><h2>${e.id ? `Edit ${esc(e.name)}` : 'Add a courier'}</h2>
-    <div class="grid2">
-      <label class="fld">Name (what customers see)<input class="inp" name="name" value="${esc(e.name || '')}" placeholder="UPS Express Saver"></label>
-      <label class="fld">Show to customers<select class="inp" name="active"><option value="true" ${e.active !== false ? 'selected' : ''}>Yes</option><option value="false" ${e.active === false ? 'selected' : ''}>No (hidden)</option></select></label>
-      <label class="fld">Price list (kg = £, our selling price)<textarea class="inp" name="rates" rows="8" placeholder="0.5 = 9.90&#10;1 = 12.50&#10;2 = 16.90&#10;5 = 27.50&#10;10 = 42.00">${esc(e.ratesRaw ?? (e.rates ? ratesText(e.rates) : ''))}</textarea></label>
-      <div style="display:flex;flex-direction:column;gap:12px">
-        <label class="fld">Each extra kg above the list (£) <em>(empty = not allowed)</em><input class="inp" name="extraKg" value="${e.extraKgPence ? pounds(e.extraKgPence) : ''}"></label>
-        <label class="fld">Fuel surcharge (%)<input class="inp" name="fuelPct" value="${e.fuelBp ? e.fuelBp / 100 : ''}"></label>
-        <label class="fld">Volumetric divisor <em>(5000 most couriers)</em><input class="inp" name="divisor" value="${esc(e.divisor || 5000)}"></label>
-        <label class="fld">Max kg per box<input class="inp" name="maxKg" value="${esc(e.maxKg || 30)}"></label>
-      </div>
-      <label class="fld">Working days (from)<input class="inp" name="daysMin" value="${esc(e.daysMin || 2)}"></label>
-      <label class="fld">Working days (to)<input class="inp" name="daysMax" value="${esc(e.daysMax || 5)}"></label>
-      <label class="fld">Tracking link <em>({n} = tracking number)</em><input class="inp" name="trackingUrl" value="${esc(e.trackingUrl || '')}" placeholder="https://www.ups.com/track?tracknum={n}"></label>
-      <label class="fld">Order on the list<input class="inp" name="sort" value="${esc(e.sort || 0)}"></label>
-    </div>
-    <label class="fld">Internal note<input class="inp" name="note" value="${esc(e.note || '')}" placeholder="Account no, contact, cost price…"></label>
-    <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn" data-act="saveCour" ${S.busy ? 'disabled' : ''}>Save</button><button type="button" class="btn ghost" data-act="closeCour">Cancel</button>
-    ${e.id ? `<button type="button" class="btn ghost" data-delcour="${e.id}" style="margin-left:auto;color:#B42318">Delete</button>` : ''}</div></section>` : '';
-  return `${form}<section class="tr-card"><div class="tr-box-h"><h2>Couriers (${S.d.couriers.length})</h2><button type="button" class="btn" data-act="newCour">+ Add courier</button></div>
-    <span class="muted" style="font-size:14px">Prices here are what the customer pays for shipping. Handling, combining and storage fees from Settings are added on top.</span>
-    <div class="tr-scroll"><table class="tr-tbl"><tr><th>Courier</th><th>Shown</th><th>Price list</th><th>Extra kg</th><th>Fuel</th><th>Days</th><th></th></tr>
-    ${S.d.couriers.map((c) => `<tr><td><b>${esc(c.name)}</b>${c.note ? `<br><span class="muted">${esc(c.note)}</span>` : ''}</td><td>${c.active ? 'Yes' : 'Hidden'}</td>
+const ratesText = (rates) => (rates || []).map(([k, p]) => `${k} = ${pounds(p)}`).join('\n');
+function courView() {
+  return `<section class="tw-card"><div class="tw-card-h"><h2>Couriers and prices</h2><button type="button" class="tw-btn" data-open="courier">+ Add courier</button></div>
+    <p class="tw-muted" style="margin:6px 20px 0">The price list is what the customer pays for shipping. Handling, combining and storage from Settings are added on top.</p>
+    <div style="overflow-x:auto;margin-top:12px"><table class="tw-tbl"><thead><tr><th>Courier</th><th>Shown</th><th>Price list</th><th>Extra kg</th><th>Fuel</th><th>Days</th><th></th></tr></thead><tbody>
+    ${S.d.couriers.map((c) => `<tr><td><span class="two"><b>${esc(c.name)}</b><small>${esc(c.note || '')}</small></span></td><td>${c.active ? pill('here').replace('In warehouse', 'Yes') : '<span class="tw-muted">Hidden</span>'}</td>
       <td style="white-space:pre;font-size:13px">${esc(ratesText(c.rates))}</td><td>${c.extraKgPence ? gbp(c.extraKgPence) : '–'}</td><td>${c.fuelBp / 100}%</td><td>${c.daysMin}–${c.daysMax}</td>
-      <td><button type="button" class="btn ghost sm" data-editcour="${c.id}">Edit</button></td></tr>`).join('') || '<tr><td colspan="7" class="muted">No couriers yet. Customers cannot get a price until you add one.</td></tr>'}</table></div></section>`;
+      <td><button type="button" class="tw-btn ghost sm" data-open="courier" data-id="${c.id}">Edit</button></td></tr>`).join('')
+      || '<tr><td colspan="7"><div class="tw-empty"><b>No couriers yet</b>Customers cannot get a price until you add one.</div></td></tr>'}</tbody></table></div></section>`;
 }
 
-function setTab() {
+function setView() {
   const s = S.d.settings;
-  const f = (k, label, v, ph = '') => `<label class="fld">${label}<input class="inp" name="${k}" value="${esc(v)}" placeholder="${esc(ph)}"></label>`;
-  return `<section class="tr-card" id="sf"><h2>Warehouse address</h2>
-    <span class="muted" style="font-size:14px">Customers see this, with their own KG code added to the name and address line 2.</span>
-    <div class="grid2">${f('whName', 'Warehouse name', s.whName)}${f('whPhone', 'Phone (shops need one)', s.whPhone, '+90 5xx xxx xx xx')}
-      ${f('whLine1', 'Address (mahalle, sokak, no)', s.whLine1)}${f('whLine2', 'Address 2 (bina, kat, depo)', s.whLine2)}
-      ${f('whDistrict', 'İlçe', s.whDistrict)}${f('whCity', 'İl', s.whCity)}${f('whPostcode', 'Posta kodu', s.whPostcode)}</div>
-    <h2 style="margin-top:8px">Fees</h2>
-    <div class="grid2">${f('handlingPence', 'Handling per box (£)', pounds(s.handlingPence))}${f('consolidatePence', 'Combining, per extra parcel (£)', pounds(s.consolidatePence))}
-      ${f('freeDays', 'Free storage (days)', s.freeDays)}${f('storagePencePerDay', 'Storage after that, per parcel per day (£)', pounds(s.storagePencePerDay))}</div>
-    <button type="button" class="btn big" data-act="saveSet" ${S.busy ? 'disabled' : ''}>Save settings</button></section>`;
+  const f = (k, label, v, ph = '') => `<label class="tw-f">${label}<input class="tw-in" name="${k}" value="${esc(v)}" placeholder="${esc(ph)}"></label>`;
+  return `<section class="tw-card" id="sf"><div class="tw-card-h"><h2>Warehouse address</h2></div><div class="tw-pad">
+    <span class="tw-muted">Customers see this, with their own KG code added after their name and on address line 2.</span>
+    <div class="tw-row">${f('whName', 'Warehouse name', s.whName)}${f('whPhone', 'Phone (shops ask for one)', s.whPhone, '+90 5xx xxx xx xx')}</div>
+    <div class="tw-row">${f('whLine1', 'Address (mahalle, sokak, no)', s.whLine1)}${f('whLine2', 'Address 2 (bina, kat, depo)', s.whLine2)}</div>
+    <div class="tw-row">${f('whDistrict', 'İlçe', s.whDistrict)}${f('whCity', 'İl', s.whCity)}${f('whPostcode', 'Posta kodu', s.whPostcode)}</div></div>
+    <div class="tw-card-h" style="padding-top:4px"><h2>Fees</h2></div><div class="tw-pad">
+    <div class="tw-row">${f('handlingPence', 'Handling per box (£)', pounds(s.handlingPence))}${f('consolidatePence', 'Combining, per extra parcel (£)', pounds(s.consolidatePence))}
+      ${f('freeDays', 'Free storage (days)', s.freeDays)}${f('storagePencePerDay', 'Then per parcel per day (£)', pounds(s.storagePencePerDay))}</div>
+    <div><button type="button" class="tw-btn big" data-act="saveSet">Save settings</button></div></div></section>`;
+}
+
+// ---------- drawers
+const cell = (attr, k, label, unit, v, dec) => `<label><small>${label}</small><span class="tw-unit" data-u="${unit}"><input class="tw-in" ${attr}="${k}" inputmode="${dec ? 'decimal' : 'numeric'}" value="${esc(v ?? '')}"></span></label>`;
+const dimsHtml = (v) => (v = v || {}, `<div class="tw-dims">${cell('name', 'w', 'Weight', 'kg', v.w, 1)}${cell('name', 'l', 'Length', 'cm', v.l)}${cell('name', 'wd', 'Width', 'cm', v.wd)}${cell('name', 'h', 'Height', 'cm', v.h)}</div>`);
+const quotesHtml = (qs) => (qs?.length ? `<div class="tw-opts">${qs.map((x) => `<div class="tw-opt"><span class="n"><b>${esc(x.name)}</b><span>${x.chargeableKg} kg charged · ${x.daysMin}–${x.daysMax} days · shipping ${gbp(x.breakdown.shipping + x.breakdown.fuel)}, fees ${gbp(x.breakdown.handling + x.breakdown.consolidation + x.breakdown.storage)}</span></span><span class="p">${gbp(x.pence)}</span></div>`).join('')}</div>` : '');
+const addrText = (a) => [a.name, a.line1, a.line2, a.city, a.postcode].filter(Boolean).join(', ');
+
+function drawerHtml() {
+  const dr = S.drawer;
+  if (!dr) return '';
+  const pkg = (id) => S.d.packages.find((p) => p.id === id);
+  const shp = (id) => S.d.shipments.find((s) => s.id === id);
+  let h = '', b = '', f = '';
+  if (dr.kind === 'arrive') {
+    const p = pkg(dr.id);
+    h = `<h2>Parcel arrived</h2><p>${esc(p.customer)} · ${esc(p.suite)} · ${esc(p.store)}</p>`;
+    b = `<div class="tw-note"><b>${esc(p.description)}</b><br>${tl(p.valueTry)}${p.tracking ? ` · tracking ${esc(p.tracking)}` : ''}</div>
+      ${p.autoSend ? `<div class="tw-note warn">⚡ The customer asked to send this <b>as soon as it arrives</b> (${p.autoPref}). After you save, it is priced and paid from their wallet automatically, if the money is there.</div>` : ''}
+      ${dimsHtml(dr.v)}<label class="tw-f">Note for the customer <em>(damage, missing items…)</em><input class="tw-in" name="note" value="${esc(dr.v?.note || '')}"></label>`;
+    f = `<button type="button" class="tw-btn big" data-act="arrive">Mark as arrived</button>`;
+  } else if (dr.kind === 'scan') {
+    h = '<h2>Receive a parcel</h2><p>Scan the tracking number. It matches the customer\'s order by itself; if nobody told us about it, add the KG code from the label.</p>';
+    const v = dr.v || {};
+    b = `<label class="tw-f">Tracking number<input class="tw-in" name="tracking" value="${esc(v.tracking || '')}" autofocus></label>
+      <label class="tw-f">KG code <em>(only if there was no order)</em><input class="tw-in" name="suite" value="${esc(v.suite || '')}" placeholder="KG12345" style="text-transform:uppercase"></label>
+      ${dimsHtml(v)}
+      <div class="tw-row"><label class="tw-f">Shop<select class="tw-in" name="store">${S.d.stores.map((s) => `<option ${s === v.store ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
+      <label class="tw-f">What is in it<input class="tw-in" name="description" value="${esc(v.description || '')}"></label></div>
+      <label class="tw-f">Note for the customer<input class="tw-in" name="note" value="${esc(v.note || '')}"></label>`;
+    f = '<button type="button" class="tw-btn big" data-act="scan">Received</button>';
+  } else if (dr.kind === 'note') {
+    const p = pkg(dr.id);
+    h = `<h2>${esc(p.description || 'Parcel')}</h2><p>${esc(p.customer)} · ${esc(p.suite)} · in the warehouse ${daysSince(p.receivedAt)} days</p>`;
+    b = `<div class="tw-note">${esc(p.store)} · ${tl(p.valueTry)} · ${kg(p.weightKg)}${p.dims ? ` · ${esc(p.dims)} cm` : ''}${p.storagePence ? ` · storage owed ${gbp(p.storagePence)}` : ''}</div>
+      <label class="tw-f">Note for the customer<input class="tw-in" name="note" value="${esc(p.note || '')}"></label>`;
+    f = `<button type="button" class="tw-btn" data-act="saveNote">Save note</button><button type="button" class="tw-btn ghost" data-act="discard" style="color:#B42318">Discard parcel</button>`;
+  } else if (dr.kind === 'pack') {
+    const s = shp(dr.id);
+    const pk = S.d.packages.filter((p) => p.shipmentId === s.id);
+    h = `<h2>Pack &amp; price ${esc(s.ref)}</h2><p>${esc(s.customer)} · ${esc(s.suite)} · ${pk.length} parcel${pk.length > 1 ? 's' : ''}</p>`;
+    b = `<div class="tw-note"><b>In the box</b>${pk.map((p) => `<br>• ${esc(p.store)}: ${esc(p.description)} · ${tl(p.valueTry)} · ${kg(p.weightKg)}`).join('')}<br><b>Customs total: ${tl(pk.reduce((a, p) => a + (p.valueTry || 0), 0))}</b></div>
+      <div class="tw-muted">To: ${esc(addrText(s.address))} · ${esc(s.address.phone || '')}</div>
+      ${s.note ? `<div class="tw-note warn">Customer note: ${esc(s.note)}</div>` : ''}
+      ${dimsHtml(dr.v)}<div id="prev">${S.preview ? quotesHtml(S.preview) : '<span class="tw-muted">Enter the weight and size: prices appear here.</span>'}</div>`;
+    f = `<button type="button" class="tw-btn big" data-act="measure">Send price to customer</button>`;
+  } else if (dr.kind === 'ship') {
+    const s = shp(dr.id);
+    h = `<h2>Ship ${esc(s.ref)}</h2><p>${esc(s.customer)} · paid ${gbp(s.pricePence)} by ${esc(s.paidVia)}</p>`;
+    b = `<div class="tw-note ok"><b>${esc(s.courierName)}</b> · ${kg(s.weightKg)} · ${esc(s.dims || '')} cm</div>
+      <div class="kvs"><div class="tw-f">Deliver to<span style="font-weight:500;color:var(--ink)">${esc(addrText(s.address))}<br>${esc(s.address.phone || '')}</span></div></div>
+      <label class="tw-f">${esc(s.courierName)} tracking number<input class="tw-in" name="trackingNo" value="${esc(dr.v?.trackingNo || '')}" autofocus></label>`;
+    f = '<button type="button" class="tw-btn big green" data-act="ship">Mark as shipped</button>';
+  } else if (dr.kind === 'courier') {
+    const e = dr.id ? S.d.couriers.find((c) => c.id === dr.id) : {};
+    const v = { ...e, ...(dr.v || {}) };
+    h = `<h2>${e.id ? `Edit ${esc(e.name)}` : 'Add a courier'}</h2><p>What customers pay for shipping, before our fees.</p>`;
+    b = `<label class="tw-f">Name customers see<input class="tw-in" name="name" value="${esc(v.name || '')}" placeholder="UPS Express Saver"></label>
+      <label class="tw-f">Price list <em>(one line each: kg = £)</em><textarea class="tw-in" name="rates" rows="7" placeholder="0.5 = 9.90&#10;1 = 12.50&#10;2 = 16.90&#10;5 = 27.50&#10;10 = 42.00">${esc(typeof v.rates === 'string' ? v.rates : ratesText(e.rates))}</textarea></label>
+      <div class="tw-row"><label class="tw-f">Each extra kg (£)<input class="tw-in" name="extraKg" value="${esc(v.extraKg ?? (e.extraKgPence ? pounds(e.extraKgPence) : ''))}"></label>
+        <label class="tw-f">Fuel (%)<input class="tw-in" name="fuelPct" value="${esc(v.fuelPct ?? (e.fuelBp ? e.fuelBp / 100 : ''))}"></label></div>
+      <div class="tw-row"><label class="tw-f">Days from<input class="tw-in" name="daysMin" value="${esc(v.daysMin || 2)}"></label><label class="tw-f">Days to<input class="tw-in" name="daysMax" value="${esc(v.daysMax || 5)}"></label>
+        <label class="tw-f">Max kg<input class="tw-in" name="maxKg" value="${esc(v.maxKg || 30)}"></label></div>
+      <div class="tw-row"><label class="tw-f">Volumetric divisor<input class="tw-in" name="divisor" value="${esc(v.divisor || 5000)}"></label>
+        <label class="tw-f">Shown to customers<select class="tw-in" name="active"><option value="true">Yes</option><option value="false" ${v.active === false || v.active === 'false' ? 'selected' : ''}>No, hidden</option></select></label></div>
+      <label class="tw-f">Tracking link <em>({n} = tracking number)</em><input class="tw-in" name="trackingUrl" value="${esc(v.trackingUrl || '')}" placeholder="https://www.ups.com/track?tracknum={n}"></label>
+      <label class="tw-f">Internal note<input class="tw-in" name="note" value="${esc(v.note || '')}" placeholder="Account no, contact, our cost…"></label>`;
+    f = `<button type="button" class="tw-btn" data-act="saveCour">Save</button>${e.id ? '<button type="button" class="tw-btn ghost" data-act="delCour" style="color:#B42318">Delete</button>' : ''}`;
+  }
+  return `<div class="tw-dim" data-dim><aside class="tw-drawer" role="dialog" aria-modal="true" id="dr">
+    <div class="tw-drawer-h"><div>${h}</div><button type="button" class="tw-x" data-close aria-label="Close">×</button></div>
+    <div class="tw-drawer-b">${b}</div><div class="tw-drawer-f">${f.replace(/<button /g, `<button ${S.busy ? 'disabled ' : ''}`)}</div></aside></div>`;
 }
 
 function render() {
-  const d = S.d;
-  const counts = { recv: d.packages.filter((p) => p.status === 'expected').length, wh: d.packages.filter((p) => p.status === 'received').length,
-    box: d.shipments.filter((s) => ['requested', 'paid'].includes(s.status)).length, cour: d.couriers.length };
-  const warn = !d.settings.whLine1 ? '<div class="tr-warn">Add the warehouse address in Settings: until then customers see "coming soon".</div>'
-    : !d.couriers.some((c) => c.active) ? '<div class="tr-warn">Add at least one courier with a price list, or boxes cannot be priced.</div>' : '';
-  root.innerHTML = `<div class="tr-h"><div><h1>Turkey warehouse</h1><p>Receive, pack, price and send to the UK. <a href="/admin">Back to admin</a></p></div>
-      ${['recv', 'wh', 'box'].includes(S.tab) ? `<input class="inp" id="q" placeholder="Search code, name, tracking…" value="${esc(S.q)}" style="max-width:280px">` : ''}</div>
-    ${warn}
-    <div class="tabs" role="tablist">${TABS.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${S.tab === k}">${l}${counts[k] ? `<span class="n">${counts[k]}</span>` : ''}</button>`).join('')}</div>
-    ${S.tab === 'recv' ? recvTab() : S.tab === 'wh' ? whTab() : S.tab === 'box' ? boxTab() : S.tab === 'cour' ? courTab() : setTab()}`;
+  const all = S.d ? rows() : [];
+  const todo = all.filter((r) => ['coming', 'pack', 'ship'].includes(r.stage)).length;
+  shell?.setBadge('tr', all.filter((r) => ['pack', 'ship'].includes(r.stage)).length);
+  const warn = !S.d.settings.whLine1 ? '<div class="tw-note warn">Add the warehouse address in <b>Settings</b>. Until then customers see "coming soon" instead of their address.</div>'
+    : !S.d.couriers.some((c) => c.active) ? '<div class="tw-note warn">Add at least one courier with a price list in <b>Couriers</b>, or boxes cannot be priced.</div>' : '';
+  const focus = document.activeElement?.id === 'q' ? document.activeElement.selectionStart : null;
+  root.innerHTML = `<div class="tw-head"><div><h1>Turkey warehouse</h1><p>${todo ? `${todo} job${todo > 1 ? 's' : ''} waiting: arrivals, boxes to pack and boxes to ship.` : 'All caught up.'}</p></div>
+      <div class="tw-acts">${[['list', 'Shipments'], ['cour', 'Couriers'], ['set', 'Settings']].map(([k, l]) => `<button type="button" class="tw-chip" data-view="${k}" aria-pressed="${S.view === k}" style="min-height:42px">${l}</button>`).join('')}
+        <button type="button" class="tw-btn" data-open="scan">+ Receive a parcel</button></div></div>
+    ${warn}${S.view === 'cour' ? courView() : S.view === 'set' ? setView() : listView()}${drawerHtml()}`;
+  if (focus != null) { const q = root.querySelector('#q'); q?.focus(); q?.setSelectionRange(focus, focus); }
 }
 
 async function load() { S.d = await api('/api/admin/tr'); render(); }
-const val = (sel, name) => root.querySelector(`${sel} [name="${name}"]`)?.value ?? '';
-const form = (sel) => Object.fromEntries([...root.querySelectorAll(`${sel} [name]`)].map((i) => [i.name, i.value]));
-async function busy(fn, ok) {
+const val = (name) => root.querySelector(`#dr [name="${name}"]`)?.value ?? '';
+const keepDrawer = () => { if (!S.drawer) return; S.drawer.v = Object.fromEntries([...root.querySelectorAll('#dr [name]')].map((i) => [i.name, i.value])); };
+const dimsOf = () => ({ weightKg: val('w'), dims: [val('l'), val('wd'), val('h')].every((x) => Number(x) > 0) ? `${val('l')}x${val('wd')}x${val('h')}` : '' });
+async function run(fn, ok) {
   if (S.busy) return;
-  S.busy = true; render();
-  try { await fn(); if (ok) toast(ok); } catch (e) { toast(e.message); }
+  keepDrawer(); S.busy = true; render();
+  try { const msg = await fn(); toast(msg || ok); } catch (e) { toast(e.message); }
   S.busy = false; render();
 }
 
-root.addEventListener('input', (e) => {
-  if (e.target.id === 'q') { S.q = e.target.value; const pos = e.target.selectionStart; render(); const q = root.querySelector('#q'); q.focus(); q.setSelectionRange(pos, pos); }
-});
-root.addEventListener('change', async (e) => {
-  const t = e.target;
-  if (t.dataset.note) { try { await api(`/api/admin/tr/packages/${t.dataset.note}`, { method: 'POST', body: { note: t.value } }); toast('Note saved'); } catch (err) { toast(err.message); } }
-});
-root.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.closest('#rf') && e.target.tagName === 'INPUT') root.querySelector('[data-act="receive"]')?.click(); });
-root.addEventListener('click', async (e) => {
-  const b = e.target.closest('button');
-  if (!b) return;
-  const ds = b.dataset;
-  if (ds.tab) { S.tab = ds.tab; S.edit = null; history.replaceState(null, '', `/admin/turkey?tab=${ds.tab}`); render(); load().catch(() => {}); return; }
-  if (ds.recv) { const p = S.d.packages.find((x) => x.id === ds.recv); S.recv = { packageId: p.id, tracking: p.tracking || '', label: `${p.suite} · ${p.customer} · ${p.store}: ${p.description}` }; render(); root.querySelector('#rf [name="weightKg"]')?.focus(); return; }
-  if (ds.discard) { if (!confirm('Mark this parcel as discarded?')) return; await busy(async () => { await api(`/api/admin/tr/packages/${ds.discard}`, { method: 'POST', body: { discard: true } }); await load(); }, 'Discarded'); return; }
-  const wd = (id) => ({ weightKg: root.querySelector(`[data-w="${id}"]`)?.value, dims: root.querySelector(`[data-d="${id}"]`)?.value });
-  if (ds.prev) { const body = { ...wd(ds.prev), preview: true }; S.draft[ds.prev] = body; await busy(async () => { S.preview[ds.prev] = (await api(`/api/admin/tr/shipments/${ds.prev}/measure`, { method: 'POST', body })).quotes; }); return; }
-  if (ds.measure) { const body = wd(ds.measure); S.draft[ds.measure] = body; await busy(async () => { await api(`/api/admin/tr/shipments/${ds.measure}/measure`, { method: 'POST', body }); delete S.preview[ds.measure]; await load(); }, 'Price sent to the customer'); return; }
-  if (ds.ship) { const trackingNo = root.querySelector(`[data-t="${ds.ship}"]`)?.value; await busy(async () => { await api(`/api/admin/tr/shipments/${ds.ship}/ship`, { method: 'POST', body: { trackingNo } }); await load(); }, 'Marked as sent. The customer got the tracking number.'); return; }
-  if (ds.deliv) { await busy(async () => { await api(`/api/admin/tr/shipments/${ds.deliv}/delivered`, { method: 'POST', body: {} }); await load(); }, 'Delivered'); return; }
-  if (ds.editcour) { S.edit = { ...S.d.couriers.find((c) => c.id === ds.editcour) }; render(); root.querySelector('#cf')?.scrollIntoView({ behavior: 'smooth' }); return; }
-  if (ds.delcour) { if (!confirm('Delete this courier? Prices already sent to customers stay as they are.')) return; await busy(async () => { await api(`/api/admin/tr/couriers/${ds.delcour}/delete`, { method: 'POST', body: {} }); S.edit = null; await load(); }, 'Deleted'); return; }
-  switch (ds.act) {
-    case 'clearRecv': S.recv = {}; render(); break;
-    case 'receive': {
-      const body = { ...form('#rf'), packageId: S.recv.packageId || '' };
-      S.recv = { ...S.recv, ...body };
-      await busy(async () => { await api('/api/admin/tr/receive', { method: 'POST', body }); S.recv = {}; await load(); root.querySelector('#rf [name="tracking"]')?.focus(); }, 'Received. The customer got an email.');
-      break;
+let prevTimer;
+function livePreview() {
+  clearTimeout(prevTimer);
+  const d = dimsOf();
+  if (!(Number(String(d.weightKg).replace(',', '.')) > 0)) return;
+  prevTimer = setTimeout(async () => {
+    try { S.preview = (await api(`/api/admin/tr/shipments/${S.drawer.id}/measure`, { method: 'POST', body: { ...d, preview: true } })).quotes; } catch { S.preview = null; }
+    const box = root.querySelector('#prev'); if (box) box.innerHTML = S.preview?.length ? quotesHtml(S.preview) : '<span class="tw-muted">No courier takes this size. Check Couriers.</span>';
+  }, 350);
+}
+
+function bind() {
+  root.addEventListener('input', (e) => {
+    if (e.target.id === 'q') { S.q = e.target.value; render(); return; }
+    if (S.drawer?.kind === 'pack' && ['w', 'l', 'wd', 'h'].includes(e.target.name)) livePreview();
+  });
+  root.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && S.drawer) { S.drawer = null; render(); }
+    if (e.key === 'Enter' && e.target.closest('#dr') && e.target.tagName === 'INPUT') root.querySelector('#dr .tw-drawer-f .tw-btn')?.click();
+  });
+  root.addEventListener('click', async (e) => {
+    if (e.target.matches('[data-dim]')) { S.drawer = null; render(); return; }
+    const b = e.target.closest('button');
+    if (!b) return;
+    const ds = b.dataset;
+    if ('close' in ds) { S.drawer = null; render(); return; }
+    if (ds.view) { S.view = ds.view; history.replaceState(null, '', ds.view === 'list' ? '/admin/turkey' : `/admin/turkey?tab=${ds.view}`); render(); load().catch(() => {}); return; }
+    if (ds.stage) { S.stage = S.stage === ds.stage && b.classList.contains('tw-stat') ? 'all' : ds.stage; S.view = 'list'; render(); return; }
+    if (ds.open) { S.drawer = { kind: ds.open, id: ds.id || null, v: null }; S.preview = null; render(); root.querySelector('#dr input, #dr textarea')?.focus(); return; }
+    if (ds.deliv) { await run(async () => { await api(`/api/admin/tr/shipments/${ds.deliv}/delivered`, { method: 'POST', body: {} }); await load(); }, 'Marked as delivered'); return; }
+    const dr = S.drawer;
+    switch (ds.act) {
+      case 'arrive': await run(async () => {
+        const r = await api('/api/admin/tr/receive', { method: 'POST', body: { packageId: dr.id, ...dimsOf(), note: val('note') } });
+        S.drawer = null; await load();
+        return r.auto?.status === 'paid' ? `Arrived, priced and paid from the wallet (${gbp(r.auto.pence)}). It is in Ready to ship.`
+          : r.auto?.status === 'quoted' ? `Arrived and priced (${gbp(r.auto.pence)}). Waiting for the customer to pay.` : 'Arrived. The customer got an email.';
+      }); break;
+      case 'scan': await run(async () => {
+        const r = await api('/api/admin/tr/receive', { method: 'POST', body: { tracking: val('tracking'), suite: val('suite'), store: val('store'), description: val('description'), note: val('note'), ...dimsOf() } });
+        S.drawer = { kind: 'scan', v: null }; await load();
+        return r.auto ? `Received and ${r.auto.status === 'paid' ? 'paid from the wallet' : 'priced for the customer'}.` : 'Received. Scan the next one.';
+      }); break;
+      case 'saveNote': await run(async () => { await api(`/api/admin/tr/packages/${dr.id}`, { method: 'POST', body: { note: val('note') } }); S.drawer = null; await load(); }, 'Note saved'); break;
+      case 'discard': if (!confirm('Mark this parcel as discarded?')) return; await run(async () => { await api(`/api/admin/tr/packages/${dr.id}`, { method: 'POST', body: { discard: true } }); S.drawer = null; await load(); }, 'Discarded'); break;
+      case 'measure': await run(async () => { await api(`/api/admin/tr/shipments/${dr.id}/measure`, { method: 'POST', body: dimsOf() }); S.drawer = null; await load(); }, 'Price sent. The customer chooses a courier and pays.'); break;
+      case 'ship': await run(async () => { await api(`/api/admin/tr/shipments/${dr.id}/ship`, { method: 'POST', body: { trackingNo: val('trackingNo') } }); S.drawer = null; await load(); }, 'Shipped. The customer got the tracking number.'); break;
+      case 'saveCour': {
+        const body = Object.fromEntries([...root.querySelectorAll('#dr [name]')].map((i) => [i.name, i.value]));
+        await run(async () => { await api('/api/admin/tr/couriers', { method: 'POST', body: { ...body, id: dr.id || '' } }); S.drawer = null; await load(); }, 'Courier saved');
+        break;
+      }
+      case 'delCour': if (!confirm('Delete this courier? Prices already sent to customers stay as they are.')) return; await run(async () => { await api(`/api/admin/tr/couriers/${dr.id}/delete`, { method: 'POST', body: {} }); S.drawer = null; await load(); }, 'Deleted'); break;
+      case 'saveSet': {
+        const body = Object.fromEntries([...root.querySelectorAll('#sf [name]')].map((i) => [i.name, i.value]));
+        await run(async () => { await api('/api/admin/tr/settings', { method: 'POST', body }); await load(); }, 'Settings saved');
+        break;
+      }
+      default:
     }
-    case 'newCour': S.edit = {}; render(); break;
-    case 'closeCour': S.edit = null; render(); break;
-    case 'saveCour': {
-      const body = { ...form('#cf'), id: S.edit.id || '' };
-      S.edit = { ...S.edit, ratesRaw: body.rates };
-      await busy(async () => { await api('/api/admin/tr/couriers', { method: 'POST', body }); S.edit = null; await load(); }, 'Courier saved');
-      break;
-    }
-    case 'saveSet': { const body = form('#sf'); await busy(async () => { await api('/api/admin/tr/settings', { method: 'POST', body }); await load(); }, 'Settings saved'); break; }
-    default:
-  }
-});
+  });
+}
 
 (async () => {
-  try { await load(); } catch { location.href = '/login?next=/admin/turkey'; }
+  try { shell = await mountAdminShell('tr', 'Turkey warehouse'); } catch { location.href = '/login?next=/admin/turkey'; return; }
+  root = document.createElement('div'); root.className = 'tw'; shell.main.append(root);
+  root.innerHTML = '<div class="tw-empty"><b>Loading…</b></div>';
+  bind();
+  try { await load(); } catch (e) { root.innerHTML = `<div class="tw-empty"><b>${esc(e.message)}</b></div>`; }
+  setInterval(() => { if (!S.drawer && !S.busy && document.visibilityState === 'visible') load().catch(() => {}); }, 30_000);
 })();

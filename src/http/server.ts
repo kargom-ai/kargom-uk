@@ -395,6 +395,7 @@ export function buildRouter(app: App) {
   // ---------- Turkey warehouse (shop in Turkey, we forward to the UK)
   on('GET', '/api/tr/estimate', 'public', async (c) => { freightLimiter.check(ip(c)); return app.turkey.estimate(c.query.get('kg'), c.query.get('dims'), c.query.get('parcels') ?? 1); });
   on('GET', '/api/tr', 'customer', async (c) => app.turkey.overview(me(c)));
+  on('POST', '/api/tr/address', 'customer', async (c) => app.turkey.saveUkAddress(me(c), c.body ?? {}));
   on('POST', '/api/tr/packages', 'customer', async (c) => app.turkey.addPackage(me(c), c.body ?? {}));
   on('POST', '/api/tr/packages/:id', 'customer', async (c) => app.turkey.updatePackage(me(c), c.params.id!, c.body ?? {}));
   on('POST', '/api/tr/packages/:id/remove', 'customer', async (c) => app.turkey.removePackage(me(c), c.params.id!));

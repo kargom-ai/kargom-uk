@@ -108,3 +108,31 @@ test('Turkey warehouse: card payment via Stripe webhook, cancel puts parcels bac
   assert.equal(s.paidVia, 'card');
   assert.equal(await app.ledger.trialBalance(), 0);
 });
+
+test('Turkey warehouse: "send as soon as it arrives" prices and pays from the wallet', async () => {
+  const { app } = await makeApp();
+  const t = app.turkey;
+  const c = await makeCustomer(app);
+  await t.saveCourier({ name: 'Cheap', rates: '5 = 10', daysMin: 7, daysMax: 10 });
+  await t.saveCourier({ name: 'Fast', rates: '5 = 20', daysMin: 1, daysMax: 2 });
+  await assert.rejects(t.addPackage(c, { store: 'Trendyol', description: 'Shoes', valueTry: 900, autoSend: true }), /UK address/);
+  await t.saveUkAddress(c, UK);
+  const fast = await t.addPackage(c, { store: 'Trendyol', description: 'Shoes', valueTry: 900, tracking: 'F1', autoSend: true, autoPref: 'fastest' });
+  await t.addPackage(c, { store: 'Koton', description: 'Shirt', valueTry: 400, tracking: 'C1', autoSend: true });
+  await assert.rejects(t.receive({ tracking: 'F1', weightKg: 1 }), /size/);
+  // no money: priced, waiting for payment
+  const r1 = await t.receive({ tracking: 'F1', weightKg: 1, dims: '20x20x10' });
+  assert.equal(r1.id, fast.id);
+  assert.equal(r1.auto?.status, 'quoted');
+  assert.equal(r1.auto?.pence, 2000 + 300);
+  // money in the wallet: paid straight away with the cheapest
+  await app.wallet.topUp(c, 5000, 'pi_auto');
+  const r2 = await t.receive({ tracking: 'C1', weightKg: 1, dims: '20x20x10' });
+  assert.equal(r2.auto?.status, 'paid');
+  const ov = await t.overview(c);
+  const paid = ov.shipments.find((s) => s.status === 'paid')!;
+  assert.equal(paid.courierName, 'Cheap');
+  assert.equal(await app.wallet.balance(c), 5000 - 1300);
+  assert.equal(await app.ledger.trialBalance(), 0);
+  assert.equal(ov.ukAddress?.postcode, 'LS1 5HD');
+});
