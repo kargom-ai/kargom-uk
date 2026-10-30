@@ -6,6 +6,7 @@ import { newId } from '../core/ids.ts';
 import { acct, type Ledger } from '../ledger/ledger.ts';
 import type { Wallet } from '../wallet/wallet.ts';
 import type { PaymentGateway } from '../payments/stripe.ts';
+import { productPreview, isShopLink, type Preview } from './preview.ts';
 
 /**
  * Turkey warehouse: the customer shops on Trendyol, Hepsiburada, Amazon.com.tr… using our
@@ -51,13 +52,15 @@ export async function shopIcon(name: string, f: typeof fetch = fetch) {
   throw new AppError('not_found', 'No logo');
 }
 const MAX_PHOTOS = 6;
+const dataUrl = (img: Preview['image']) => (img ? `data:${img.type};base64,${img.data.toString('base64')}` : null);
 const photosIn = (v: unknown): string[] => (Array.isArray(v) ? v : []).filter((x): x is string => typeof x === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(x) && x.length < 3_200_000).slice(0, MAX_PHOTOS);
 
 type BuyRow = { id: string; ref: string; customer_id: string; status: string; url: string; details: string | null; qty: number; store: string | null; item_try: number | null;
   price_pence: number | null; admin_note: string | null; paid_via: string | null; payment_ref: string | null; package_id: string | null; created_at: string; quoted_at: string | null;
-  paid_at: string | null; ordered_at: string | null };
+  paid_at: string | null; ordered_at: string | null; title?: string | null; image?: string | null };
 const buyOut = (b: BuyRow) => ({ id: b.id, ref: b.ref, customerId: b.customer_id, status: b.status, url: b.url, details: b.details, qty: b.qty, store: b.store, itemTry: b.item_try,
-  pricePence: b.price_pence, note: b.admin_note, paidVia: b.paid_via, packageId: b.package_id, createdAt: b.created_at, quotedAt: b.quoted_at, paidAt: b.paid_at, orderedAt: b.ordered_at });
+  pricePence: b.price_pence, note: b.admin_note, paidVia: b.paid_via, packageId: b.package_id, createdAt: b.created_at, quotedAt: b.quoted_at, paidAt: b.paid_at, orderedAt: b.ordered_at,
+  title: b.title ?? null, image: b.image ? `/api/tr/img/buy/${b.id}` : null });
 
 export type FwSettings = {
   whName: string; whLine1: string; whLine2: string; whDistrict: string; whCity: string; whPostcode: string; whPhone: string;
@@ -182,7 +185,7 @@ export function storageFor(receivedAt: string | null, now: Date, s: FwSettings):
 
 type PkgRow = { id: string; customer_id: string; status: string; store: string | null; order_no: string | null; inbound_tracking: string | null; description: string | null;
   value_try: number | null; weight_g: number | null; dims: string | null; admin_note: string | null; hold: number; shipment_id: string | null; received_at: string | null; created_at: string;
-  auto_send?: number; auto_pref?: string | null };
+  auto_send?: number; auto_pref?: string | null; product_url?: string | null; product_title?: string | null; image?: string | null };
 type ShipRow = { id: string; ref: string; customer_id: string; status: string; address: string; note: string | null; weight_g: number | null; dims: string | null; quotes: string | null;
   courier_id: string | null; courier_name: string | null; price_pence: number | null; paid_via: string | null; payment_ref: string | null; tracking_no: string | null; tracking_url: string | null;
   admin_note: string | null; created_at: string; quoted_at: string | null; paid_at: string | null; shipped_at: string | null; delivered_at: string | null };
@@ -204,7 +207,8 @@ const toCourier = (r: CourierRow): Courier => ({ id: r.id, name: r.name, active:
   logo: r.logo ?? null, logoUrl: courierLogoUrl(r.logo, r.name) });
 const pkgOut = (p: PkgRow) => ({ id: p.id, customerId: p.customer_id, status: p.status, store: p.store, orderNo: p.order_no, tracking: p.inbound_tracking, description: p.description, valueTry: p.value_try,
   weightKg: p.weight_g ? p.weight_g / 1000 : null, dims: p.dims, note: p.admin_note, hold: Boolean(p.hold), shipmentId: p.shipment_id, receivedAt: p.received_at, createdAt: p.created_at,
-  autoSend: Boolean(p.auto_send), autoPref: p.auto_pref === 'fastest' ? 'fastest' : 'cheapest' });
+  autoSend: Boolean(p.auto_send), autoPref: p.auto_pref === 'fastest' ? 'fastest' : 'cheapest',
+  productUrl: p.product_url ?? null, productTitle: p.product_title ?? null, image: p.image ? `/api/tr/img/pkg/${p.id}` : null });
 const shipOut = (s: ShipRow) => ({ id: s.id, ref: s.ref, status: s.status, address: JSON.parse(s.address), note: s.note, weightKg: s.weight_g ? s.weight_g / 1000 : null, dims: s.dims,
   quotes: s.quotes ? (JSON.parse(s.quotes) as CourierQuote[]) : [], courierId: s.courier_id, courierName: s.courier_name, pricePence: s.price_pence, paidVia: s.paid_via,
   trackingNo: s.tracking_no, trackingUrl: s.tracking_url, adminNote: s.admin_note, createdAt: s.created_at, quotedAt: s.quoted_at, paidAt: s.paid_at, shippedAt: s.shipped_at, deliveredAt: s.delivered_at });
@@ -393,6 +397,11 @@ export class TurkeyForwarding {
     const id = newId('frp');
     await this.db.run(`INSERT INTO fw_packages (id, customer_id, status, store, order_no, inbound_tracking, description, value_try, auto_send, auto_pref, created_at) VALUES ($1,$2,'expected',$3,$4,$5,$6,$7,$8,$9,$10)`,
       [id, customerId, store, text(input.orderNo, 60), text(input.tracking, 60), description, value, autoSend ? 1 : 0, input.autoPref === 'fastest' ? 'fastest' : 'cheapest', this.now()]);
+    const link = text(input.productUrl, 1000);
+    if (link && isShopLink(link)) {
+      await this.db.run('UPDATE fw_packages SET product_url = $1 WHERE id = $2', [link, id]);
+      await this.withPreview(link, (pv) => this.db.run('UPDATE fw_packages SET product_title = $1, image = $2 WHERE id = $3', [pv.title, dataUrl(pv.image), id]));
+    }
     return { id };
   }
 
@@ -688,6 +697,23 @@ export class TurkeyForwarding {
     return rows.map((r) => ({ ...shipOut(r), courierLogo: (r.courier_id && logos[r.courier_id]) || null, items: pk.filter((p) => p.shipment_id === r.id).map((p) => ({ store: p.store, description: p.description })) }));
   }
 
+  /** Reads product pages (swapped in tests). */
+  preview: (url: string) => Promise<Preview> = (url) => productPreview(url);
+  /** Get the product's name and picture: wait up to 4 s so the page can show it at once, then finish in the background. */
+  private async withPreview(url: string, save: (pv: Preview) => Promise<unknown>) {
+    const job = this.preview(url).then(async (pv) => { if (pv.title || pv.image) await save(pv); }).catch((e) => console.warn(`[turkey] preview: ${(e as Error).message}`));
+    await Promise.race([job, new Promise((r) => setTimeout(r, 4000))]);
+  }
+  /** Product picture for a buy request or a parcel. customerId null = admin. */
+  async productImage(kind: string, id: string, customerId: string | null) {
+    const r = kind === 'buy'
+      ? await this.db.get<{ image: string | null; customer_id: string }>('SELECT image, customer_id FROM fw_buys WHERE id = $1', [id])
+      : await this.db.get<{ image: string | null; customer_id: string }>('SELECT image, customer_id FROM fw_packages WHERE id = $1', [id]);
+    const m = r?.image ? /^data:(image\/[a-z+.-]+);base64,(.+)$/i.exec(r.image) : null;
+    if (!r || !m || (customerId && r.customer_id !== customerId)) throw new AppError('not_found', 'Picture not found');
+    return { type: m[1]!, data: Buffer.from(m[2]!, 'base64') };
+  }
+
   // ---------- UK address we can suggest (from the customer's parcel bookings)
   async suggestedAddress(customerId: string): Promise<Partial<UkAddress> | null> {
     if (await this.ukAddress(customerId)) return null;
@@ -756,6 +782,7 @@ export class TurkeyForwarding {
     const ref = `BUY-${1001 + Number(seq?.n ?? 0)}`;
     await this.db.run(`INSERT INTO fw_buys (id, ref, customer_id, status, url, details, qty, store, created_at) VALUES ($1,$2,$3,'requested',$4,$5,$6,$7,$8)`,
       [id, ref, customerId, url, text(input.details, 1000), int(input.qty ?? 1, 'Quantity', 1, 20), storeFromUrl(url), this.now()]);
+    await this.withPreview(url, (pv) => this.db.run('UPDATE fw_buys SET title = $1, image = $2 WHERE id = $3', [pv.title, dataUrl(pv.image), id]));
     return { id, ref };
   }
 
@@ -844,8 +871,8 @@ export class TurkeyForwarding {
     const valueTry = int(input.valueTry ?? b.item_try, 'Price paid (TL)', 1, 5_000_000);
     const pid = newId('frp');
     await this.db.tx(async (tx) => {
-      await tx.run(`INSERT INTO fw_packages (id, customer_id, status, store, order_no, inbound_tracking, description, value_try, created_at) VALUES ($1,$2,'expected',$3,$4,$5,$6,$7,$8)`,
-        [pid, b.customer_id, text(input.store, 60) ?? b.store ?? 'Other', text(input.orderNo, 60) ?? b.ref, text(input.tracking, 60), description, valueTry, this.now()]);
+      await tx.run(`INSERT INTO fw_packages (id, customer_id, status, store, order_no, inbound_tracking, description, value_try, product_url, product_title, image, created_at) VALUES ($1,$2,'expected',$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [pid, b.customer_id, text(input.store, 60) ?? b.store ?? 'Other', text(input.orderNo, 60) ?? b.ref, text(input.tracking, 60), description, valueTry, b.url, b.title ?? null, b.image ?? null, this.now()]);
       await tx.run(`UPDATE fw_buys SET status = 'ordered', package_id = $1, ordered_at = $2 WHERE id = $3`, [pid, this.now(), id]);
     });
     this.tell(b.customer_id, `${b.ref}: ordered`, 'We ordered your item', [`${description} is ordered and on its way to our warehouse. It shows in your orders as "On the way to us".`]);

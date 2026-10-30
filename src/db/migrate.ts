@@ -6,7 +6,9 @@ export async function migrate(db: Db): Promise<void> {
   await db.exec(sql);
   // Columns added after the first release (CREATE TABLE IF NOT EXISTS does not add them to old tables).
   for (const stmt of ['ALTER TABLE partners ADD COLUMN base_postcode TEXT', 'ALTER TABLE jobs ADD COLUMN share_token TEXT',
-    'ALTER TABLE fw_packages ADD COLUMN auto_send INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE fw_packages ADD COLUMN auto_pref TEXT', 'ALTER TABLE fw_suites ADD COLUMN uk_address TEXT', 'ALTER TABLE fw_couriers ADD COLUMN logo TEXT']) {
+    'ALTER TABLE fw_packages ADD COLUMN auto_send INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE fw_packages ADD COLUMN auto_pref TEXT', 'ALTER TABLE fw_suites ADD COLUMN uk_address TEXT', 'ALTER TABLE fw_couriers ADD COLUMN logo TEXT',
+    'ALTER TABLE fw_buys ADD COLUMN title TEXT', 'ALTER TABLE fw_buys ADD COLUMN image TEXT',
+    'ALTER TABLE fw_packages ADD COLUMN product_url TEXT', 'ALTER TABLE fw_packages ADD COLUMN product_title TEXT', 'ALTER TABLE fw_packages ADD COLUMN image TEXT']) {
     try { await db.exec(stmt); } catch { /* already there */ }
   }
   const seq = await db.get<{ n: number }>('SELECT n FROM shipment_seq');

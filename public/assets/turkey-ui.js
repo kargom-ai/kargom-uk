@@ -10,6 +10,12 @@ export function shopLogo(store, known = [], size = 30) {
     ? `<img src="/api/shop-logo/${encodeURIComponent(s)}" alt="" loading="lazy">` : ''}</span>`;
 }
 
+/** Product picture (from the shop link) with the shop's logo in the corner; the shop logo alone when there is no picture. */
+export function productThumb(image, store, known = [], size = 44) {
+  if (!image) return shopLogo(store, known, size);
+  return `<span class="tw-thumb" style="width:${size}px;height:${size}px"><img src="${esc(image)}" alt="" loading="lazy">${shopLogo(store, known, Math.round(size * 0.42))}</span>`;
+}
+
 /** Courier logo, or nothing when there is none. */
 export const courierLogo = (url) => (url ? `<span class="tw-clogo"><img src="${esc(url)}" alt=""></span>` : '');
 

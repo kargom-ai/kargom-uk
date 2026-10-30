@@ -2,7 +2,7 @@ import { mountShell } from '../shell.js';
 import { api, esc, gbp, toast } from '../market-ui.js';
 import { postcodeHere } from '../here.js';
 import { shrinkPhoto } from '../photo-address.js';
-import { shopLogo, threadHtml, composerHtml, readPhotos, courierLogo, WAREHOUSE_ICON, CHAT_ICON } from '../turkey-ui.js';
+import { shopLogo, productThumb, threadHtml, composerHtml, readPhotos, courierLogo, WAREHOUSE_ICON, CHAT_ICON } from '../turkey-ui.js';
 
 /**
  * Shop from Turkey (customer). Compact Istanbul address on top, one list of every order with
@@ -30,6 +30,7 @@ const day = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'nu
 const pill = (k) => `<span class="tw-pill" style="background:${STAGE[k][1]};color:${STAGE[k][2]}"><i></i>${STAGE[k][0]}</span>`;
 const cell = (k, label, unit, v, dec) => `<label><small>${label}</small><span class="tw-unit" data-u="${unit}"><input class="tw-in" data-c="${k}" inputmode="${dec ? 'decimal' : 'numeric'}" value="${esc(v ?? '')}" aria-label="${label} in ${unit}"></span></label>`;
 const logo = (store, size) => shopLogo(store, S.d?.shopLogos || [], size);
+const thumb = (image, store, size) => productThumb(image, store, S.d?.shopLogos || [], size);
 const notesFor = (id) => (S.d?.notes || []).filter((n) => n.packageId === id);
 const BUY = { requested: ['Checking the price', '#FFF4E0', '#9A5B00'], quoted: ['Ready to pay', '#F1E9FE', '#5B2BB5'], paid: ['Paid, we are ordering', '#EAF2FE', '#1D4FB8'],
   ordered: ['Ordered', '#E6F4EA', '#166534'], rejected: ['Not possible', '#FDECEC', '#B42318'], cancelled: ['Cancelled', '#EEF2F7', '#586579'] };
@@ -87,8 +88,8 @@ function payPanels() {
     const items = S.d.packages.filter((p) => p.shipmentId === s.id);
     const n = items.length;
     const enough = S.d.balancePence >= q.pence;
-    const names = items.map((p) => p.description).filter(Boolean);
-    return `<div class="tc-pay"><div class="tw-item"><span class="tw-logos">${[...new Set(items.map((p) => p.store))].map((st) => logo(st, 36)).join('')}</span>
+    const names = items.map((p) => p.productTitle || p.description).filter(Boolean);
+    return `<div class="tc-pay"><div class="tw-item"><span class="tw-logos" style="gap:6px">${items.slice(0, 4).map((p) => thumb(p.image, p.store, 44)).join('')}</span>
         <span class="two" style="display:flex;flex-direction:column;gap:2px;min-width:0"><b style="font-size:16px">${esc(names.slice(0, 3).join(', '))}${names.length > 3 ? ` and ${names.length - 3} more` : ''} ${n > 1 ? 'are' : 'is'} packed</b>
         <span class="tw-muted">Choose a courier and pay · ${n} parcel${n > 1 ? 's' : ''} in one box · ${kg(s.weightKg)} · ${esc(s.dims || '')} cm · to ${esc(s.address.city)} ${esc(s.address.postcode)}</span></span></div>
       <div class="tw-opts">${s.quotes.map((x) => `<label class="tw-opt"><input type="radio" name="c_${s.id}" value="${x.courierId}" data-pick="${s.id}" ${x.courierId === q.courierId ? 'checked' : ''}>${courierLogo(S.d.courierLogos?.[x.courierId])}
@@ -110,8 +111,9 @@ function buyCard() {
   const list = S.d.buys || [];
   if (!list.length) return '';
   return `<section class="tw-card"><div class="tw-card-h"><h2>Buy it for me</h2><button type="button" class="tw-btn ghost sm" data-open="buy">+ New request</button></div>
-    <div style="margin-top:8px">${list.map((b) => `<div class="tc-buy">${logo(b.store, 36)}
-      <span class="m"><a href="${esc(b.url)}" target="_blank" rel="noopener nofollow">${esc(b.details || b.url)}</a>
+    <div style="margin-top:8px">${list.map((b) => `<div class="tc-buy">${thumb(b.image, b.store, 56)}
+      <span class="m"><a href="${esc(b.url)}" target="_blank" rel="noopener nofollow">${esc(b.title || b.details || b.url)}</a>
+        ${b.title && b.details ? `<span class="tw-muted" style="color:#3E4A5C">${esc(b.details)}</span>` : ''}
         <span class="tw-muted">${esc(b.ref)} · ${esc(b.store || '')} · qty ${b.qty}${b.itemTry ? ` · shop price ${tl(b.itemTry)}` : ''}</span>${b.note ? `<span class="tw-muted" style="color:#3E4A5C">Kargom: ${esc(b.note)}</span>` : ''}</span>
       <span class="tw-pill" style="background:${BUY[b.status][1]};color:${BUY[b.status][2]}"><i></i>${BUY[b.status][0]}</span>
       ${b.status === 'quoted' ? `<span class="tw-acts-row"><button type="button" class="tw-btn" data-buypay="${b.id}" data-with="card">Pay ${gbp(b.pricePence)} by card</button>
@@ -145,7 +147,7 @@ function listCard(all) {
           : stage === 'sent' && s.trackingUrl ? `<a class="tw-btn sm" href="${esc(s.trackingUrl)}" target="_blank" rel="noopener">Track</a>` : '';
       const tags = p.autoSend && ['coming', 'here'].includes(stage) ? ` <span class="tw-tag blue">⚡ Sends on arrival</span>` : p.hold && stage === 'here' ? ' <span class="tw-tag">Keeping</span>' : '';
       return `<tr class="${S.sel.has(p.id) ? 'sel' : ''}"><td class="cb">${stage === 'here' ? `<input type="checkbox" data-sel="${p.id}" ${S.sel.has(p.id) ? 'checked' : ''} aria-label="Choose ${esc(p.description)}">` : ''}</td>
-        <td><span class="tw-item">${logo(p.store)}<span class="two"><b>${esc(p.description || 'Add what is in it')}</b><small>${esc(p.store || '')}${p.valueTry ? ` · ${tl(p.valueTry)}` : ''}</small></span></span></td>
+        <td><span class="tw-item">${thumb(p.image, p.store, 44)}<span class="two"><b>${esc(p.productTitle || p.description || 'Add what is in it')}</b>${p.productTitle && p.description ? `<small>${esc(p.description)}</small>` : ''}<small>${esc(p.store || '')}${p.valueTry ? ` · ${tl(p.valueTry)}` : ''}</small></span></span></td>
         <td><span class="two"><small style="color:var(--ink);font-size:13px">${sub}</small></span></td>
         <td>${p.weightKg ? kg(p.weightKg) : '<span class="tw-muted">–</span>'}</td>
         <td>${pill(stage)}${tags}</td><td><span class="tw-acts-row">${msgBtn(p)}${act}</span></td></tr>`;
@@ -209,6 +211,7 @@ function drawerHtml() {
     h = `<h2>${dr.id ? 'Edit order' : 'Add an order'}</h2><p>So we can match your parcel the moment it arrives, and fill in the customs form.</p>`;
     b = `<div class="tw-row"><label class="tw-f">Shop<select class="tw-in" name="store" ${dr.id ? 'disabled' : ''}>${S.d.stores.map((s) => `<option ${s === (v.store || 'Trendyol') ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
         <label class="tw-f">Price paid<span class="tw-unit" data-u="TL"><input class="tw-in" name="valueTry" inputmode="numeric" value="${esc(v.valueTry || '')}" placeholder="1250"></span></label></div>
+      ${dr.id ? '' : `<label class="tw-f">Product link <em>(optional: we show its picture and name)</em><input class="tw-in" name="productUrl" value="${esc(v.productUrl || '')}" placeholder="https://www.trendyol.com/…" inputmode="url"></label>`}
       <label class="tw-f">What is it? <em>(in English, for customs)</em><input class="tw-in" name="description" value="${esc(v.description || '')}" placeholder="e.g. 2 cotton T-shirts"></label>
       <div class="tw-row"><label class="tw-f">Order number <em>(optional)</em><input class="tw-in" name="orderNo" value="${esc(v.orderNo || '')}"></label>
         <label class="tw-f">Tracking in Turkey <em>(add later)</em><input class="tw-in" name="tracking" value="${esc(v.tracking || '')}" placeholder="Yurtiçi, Aras, TEX…"></label></div>
@@ -400,7 +403,7 @@ root.addEventListener('click', async (e) => {
       const o = form();
       const body = { description: o.description, valueTry: Number(String(o.valueTry || '').replace(/[^\d]/g, '')) || 0, orderNo: o.orderNo, tracking: o.tracking };
       if ('autoSend' in o) { body.autoSend = Boolean(o.autoSend); body.autoPref = o.autoPref || 'cheapest'; }
-      if (!dr.id) body.store = o.store;
+      if (!dr.id) { body.store = o.store; body.productUrl = o.productUrl; }
       if (o.autoSend && !S.d.ukAddress) body.address = addrOf(o);
       await run(async () => {
         if (body.address && dr.id) { await api('/api/tr/address', { method: 'POST', body: body.address }); delete body.address; }

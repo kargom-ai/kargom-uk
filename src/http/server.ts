@@ -397,6 +397,7 @@ export function buildRouter(app: App) {
   on('GET', '/api/tr/estimate', 'public', async (c) => { freightLimiter.check(ip(c)); return app.turkey.estimate(c.query.get('kg'), c.query.get('dims'), c.query.get('parcels') ?? 1); });
   on('GET', '/api/tr', 'customer', async (c) => app.turkey.overview(me(c)));
   on('GET', '/api/shop-logo/:name', 'public', async (c) => image(c, await shopIcon(decodeURIComponent(c.params.name!)), 'public, max-age=604800'));
+  on('GET', '/api/tr/img/:kind/:id', 'customer', async (c) => image(c, await app.turkey.productImage(c.params.kind!, c.params.id!, me(c)), 'private, max-age=86400'));
   on('GET', '/api/tr/photos/:id', 'customer', async (c) => image(c, await app.turkey.photo(c.params.id!, me(c)), 'private, max-age=86400'));
   on('POST', '/api/tr/packages/:id/messages', 'customer', async (c) => app.turkey.addNote({ customerId: me(c) }, c.params.id!, c.body ?? {}));
   on('POST', '/api/tr/buy', 'customer', async (c) => app.turkey.requestBuy(me(c), c.body ?? {}));
@@ -433,6 +434,7 @@ export function buildRouter(app: App) {
   });
   on('GET', '/api/admin/tr', 'admin', async () => app.turkey.adminOverview());
   on('POST', '/api/admin/tr/packages/:id/messages', 'admin', async (c) => app.turkey.addNote('admin', c.params.id!, c.body ?? {}));
+  on('GET', '/api/admin/tr/img/:kind/:id', 'admin', async (c) => image(c, await app.turkey.productImage(c.params.kind!, c.params.id!, null), 'private, max-age=86400'));
   on('GET', '/api/admin/tr/photos/:id', 'admin', async (c) => image(c, await app.turkey.photo(c.params.id!, null), 'private, max-age=86400'));
   on('POST', '/api/admin/tr/buy/:id/quote', 'admin', async (c) => app.turkey.quoteBuy(c.params.id!, c.body ?? {}));
   on('POST', '/api/admin/tr/buy/:id/reject', 'admin', async (c) => app.turkey.rejectBuy(c.params.id!, c.body ?? {}));

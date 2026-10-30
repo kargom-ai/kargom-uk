@@ -1,6 +1,6 @@
 import { mountAdminShell } from '../admin-shell.js';
 import { api, esc, gbp, toast } from '../market-ui.js';
-import { shopLogo, threadHtml, composerHtml, readPhotos, courierLogo, CHAT_ICON } from '../turkey-ui.js';
+import { shopLogo, productThumb, threadHtml, composerHtml, readPhotos, courierLogo, CHAT_ICON } from '../turkey-ui.js';
 import { resizeImage } from '../market-ui.js';
 
 /**
@@ -29,6 +29,8 @@ const daysSince = (iso) => (iso ? Math.max(0, Math.floor((Date.now() - new Date(
 const pill = (k) => `<span class="tw-pill" style="background:${STAGE[k][1]};color:${STAGE[k][2]}"><i></i>${STAGE[k][0]}</span>`;
 const pounds = (p) => (p / 100).toFixed(2);
 const logo = (store, size) => shopLogo(store, S.d?.shopLogos || [], size);
+// Customer picture links → the admin's own picture route.
+const thumb = (image, store, size) => productThumb(image ? image.replace('/api/tr/img/', '/api/admin/tr/img/') : null, store, S.d?.shopLogos || [], size);
 const notesFor = (id) => (S.d?.notes || []).filter((n) => n.packageId === id);
 const BUY = { requested: ['New request', '#FDECEC', '#B42318'], quoted: ['Priced, waiting for payment', '#F1E9FE', '#5B2BB5'], paid: ['Paid: order it', '#FFF4E0', '#9A5B00'],
   ordered: ['Ordered', '#E6F4EA', '#166534'], rejected: ['Rejected', '#EEF2F7', '#586579'], cancelled: ['Cancelled by customer', '#EEF2F7', '#586579'] };
@@ -92,7 +94,7 @@ function listView() {
       const tags = [p.autoSend && ['coming', 'here'].includes(r.stage) ? `<span class="tw-tag blue">⚡ Send on arrival · ${p.autoPref}</span>` : '', p.hold && r.stage === 'here' ? '<span class="tw-tag">Keep</span>' : ''].join(' ');
       const wait = daysSince(p.receivedAt);
       return `<tr><td><span class="two"><b>${custLink(p.customerId, p.customer)}</b><small class="mono">${esc(p.suite || '')}</small></span></td>
-        <td><span class="tw-item">${logo(p.store)}<span class="two"><b>${esc(p.description || 'No description yet')}</b><small>${esc(p.store || '')}${p.valueTry ? ` · ${tl(p.valueTry)}` : ''}</small></span></span></td>
+        <td><span class="tw-item">${thumb(p.image, p.store, 40)}<span class="two"><b>${esc(p.description || 'No description yet')}</b><small>${p.productUrl ? `<a class="tw-link" style="font-weight:600" href="${esc(p.productUrl)}" target="_blank" rel="noopener nofollow">${esc(p.productTitle || p.store || 'Product')} ↗</a> · ` : `${esc(p.store || '')}`}${p.valueTry ? ` · ${tl(p.valueTry)}` : ''}</small></span></span></td>
         <td class="mono">${esc(p.tracking || '–')}</td>
         <td><span class="two"><b>${kg(p.weightKg)}</b><small>${esc(p.dims ? `${p.dims} cm` : '')}</small></span></td>
         <td>${hereView ? `<span class="two"><b style="color:${wait > S.d.settings.freeDays ? '#B42318' : 'inherit'}">${wait} day${wait === 1 ? '' : 's'}</b><small>since ${day(p.receivedAt)}</small></span>`
@@ -111,7 +113,7 @@ function buyView() {
   return `<section class="tw-card"><div class="tw-card-h"><h2>Buy it for me</h2><span class="tw-muted">Customers paste a link, you price it, they pay, you order it.</span></div>
     <div style="overflow-x:auto;margin-top:12px"><table class="tw-tbl"><thead><tr><th>Customer</th><th>Product</th><th>Qty</th><th>Price</th><th>Status</th><th></th></tr></thead><tbody>
     ${list.map((b) => `<tr><td><span class="two"><b>${custLink(b.customerId, b.customer)}</b><small class="mono">${esc(b.ref)} · ${esc(b.suite || '')}</small></span></td>
-      <td><span class="tw-item">${logo(b.store)}<span class="two" style="max-width:340px"><b><a class="tw-link" href="${esc(b.url)}" target="_blank" rel="noopener nofollow">${esc(b.store || 'Link')} ↗</a></b><small>${esc(b.details || b.url)}</small></span></span></td>
+      <td><span class="tw-item">${thumb(b.image, b.store, 52)}<span class="two" style="max-width:360px"><b><a class="tw-link" href="${esc(b.url)}" target="_blank" rel="noopener nofollow">${esc(b.title || b.store || 'Link')} ↗</a></b><small>${esc(b.details || b.url)}</small></span></span></td>
       <td>${b.qty}</td><td>${b.pricePence ? `<b>${gbp(b.pricePence)}</b>${b.itemTry ? `<br><small class="tw-muted">${tl(b.itemTry)}</small>` : ''}` : '–'}</td>
       <td><span class="tw-pill" style="background:${BUY[b.status][1]};color:${BUY[b.status][2]}"><i></i>${BUY[b.status][0]}</span></td>
       <td>${['requested', 'quoted'].includes(b.status) ? `<button type="button" class="tw-btn sm" data-open="buyquote" data-id="${b.id}">${b.status === 'quoted' ? 'Change price' : 'Price it'}</button>`
@@ -206,7 +208,7 @@ function drawerHtml() {
     const bq = S.d.buys.find((x) => x.id === dr.id);
     const v = { ...bq, price: bq.pricePence ? pounds(bq.pricePence) : '', ...(dr.v || {}) };
     h = `<h2>Price ${esc(bq.ref)}</h2><p>${custLink(bq.customerId, bq.customer)} · ${esc(bq.suite || '')}</p>`;
-    b = `<div class="tw-note"><a href="${esc(bq.url)}" target="_blank" rel="noopener nofollow" style="word-break:break-all">${esc(bq.url)}</a><br>${esc(bq.details || 'No details')} · quantity ${bq.qty}</div>
+    b = `<div class="tw-note tw-item" style="align-items:flex-start">${thumb(bq.image, bq.store, 72)}<span style="min-width:0"><b>${esc(bq.title || bq.store || 'Product')}</b><br><a href="${esc(bq.url)}" target="_blank" rel="noopener nofollow" style="word-break:break-all;font-size:13px">${esc(bq.url)}</a><br>${esc(bq.details || 'No details')} · quantity ${bq.qty}</span></div>
       <div class="tw-row"><label class="tw-f">Shop<input class="tw-in" name="store" value="${esc(v.store || '')}"></label><label class="tw-f">Shop price<span class="tw-unit" data-u="TL"><input class="tw-in" name="itemTry" inputmode="numeric" value="${esc(v.itemTry || '')}"></span></label></div>
       <label class="tw-f">Price for the customer <em>(item + Turkish delivery + our fee)</em><span class="tw-unit" data-u="£"><input class="tw-in" name="price" inputmode="decimal" value="${esc(v.price || '')}" placeholder="24.90"></span></label>
       <label class="tw-f">Note for the customer <em>(optional)</em><input class="tw-in" name="note" value="${esc(v.note || '')}" placeholder="e.g. Size M in stock, arrives at our warehouse in 2–3 days"></label>`;
@@ -215,7 +217,7 @@ function drawerHtml() {
     const bq = S.d.buys.find((x) => x.id === dr.id);
     const v = { store: bq.store, valueTry: bq.itemTry, ...(dr.v || {}) };
     h = `<h2>Order ${esc(bq.ref)}</h2><p>Paid ${gbp(bq.pricePence)} · ${custLink(bq.customerId, bq.customer)} · ${esc(bq.suite || '')}</p>`;
-    b = `<div class="tw-note"><a href="${esc(bq.url)}" target="_blank" rel="noopener nofollow" style="word-break:break-all">${esc(bq.url)}</a><br>${esc(bq.details || '')} · quantity ${bq.qty}</div>
+    b = `<div class="tw-note tw-item" style="align-items:flex-start">${thumb(bq.image, bq.store, 72)}<span style="min-width:0"><b>${esc(bq.title || bq.store || 'Product')}</b><br><a href="${esc(bq.url)}" target="_blank" rel="noopener nofollow" style="word-break:break-all;font-size:13px">${esc(bq.url)}</a><br>${esc(bq.details || 'No details')} · quantity ${bq.qty}</span></div>
       <div class="tw-note warn">Order it on the shop with the customer's warehouse address (code <b>${esc(bq.suite || '')}</b>), then fill this in. It becomes a parcel "Coming to warehouse".</div>
       <label class="tw-f">What is it <em>(in English, for customs)</em><input class="tw-in" name="description" value="${esc(v.description || '')}" placeholder="e.g. Blue cotton dress"></label>
       <div class="tw-row"><label class="tw-f">Shop<input class="tw-in" name="store" value="${esc(v.store || '')}"></label><label class="tw-f">Paid on the shop<span class="tw-unit" data-u="TL"><input class="tw-in" name="valueTry" inputmode="numeric" value="${esc(v.valueTry || '')}"></span></label></div>
