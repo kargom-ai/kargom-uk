@@ -23,6 +23,7 @@ import { placeLogo } from '../market/places.ts';
 import { freightRates, parseFreightQuery } from '../freight/rates.ts';
 import { freightForwarders } from '../freight/forwarders.ts';
 import { forwardingEstimate, joinForwardingWaitlist } from '../forwarding/forwarding.ts';
+import { shopIcon } from '../forwarding/turkey.ts';
 import { eurosenderTestOrder } from '../freight/eurosender.ts';
 import { maerskSailings, maerskTest } from '../freight/maersk.ts';
 import { carrierIcon } from '../freight/carriers.ts';
@@ -395,6 +396,20 @@ export function buildRouter(app: App) {
   // ---------- Turkey warehouse (shop in Turkey, we forward to the UK)
   on('GET', '/api/tr/estimate', 'public', async (c) => { freightLimiter.check(ip(c)); return app.turkey.estimate(c.query.get('kg'), c.query.get('dims'), c.query.get('parcels') ?? 1); });
   on('GET', '/api/tr', 'customer', async (c) => app.turkey.overview(me(c)));
+  on('GET', '/api/shop-logo/:name', 'public', async (c) => image(c, await shopIcon(decodeURIComponent(c.params.name!)), 'public, max-age=604800'));
+  on('GET', '/api/tr/photos/:id', 'customer', async (c) => image(c, await app.turkey.photo(c.params.id!, me(c)), 'private, max-age=86400'));
+  on('POST', '/api/tr/packages/:id/messages', 'customer', async (c) => app.turkey.addNote({ customerId: me(c) }, c.params.id!, c.body ?? {}));
+  on('POST', '/api/tr/buy', 'customer', async (c) => app.turkey.requestBuy(me(c), c.body ?? {}));
+  on('POST', '/api/tr/buy/:id/cancel', 'customer', async (c) => app.turkey.cancelBuy(me(c), c.params.id!));
+  on('POST', '/api/tr/buy/:id/pay', 'customer', async (c) => {
+    const r = await app.turkey.payBuy(me(c), c.params.id!, c.body ?? {}, siteBase(c.req));
+    if ('url' in r && app.payments instanceof FakeGateway) {
+      const b = (await app.turkey.overview(me(c))).buys.find((x) => x.id === c.params.id);
+      if (b?.pricePence) await app.webhooks.stripe({ id: `evt_dev_buy_${b.id}_${Date.now()}`, type: 'payment_intent.succeeded',
+        data: { object: { id: `pi_dev_buy_${b.id}_${Date.now()}`, amount_received: b.pricePence, metadata: { purpose: 'fwd_buy', customer_id: me(c), buy_id: b.id } } } });
+    }
+    return r;
+  });
   on('POST', '/api/tr/address', 'customer', async (c) => app.turkey.saveUkAddress(me(c), c.body ?? {}));
   on('POST', '/api/tr/packages', 'customer', async (c) => app.turkey.addPackage(me(c), c.body ?? {}));
   on('POST', '/api/tr/packages/:id', 'customer', async (c) => app.turkey.updatePackage(me(c), c.params.id!, c.body ?? {}));
@@ -414,6 +429,11 @@ export function buildRouter(app: App) {
     return r;
   });
   on('GET', '/api/admin/tr', 'admin', async () => app.turkey.adminOverview());
+  on('POST', '/api/admin/tr/packages/:id/messages', 'admin', async (c) => app.turkey.addNote('admin', c.params.id!, c.body ?? {}));
+  on('GET', '/api/admin/tr/photos/:id', 'admin', async (c) => image(c, await app.turkey.photo(c.params.id!, null), 'private, max-age=86400'));
+  on('POST', '/api/admin/tr/buy/:id/quote', 'admin', async (c) => app.turkey.quoteBuy(c.params.id!, c.body ?? {}));
+  on('POST', '/api/admin/tr/buy/:id/reject', 'admin', async (c) => app.turkey.rejectBuy(c.params.id!, c.body ?? {}));
+  on('POST', '/api/admin/tr/buy/:id/ordered', 'admin', async (c) => app.turkey.orderedBuy(c.params.id!, c.body ?? {}));
   on('POST', '/api/admin/tr/settings', 'admin', async (c) => app.turkey.saveSettings(c.body ?? {}));
   on('POST', '/api/admin/tr/couriers', 'admin', async (c) => app.turkey.saveCourier(c.body ?? {}));
   on('POST', '/api/admin/tr/couriers/:id/delete', 'admin', async (c) => app.turkey.deleteCourier(c.params.id!));

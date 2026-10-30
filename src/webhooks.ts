@@ -44,6 +44,7 @@ export class WebhookHandlers {
 
   /** Turkey warehouse: a box was paid for by card (set by the app). */
   onFwdPaid: ((fwdId: string, courierId: string, paymentIntentId: string, amount: number) => Promise<void>) | null = null;
+  onBuyPaid: ((buyId: string, paymentIntentId: string, amount: number) => Promise<void>) | null = null;
 
   /** Stripe event (signature already verified by the router). */
   async stripe(ev: StripeEvent): Promise<void> {
@@ -67,6 +68,7 @@ export class WebhookHandlers {
     if (md.purpose === 'topup') await this.wallet.topUp(customerId, amount, pi.id);
     if (md.purpose === 'booking' && md.shipment_id) await this.bookings.onCardPaid(md.shipment_id, pi.id, amount);
     if (md.purpose === 'fwd' && md.fwd_id && this.onFwdPaid) await this.onFwdPaid(md.fwd_id, md.courier_id ?? '', pi.id, amount);
+    if (md.purpose === 'fwd_buy' && md.buy_id && this.onBuyPaid) await this.onBuyPaid(md.buy_id, pi.id, amount);
   }
 
   /** Normalised carrier/provider events (tracking + measurements). */

@@ -107,6 +107,9 @@ class Component extends DCLogic {
     }
     await this.reload();
     this.loadView(this.state.view);
+    // /admin?customer=<id> opens that customer's profile (links from the Turkey warehouse page).
+    const cust = new URLSearchParams(location.search).get('customer');
+    if (cust) this.openCustomer(cust);
     setInterval(() => { if (!document.hidden) this.reload().catch(() => {}); }, 30_000);
   }
 

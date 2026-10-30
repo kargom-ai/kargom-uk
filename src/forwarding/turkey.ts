@@ -19,6 +19,45 @@ import type { PaymentGateway } from '../payments/stripe.ts';
  */
 
 export const FW_REVENUE = 'revenue:forwarding';
+/** Buy-for-me money: the goods we buy for the customer plus our fee (split it with your accountant). */
+export const FW_BUY = 'revenue:buy_for_me';
+
+/** Turkish shops we know: logo (favicon) and recognising a product link. */
+export const SHOP_DOMAINS: Record<string, string> = {
+  Trendyol: 'trendyol.com', Hepsiburada: 'hepsiburada.com', 'Amazon.com.tr': 'amazon.com.tr', N11: 'n11.com', 'Çiçeksepeti': 'ciceksepeti.com', Koton: 'koton.com',
+  'LC Waikiki': 'lcw.com', DeFacto: 'defacto.com.tr', Boyner: 'boyner.com.tr', Mavi: 'mavi.com', 'Pazarama': 'pazarama.com', 'Morhipo': 'morhipo.com',
+};
+export function storeFromUrl(url: string): string {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+    for (const [name, d] of Object.entries(SHOP_DOMAINS)) if (host === d || host.endsWith(`.${d}`)) return name;
+    return host;
+  } catch { return 'Other'; }
+}
+const shopIcons = new Map<string, { type: string; data: Buffer }>();
+/** Shop logo through our server (the page's CSP only allows our own images). Known shops only. */
+export async function shopIcon(name: string, f: typeof fetch = fetch) {
+  const domain = SHOP_DOMAINS[name];
+  if (!domain) throw new AppError('not_found', 'Unknown shop');
+  const hit = shopIcons.get(domain);
+  if (hit) return hit;
+  try {
+    const r = await f(`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`, { signal: AbortSignal.timeout(5000) });
+    const type = r.headers.get('content-type') ?? 'image/png';
+    const data = Buffer.from(await r.arrayBuffer());
+    if (r.ok && type.startsWith('image/') && data.length > 200) { const v = { type, data }; shopIcons.set(domain, v); return v; }
+  } catch { /* fall through */ }
+  // The page shows the shop's first letter underneath when there is no logo.
+  throw new AppError('not_found', 'No logo');
+}
+const MAX_PHOTOS = 6;
+const photosIn = (v: unknown): string[] => (Array.isArray(v) ? v : []).filter((x): x is string => typeof x === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(x) && x.length < 3_200_000).slice(0, MAX_PHOTOS);
+
+type BuyRow = { id: string; ref: string; customer_id: string; status: string; url: string; details: string | null; qty: number; store: string | null; item_try: number | null;
+  price_pence: number | null; admin_note: string | null; paid_via: string | null; payment_ref: string | null; package_id: string | null; created_at: string; quoted_at: string | null;
+  paid_at: string | null; ordered_at: string | null };
+const buyOut = (b: BuyRow) => ({ id: b.id, ref: b.ref, customerId: b.customer_id, status: b.status, url: b.url, details: b.details, qty: b.qty, store: b.store, itemTry: b.item_try,
+  pricePence: b.price_pence, note: b.admin_note, paidVia: b.paid_via, packageId: b.package_id, createdAt: b.created_at, quotedAt: b.quoted_at, paidAt: b.paid_at, orderedAt: b.ordered_at });
 
 export type FwSettings = {
   whName: string; whLine1: string; whLine2: string; whDistrict: string; whCity: string; whPostcode: string; whPhone: string;
@@ -142,7 +181,7 @@ type CourierRow = { id: string; name: string; active: number; divisor: number; f
 
 const toCourier = (r: CourierRow): Courier => ({ id: r.id, name: r.name, active: Boolean(r.active), divisor: r.divisor, fuelBp: r.fuel_bp, rates: JSON.parse(r.rates),
   extraKgPence: r.extra_kg_pence, maxKg: r.max_kg, daysMin: r.days_min, daysMax: r.days_max, trackingUrl: r.tracking_url, note: r.note, sort: r.sort });
-const pkgOut = (p: PkgRow) => ({ id: p.id, status: p.status, store: p.store, orderNo: p.order_no, tracking: p.inbound_tracking, description: p.description, valueTry: p.value_try,
+const pkgOut = (p: PkgRow) => ({ id: p.id, customerId: p.customer_id, status: p.status, store: p.store, orderNo: p.order_no, tracking: p.inbound_tracking, description: p.description, valueTry: p.value_try,
   weightKg: p.weight_g ? p.weight_g / 1000 : null, dims: p.dims, note: p.admin_note, hold: Boolean(p.hold), shipmentId: p.shipment_id, receivedAt: p.received_at, createdAt: p.created_at,
   autoSend: Boolean(p.auto_send), autoPref: p.auto_pref === 'fastest' ? 'fastest' : 'cheapest' });
 const shipOut = (s: ShipRow) => ({ id: s.id, ref: s.ref, status: s.status, address: JSON.parse(s.address), note: s.note, weightKg: s.weight_g ? s.weight_g / 1000 : null, dims: s.dims,
@@ -281,6 +320,10 @@ export class TurkeyForwarding {
     return {
       suite: code,
       ukAddress: await this.ukAddress(customerId),
+      suggestedAddress: await this.suggestedAddress(customerId),
+      buys: (await this.db.all<BuyRow>(`SELECT * FROM fw_buys WHERE customer_id = $1 AND (status IN ('requested','quoted','paid') OR created_at > $2) ORDER BY created_at DESC LIMIT 50`, [customerId, new Date(this.clock.now().getTime() - 30 * 86_400_000).toISOString()])).map(buyOut),
+      notes: await this.notes(customerId),
+      shopLogos: Object.keys(SHOP_DOMAINS),
       balancePence: await this.wallet.balance(customerId),
       address: ready ? {
         name: `${(cust?.name || 'Kargom').trim()} ${code}`, line1: s.whLine1, line2: [s.whLine2, code].filter(Boolean).join(' · '), district: s.whDistrict, city: s.whCity,
@@ -491,8 +534,13 @@ export class TurkeyForwarding {
       `SELECT f.*, c.name AS cname, c.email, s.code FROM fw_shipments f JOIN customers c ON c.id = f.customer_id LEFT JOIN fw_suites s ON s.customer_id = f.customer_id
        WHERE f.status IN ('requested','quoted','paid','shipped') OR f.created_at > $1 ORDER BY f.created_at DESC LIMIT 300`, [recent]);
     const now = this.clock.now();
+    const buys = await this.db.all<BuyRow & { cname: string; code: string | null }>(
+      `SELECT b.*, c.name AS cname, s.code FROM fw_buys b JOIN customers c ON c.id = b.customer_id LEFT JOIN fw_suites s ON s.customer_id = b.customer_id
+       WHERE b.status IN ('requested','quoted','paid') OR b.created_at > $1 ORDER BY b.created_at DESC LIMIT 200`, [recent]);
     return {
-      settings, couriers, stores: STORES,
+      settings, couriers, stores: STORES, shopLogos: Object.keys(SHOP_DOMAINS),
+      buys: buys.map((b) => ({ ...buyOut(b), customer: b.cname, suite: b.code })),
+      notes: await this.notes(null),
       packages: packages.map((p) => ({ ...pkgOut(p), customer: p.cname, email: p.email, suite: p.code, storagePence: storageFor(p.received_at, now, settings) })),
       shipments: shipments.map((s) => ({ ...shipOut(s), customer: s.cname, email: s.email, suite: s.code,
         packages: packages.filter((p) => p.shipment_id === s.id).map((p) => ({ id: p.id, store: p.store, description: p.description, valueTry: p.value_try, weightKg: p.weight_g ? p.weight_g / 1000 : null, dims: p.dims })) })),
@@ -600,5 +648,169 @@ export class TurkeyForwarding {
     vals.push(id);
     await this.db.run(`UPDATE fw_packages SET ${sets.join(', ')} WHERE id = $${vals.length}`, vals);
     return { ok: true };
+  }
+
+  // ---------- UK address we can suggest (from the customer's parcel bookings)
+  async suggestedAddress(customerId: string): Promise<Partial<UkAddress> | null> {
+    if (await this.ukAddress(customerId)) return null;
+    const r = await this.db.get<{ from_json: string }>(`SELECT from_json FROM shipments WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 1`, [customerId]).catch(() => undefined);
+    try {
+      const a = r?.from_json ? JSON.parse(r.from_json) as Record<string, string> : null;
+      return a && a.postcode && (a.country ?? 'GB') === 'GB' ? { name: a.name, line1: a.line1, line2: a.line2 ?? null, city: a.city, postcode: a.postcode, phone: a.phone ?? '' } : null;
+    } catch { return null; }
+  }
+
+  // ---------- messages and photos about one parcel
+  /** Messages for one customer (or every customer, for the admin), newest last, with photo links. */
+  async notes(customerId: string | null) {
+    const rows = await this.db.all<{ id: string; customer_id: string; package_id: string; author: string; body: string | null; created_at: string }>(
+      customerId ? 'SELECT * FROM fw_notes WHERE customer_id = $1 ORDER BY created_at' : `SELECT * FROM fw_notes WHERE created_at > $1 ORDER BY created_at`,
+      [customerId ?? new Date(this.clock.now().getTime() - 90 * 86_400_000).toISOString()]);
+    const photos = rows.length ? await this.db.all<{ id: string; note_id: string }>(
+      customerId ? 'SELECT id, note_id FROM fw_photos WHERE customer_id = $1 ORDER BY created_at' : 'SELECT id, note_id FROM fw_photos WHERE created_at > $1 ORDER BY created_at',
+      [customerId ?? new Date(this.clock.now().getTime() - 90 * 86_400_000).toISOString()]) : [];
+    const base = customerId ? '/api/tr/photos/' : '/api/admin/tr/photos/';
+    return rows.map((n) => ({ id: n.id, packageId: n.package_id, customerId: n.customer_id, author: n.author, body: n.body, createdAt: n.created_at,
+      photos: photos.filter((p) => p.note_id === n.id).map((p) => base + p.id) }));
+  }
+
+  /** Add a message (and photos) about one parcel. by = 'admin' or the customer's id. */
+  async addNote(by: 'admin' | { customerId: string }, packageId: string, input: Record<string, unknown>) {
+    const p = await this.db.get<PkgRow>('SELECT * FROM fw_packages WHERE id = $1', [packageId]);
+    if (!p || (by !== 'admin' && p.customer_id !== by.customerId)) throw new AppError('not_found', 'Parcel not found');
+    const body = text(input.body, 2000);
+    const photos = photosIn(input.photos);
+    if (!body && !photos.length) throw new AppError('bad_request', 'Write a message or add a photo');
+    const id = newId('frn');
+    const now = this.now();
+    await this.db.tx(async (tx) => {
+      await tx.run('INSERT INTO fw_notes (id, customer_id, package_id, author, body, created_at) VALUES ($1,$2,$3,$4,$5,$6)', [id, p.customer_id, p.id, by === 'admin' ? 'admin' : 'customer', body, now]);
+      for (const ph of photos) await tx.run('INSERT INTO fw_photos (id, note_id, package_id, customer_id, data, created_at) VALUES ($1,$2,$3,$4,$5,$6)', [newId('frf'), id, p.id, p.customer_id, ph, now]);
+    });
+    if (by === 'admin') {
+      this.tell(p.customer_id, `A message about your parcel: ${p.description ?? p.store ?? ''}`.trim(), 'We have an update about your parcel', [
+        `${p.store ?? 'Your parcel'}${p.description ? `: ${p.description}` : ''}`,
+        ...(body ? [body] : []), ...(photos.length ? [`We added ${photos.length} photo${photos.length > 1 ? 's' : ''}.`] : []),
+        'Reply on the page: your message goes to our warehouse team.',
+      ]);
+    }
+    return { id };
+  }
+
+  /** One photo, as a JPEG. customerId null = admin. */
+  async photo(id: string, customerId: string | null) {
+    const r = await this.db.get<{ data: string; customer_id: string }>('SELECT data, customer_id FROM fw_photos WHERE id = $1', [id]);
+    if (!r || (customerId && r.customer_id !== customerId)) throw new AppError('not_found', 'Photo not found');
+    const b64 = /^data:image\/jpeg;base64,(.+)$/.exec(r.data)?.[1];
+    if (!b64) throw new AppError('not_found', 'Photo not found');
+    return { type: 'image/jpeg', data: Buffer.from(b64, 'base64') };
+  }
+
+  // ---------- buy it for me
+  async requestBuy(customerId: string, input: Record<string, unknown>) {
+    const url = text(input.url, 1000);
+    if (!url || !/^https?:\/\/[^\s]+\.[^\s]+/i.test(url)) throw new AppError('bad_request', 'Paste the link to the product');
+    const open = await this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM fw_buys WHERE customer_id = $1 AND status IN ('requested','quoted')`, [customerId]);
+    if (Number(open?.n ?? 0) >= 20) throw new AppError('bad_request', 'You have 20 requests waiting already');
+    await this.suite(customerId);
+    const seq = await this.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM fw_buys');
+    const id = newId('frb');
+    const ref = `BUY-${1001 + Number(seq?.n ?? 0)}`;
+    await this.db.run(`INSERT INTO fw_buys (id, ref, customer_id, status, url, details, qty, store, created_at) VALUES ($1,$2,$3,'requested',$4,$5,$6,$7,$8)`,
+      [id, ref, customerId, url, text(input.details, 1000), int(input.qty ?? 1, 'Quantity', 1, 20), storeFromUrl(url), this.now()]);
+    return { id, ref };
+  }
+
+  private async ownBuy(customerId: string, id: string, q: Queryable = this.db) {
+    const b = await q.get<BuyRow>('SELECT * FROM fw_buys WHERE id = $1', [id]);
+    if (!b || b.customer_id !== customerId) throw new AppError('not_found', 'Request not found');
+    return b;
+  }
+  async cancelBuy(customerId: string, id: string) {
+    const b = await this.ownBuy(customerId, id);
+    if (!['requested', 'quoted'].includes(b.status)) throw new AppError('conflict', 'This is paid already. Ask us in Help to change it.');
+    await this.db.run(`UPDATE fw_buys SET status = 'cancelled' WHERE id = $1`, [id]);
+    return { ok: true };
+  }
+  async payBuy(customerId: string, id: string, input: { payWith?: unknown }, returnBase: string) {
+    const b = await this.ownBuy(customerId, id);
+    if (b.status !== 'quoted' || !b.price_pence) throw new AppError('conflict', b.status === 'paid' ? 'Already paid' : 'We have not priced this yet');
+    const amount = b.price_pence;
+    if (input.payWith === 'card') {
+      const cust = await this.db.get<{ stripe_customer_id: string | null; email: string; name: string }>('SELECT stripe_customer_id, email, name FROM customers WHERE id = $1', [customerId]);
+      let stripeId = cust?.stripe_customer_id ?? null;
+      if (!stripeId && cust) {
+        stripeId = (await this.payments.createCustomer({ email: cust.email, name: cust.name, idempotencyKey: `cus:${customerId}` })).id;
+        await this.db.run('UPDATE customers SET stripe_customer_id = $1 WHERE id = $2', [stripeId, customerId]);
+      }
+      const cs = await this.payments.createCheckout({
+        amount, customerStripeId: stripeId, description: `Kargom ${b.ref}: we buy it for you in Turkey`, metadata: { purpose: 'fwd_buy', customer_id: customerId, buy_id: id },
+        successUrl: `${returnBase}/app/turkey?paid=${encodeURIComponent(b.ref)}`, cancelUrl: `${returnBase}/app/turkey`, idempotencyKey: `fwdbuy:${id}:${amount}`, saveCard: true,
+      });
+      return { url: cs.url };
+    }
+    await this.db.tx(async (tx) => {
+      const bal = await this.wallet.balance(customerId, tx);
+      if (bal < amount) throw new AppError('insufficient_funds', 'Not enough money in your wallet', { balance: bal, needed: amount });
+      await this.ledger.post({ idempotencyKey: `fwdbuy:${id}`, kind: 'fwd_sale', ref: b.ref, memo: `Buy for me ${b.ref}`,
+        lines: [{ account: acct.wallet(customerId), amount }, { account: FW_BUY, amount: -amount }] }, tx);
+      await tx.run(`UPDATE fw_buys SET status = 'paid', paid_via = 'wallet', payment_ref = $1, paid_at = $2 WHERE id = $3 AND status = 'quoted'`, [`fwdbuy:${id}`, this.now(), id]);
+    });
+    return { ok: true, paid: true };
+  }
+  async onBuyPaid(id: string, paymentIntentId: string, amount: number) {
+    await this.db.tx(async (tx) => {
+      const b = await tx.get<BuyRow>('SELECT * FROM fw_buys WHERE id = $1', [id]);
+      if (!b) return;
+      const { duplicate } = await this.ledger.post({ idempotencyKey: `card:${paymentIntentId}`, kind: 'card_sale', ref: b.ref, memo: `Buy for me ${b.ref}`,
+        lines: [{ account: acct.cashStripe, amount }, { account: FW_BUY, amount: -amount }] }, tx);
+      if (duplicate) return;
+      if (b.status === 'quoted' && amount >= (b.price_pence ?? Infinity)) {
+        await tx.run(`UPDATE fw_buys SET status = 'paid', paid_via = 'card', payment_ref = $1, paid_at = $2 WHERE id = $3`, [paymentIntentId, this.now(), id]);
+      } else console.warn(`[turkey] buy payment ${paymentIntentId} for ${b.ref} not applied (status ${b.status}, amount ${amount})`);
+    });
+  }
+
+  async quoteBuy(id: string, input: Record<string, unknown>) {
+    const b = await this.db.get<BuyRow>('SELECT * FROM fw_buys WHERE id = $1', [id]);
+    if (!b) throw new AppError('not_found', 'Request not found');
+    if (!['requested', 'quoted'].includes(b.status)) throw new AppError('conflict', 'This request is paid or closed');
+    const price = Math.round(Number(String(input.price ?? '').replace(',', '.')) * 100);
+    if (!(price >= 100 && price <= 1_000_000)) throw new AppError('bad_request', 'Enter the price for the customer in £');
+    const itemTry = input.itemTry ? int(input.itemTry, 'Shop price (TL)', 1, 5_000_000) : null;
+    await this.db.run(`UPDATE fw_buys SET status = 'quoted', price_pence = $1, item_try = $2, admin_note = $3, store = COALESCE($4, store), quoted_at = $5 WHERE id = $6`,
+      [price, itemTry, text(input.note, 500), text(input.store, 60), this.now(), id]);
+    this.tell(b.customer_id, `${b.ref}: we can buy it for you`, 'Your item is ready to buy', [
+      `We checked your link (${b.store ?? 'shop'}). The price to buy it for you is £${(price / 100).toFixed(2)}, including our service fee.`,
+      ...(text(input.note, 500) ? [text(input.note, 500)!] : []),
+      'Pay on the page and we order it. It then comes to our warehouse like any other order.',
+    ]);
+    return { ok: true };
+  }
+  async rejectBuy(id: string, input: Record<string, unknown>) {
+    const b = await this.db.get<BuyRow>('SELECT * FROM fw_buys WHERE id = $1', [id]);
+    if (!b) throw new AppError('not_found', 'Request not found');
+    if (!['requested', 'quoted'].includes(b.status)) throw new AppError('conflict', 'This request is paid: refund it from the wallet instead');
+    const note = text(input.note, 500) ?? 'We cannot buy this item for you.';
+    await this.db.run(`UPDATE fw_buys SET status = 'rejected', admin_note = $1 WHERE id = $2`, [note, id]);
+    this.tell(b.customer_id, `${b.ref}: we cannot buy this one`, 'We cannot buy this item', [note]);
+    return { ok: true };
+  }
+  /** We placed the order in Turkey: it becomes a normal parcel on its way to the warehouse. */
+  async orderedBuy(id: string, input: Record<string, unknown>) {
+    const b = await this.db.get<BuyRow>('SELECT * FROM fw_buys WHERE id = $1', [id]);
+    if (!b) throw new AppError('not_found', 'Request not found');
+    if (b.status !== 'paid') throw new AppError('conflict', 'Only paid requests can be ordered');
+    const description = text(input.description, 300);
+    if (!description) throw new AppError('bad_request', 'Say what the item is (in English, for customs)');
+    const valueTry = int(input.valueTry ?? b.item_try, 'Price paid (TL)', 1, 5_000_000);
+    const pid = newId('frp');
+    await this.db.tx(async (tx) => {
+      await tx.run(`INSERT INTO fw_packages (id, customer_id, status, store, order_no, inbound_tracking, description, value_try, created_at) VALUES ($1,$2,'expected',$3,$4,$5,$6,$7,$8)`,
+        [pid, b.customer_id, text(input.store, 60) ?? b.store ?? 'Other', text(input.orderNo, 60) ?? b.ref, text(input.tracking, 60), description, valueTry, this.now()]);
+      await tx.run(`UPDATE fw_buys SET status = 'ordered', package_id = $1, ordered_at = $2 WHERE id = $3`, [pid, this.now(), id]);
+    });
+    this.tell(b.customer_id, `${b.ref}: ordered`, 'We ordered your item', [`${description} is ordered and on its way to our warehouse. It shows in your orders as "On the way to us".`]);
+    return { packageId: pid };
   }
 }

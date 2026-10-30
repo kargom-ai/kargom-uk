@@ -79,6 +79,7 @@ export async function createApp(db: Db, config: AppConfig, payments: PaymentGate
     return c?.email ? notifier.emailNotice(c.email, subject, heading, lines, link) : null;
   };
   webhooks.onFwdPaid = (id, courierId, pi, amount) => turkey.onCardPaid(id, courierId, pi, amount);
+  webhooks.onBuyPaid = (id, pi, amount) => turkey.onBuyPaid(id, pi, amount);
   bookings.onLabelReady = (id, instant) => { notifier.labelReady(id, { instant }).catch((e) => console.warn(`[notify] ${id}: ${(e as Error).message}`)); };
   return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments, notifier, refreshNotifier, market, turkey };
 }

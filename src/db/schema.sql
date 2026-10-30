@@ -355,3 +355,43 @@ CREATE TABLE IF NOT EXISTS fw_shipments (
   delivered_at TEXT
 );
 CREATE INDEX IF NOT EXISTS fw_shipments_customer ON fw_shipments(customer_id);
+-- Turkey warehouse: "buy it for me" requests, and messages/photos about one parcel.
+CREATE TABLE IF NOT EXISTS fw_buys (
+  id          TEXT PRIMARY KEY,
+  ref         TEXT NOT NULL UNIQUE,             -- BUY-1001
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  status      TEXT NOT NULL,                    -- requested | quoted | paid | ordered | rejected | cancelled
+  url         TEXT NOT NULL,
+  details     TEXT,                             -- size, colour, notes from the customer
+  qty         INTEGER NOT NULL DEFAULT 1,
+  store       TEXT,
+  item_try    INTEGER,                          -- shop price in lira, from us
+  price_pence INTEGER,                          -- what the customer pays us (item + our fee)
+  admin_note  TEXT,
+  paid_via    TEXT,
+  payment_ref TEXT,
+  package_id  TEXT,                             -- the parcel once we have ordered it
+  created_at  TEXT NOT NULL,
+  quoted_at   TEXT,
+  paid_at     TEXT,
+  ordered_at  TEXT
+);
+CREATE INDEX IF NOT EXISTS fw_buys_customer ON fw_buys(customer_id);
+CREATE TABLE IF NOT EXISTS fw_notes (
+  id          TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  package_id  TEXT NOT NULL,
+  author      TEXT NOT NULL,                    -- admin | customer
+  body        TEXT,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS fw_notes_package ON fw_notes(package_id);
+CREATE TABLE IF NOT EXISTS fw_photos (
+  id          TEXT PRIMARY KEY,
+  note_id     TEXT NOT NULL,
+  package_id  TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  data        TEXT NOT NULL,                    -- JPEG data URL, resized in the browser
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS fw_photos_package ON fw_photos(package_id);

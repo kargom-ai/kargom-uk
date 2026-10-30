@@ -174,3 +174,43 @@ label.tw-opt { cursor: pointer; }
 .tc-shops a:hover { background: #EAF2FE; color: var(--blue-d); }
 .tc-kv { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 4px 0; }
 .tc-kv span { color: var(--mute); }
+
+/* logos, messages, photos, buy-for-me, address helpers */
+.tw-logo { border-radius: 8px; object-fit: contain; background: #FFFFFF; border: 1px solid #EEF2F7; flex: none; display: inline-block; vertical-align: middle; }
+.tw-logo-t { display: inline-grid; place-items: center; background: #EEF2F7; color: #3E4A5C; font-weight: 800; font-size: 13px; }
+.tw-item { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tw-logos { display: inline-flex; flex: none; }
+.tw-logos .tw-logo + .tw-logo { margin-left: -8px; box-shadow: 0 0 0 2px #F6F9FF; }
+.tw-link { color: var(--ink); text-decoration: none; font-weight: 700; }
+.tw-link:hover { color: var(--blue); text-decoration: underline; }
+.tw-msgbtn { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #3E4A5C; font: 700 13px 'Nunito Sans', sans-serif; cursor: pointer; }
+.tw-msgbtn.has { border-color: #F59E0B; background: #FFF8EC; color: #9A5B00; }
+.tw-acts-row { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.tw-thread { display: flex; flex-direction: column; gap: 10px; }
+.tw-msg { max-width: 88%; align-self: flex-start; padding: 10px 12px; border-radius: 14px 14px 14px 4px; background: #F4F6FA; display: flex; flex-direction: column; gap: 6px; }
+.tw-msg.mine { align-self: flex-end; background: #EAF2FE; border-radius: 14px 14px 4px 14px; }
+.tw-msg small { font-size: 11px; color: var(--mute); font-weight: 700; }
+.tw-msg p { margin: 0; font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
+.tw-photos { display: flex; flex-wrap: wrap; gap: 6px; }
+.tw-photos img { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; display: block; border: 1px solid var(--line); }
+.tw-ph { position: relative; }
+.tw-ph button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: #1F2A3C; color: #FFFFFF; cursor: pointer; font-size: 14px; line-height: 1; }
+.tw-compose { display: flex; flex-direction: column; gap: 8px; }
+.tc-wh { width: 30px; height: 30px; border-radius: 9px; background: #EAF2FE; color: var(--blue-d); display: inline-grid; place-items: center; flex: none; }
+.tc-buy { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px 20px; border-top: 1px solid #EEF2F7; }
+.tc-buy:first-of-type { border-top: 0; }
+.tc-buy .m { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.tc-buy .m a { font-weight: 700; color: var(--ink); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.tc-buy .m a:hover { color: var(--blue); }
+.tc-find { display: flex; gap: 8px; }
+.tc-find .tw-in { flex: 1; text-transform: uppercase; }
+.tc-helpers { display: flex; flex-wrap: wrap; gap: 6px; }
+.tc-helpers .tw-btn { min-height: 34px; font-size: 13px; padding: 0 12px; }
+.tc-saved { display: flex; flex-direction: column; gap: 6px; }
+.tc-saved button { text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid #C9D6EA; background: #FFFFFF; cursor: pointer; font: 500 14px 'Nunito Sans', sans-serif; color: var(--ink); }
+.tc-saved button:hover, .tc-saved button[aria-pressed="true"] { border-color: var(--blue); background: #F3F8FF; }
+.tc-shops a { display: inline-flex; align-items: center; gap: 6px; }
+.tc-shops a .tw-logo { border: 0; background: transparent; }
+
+.tw-logo-t { position: relative; overflow: hidden; }
+.tw-logo-t img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #FFFFFF; padding: 2px; box-sizing: border-box; }

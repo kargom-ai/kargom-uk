@@ -136,3 +136,40 @@ test('Turkey warehouse: "send as soon as it arrives" prices and pays from the wa
   assert.equal(await app.ledger.trialBalance(), 0);
   assert.equal(ov.ukAddress?.postcode, 'LS1 5HD');
 });
+
+test('Turkey warehouse: buy it for me, and messages with photos about a parcel', async () => {
+  const { app, payments } = await makeApp();
+  const t = app.turkey;
+  const c = await makeCustomer(app);
+  const other = await makeCustomer(app, 'b@example.co.uk');
+  await assert.rejects(t.requestBuy(c, { url: 'not a link' }), /link/);
+  const b = await t.requestBuy(c, { url: 'https://www.trendyol.com/koton/elbise-p-123', details: 'Size M, blue', qty: 1 });
+  assert.match(b.ref, /^BUY-\d+$/);
+  assert.equal((await t.overview(c)).buys[0]!.store, 'Trendyol');
+  await assert.rejects(t.payBuy(c, b.id, { payWith: 'wallet' }, 'https://x'), /not priced/);
+  await t.quoteBuy(b.id, { price: '24.50', itemTry: '899', note: 'Blue M in stock' });
+  await assert.rejects(t.payBuy(other, b.id, { payWith: 'wallet' }, 'https://x'), /not found/);
+  const r = await t.payBuy(c, b.id, { payWith: 'card' }, 'https://kargom.co.uk');
+  assert.ok('url' in r);
+  const co = payments.checkouts.at(-1)!;
+  assert.equal(co.amount, 2450);
+  await app.webhooks.stripe({ id: 'evt_b1', type: 'payment_intent.succeeded', data: { object: { id: 'pi_b1', amount_received: 2450, metadata: co.metadata } } });
+  assert.equal((await t.overview(c)).buys[0]!.status, 'paid');
+  const o = await t.orderedBuy(b.id, { description: 'Blue cotton dress', tracking: 'TEX123' });
+  const ov = await t.overview(c);
+  assert.equal(ov.buys[0]!.status, 'ordered');
+  assert.equal(ov.packages.find((p) => p.id === o.packageId)!.status, 'expected');
+  assert.equal(await app.ledger.trialBalance(), 0);
+
+  // messages and photos
+  const photo = 'data:image/jpeg;base64,' + Buffer.from('fakejpeg').toString('base64');
+  await t.addNote('admin', o.packageId, { body: 'The box was crushed, item looks fine', photos: [photo, 'not-a-photo'] });
+  await assert.rejects(t.addNote({ customerId: other }, o.packageId, { body: 'hi' }), /not found/);
+  await t.addNote({ customerId: c }, o.packageId, { body: 'Thanks, please send it' });
+  const notes = (await t.overview(c)).notes;
+  assert.equal(notes.length, 2);
+  assert.equal(notes[0]!.photos.length, 1);
+  const pid = notes[0]!.photos[0]!.split('/').pop()!;
+  assert.equal((await t.photo(pid, c)).data.toString(), 'fakejpeg');
+  await assert.rejects(t.photo(pid, other), /not found/);
+});
