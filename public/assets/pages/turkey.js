@@ -2,7 +2,7 @@ import { mountShell } from '../shell.js';
 import { api, esc, gbp, toast } from '../market-ui.js';
 import { postcodeHere } from '../here.js';
 import { shrinkPhoto } from '../photo-address.js';
-import { shopLogo, threadHtml, composerHtml, readPhotos, WAREHOUSE_ICON, CHAT_ICON } from '../turkey-ui.js';
+import { shopLogo, threadHtml, composerHtml, readPhotos, courierLogo, WAREHOUSE_ICON, CHAT_ICON } from '../turkey-ui.js';
 
 /**
  * Shop from Turkey (customer). Compact Istanbul address on top, one list of every order with
@@ -91,7 +91,7 @@ function payPanels() {
     return `<div class="tc-pay"><div class="tw-item"><span class="tw-logos">${[...new Set(items.map((p) => p.store))].map((st) => logo(st, 36)).join('')}</span>
         <span class="two" style="display:flex;flex-direction:column;gap:2px;min-width:0"><b style="font-size:16px">${esc(names.slice(0, 3).join(', '))}${names.length > 3 ? ` and ${names.length - 3} more` : ''} ${n > 1 ? 'are' : 'is'} packed</b>
         <span class="tw-muted">Choose a courier and pay · ${n} parcel${n > 1 ? 's' : ''} in one box · ${kg(s.weightKg)} · ${esc(s.dims || '')} cm · to ${esc(s.address.city)} ${esc(s.address.postcode)}</span></span></div>
-      <div class="tw-opts">${s.quotes.map((x) => `<label class="tw-opt"><input type="radio" name="c_${s.id}" value="${x.courierId}" data-pick="${s.id}" ${x.courierId === q.courierId ? 'checked' : ''}>
+      <div class="tw-opts">${s.quotes.map((x) => `<label class="tw-opt"><input type="radio" name="c_${s.id}" value="${x.courierId}" data-pick="${s.id}" ${x.courierId === q.courierId ? 'checked' : ''}>${courierLogo(S.d.courierLogos?.[x.courierId])}
         <span class="n"><b>${esc(x.name)}</b><span>${x.daysMin}–${x.daysMax} working days · shipping ${gbp(x.breakdown.shipping + x.breakdown.fuel)} + handling ${gbp(x.breakdown.handling)}${x.breakdown.consolidation ? ` + combining ${gbp(x.breakdown.consolidation)}` : ''}${x.breakdown.storage ? ` + storage ${gbp(x.breakdown.storage)}` : ''}</span></span><span class="p">${gbp(x.pence)}</span></label>`).join('')}</div>
       <div class="tw-acts"><button type="button" class="tw-btn big" data-pay="${s.id}" data-with="card">Pay ${gbp(q.pence)} by card</button>
         <button type="button" class="tw-btn big ghost" data-pay="${s.id}" data-with="wallet" ${enough ? '' : 'disabled'} title="Wallet balance ${gbp(S.d.balancePence)}">Pay from wallet (${gbp(S.d.balancePence)})</button>
@@ -176,7 +176,7 @@ function sideCol() {
 function calcRes() {
   if (!S.calcQ) return '<span class="tw-muted">Type the weight. Add the box size for a closer price.</span>';
   if (!S.calcQ.length) return '<span class="tw-muted">No price for this size yet. Ask us in Help.</span>';
-  return `${S.calcQ.map((x) => `<div><span>${esc(x.name)}<small>${x.daysMin}–${x.daysMax} working days · ${x.chargeableKg} kg</small></span><b>${gbp(x.pence)}</b></div>`).join('')}<span class="tw-muted">Includes handling. Your final price comes from the packed box.</span>`;
+  return `${S.calcQ.map((x) => `<div><span style="display:flex;align-items:center;gap:10px">${courierLogo(S.d.courierLogos?.[x.courierId])}<span>${esc(x.name)}<small>${x.daysMin}–${x.daysMax} working days · ${x.chargeableKg} kg</small></span></span><b>${gbp(x.pence)}</b></div>`).join('')}<span class="tw-muted">Includes handling. Your final price comes from the packed box.</span>`;
 }
 
 // ---------- drawers

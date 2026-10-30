@@ -119,7 +119,7 @@ class Component extends DCLogic {
       const key = b.status === 'delivered' ? 'deliv' : 'transit';
       const what = b.items.map((i) => i.description).filter(Boolean);
       return { id: b.id, no: b.trackingNo || b.ref, date: shortDate(b.shippedAt || b.createdAt), to: b.address.name, city: `${b.address.city} ${b.address.postcode}`,
-        service: `${b.courierName} · ${what.slice(0, 2).join(', ')}${what.length > 2 ? ` +${what.length - 2}` : ''}`, logo: '', hasLogo: false, noLogo: true, svc: 'TR → UK', key,
+        service: `${b.courierName} · ${what.slice(0, 2).join(', ')}${what.length > 2 ? ` +${what.length - 2}` : ''}`, logo: b.courierLogo || '', hasLogo: Boolean(b.courierLogo), noLogo: !b.courierLogo, svc: 'TR → UK', key,
         status: b.status === 'delivered' ? 'Delivered' : 'In transit', sBg: S[key][1], sFg: S[key][2], price: gbp((b.pricePence || 0) / 100), isShip: false, isJob: true,
         jobUrl: b.trackingUrl || '/app/turkey', at: b.shippedAt || b.createdAt, adj: false, adjShort: '', aBg: '', aFg: '', aDot: '', openAdj: () => {}, labelUrl: '#', trackUrl: '#' };
     });

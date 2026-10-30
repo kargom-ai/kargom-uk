@@ -1,6 +1,7 @@
 import { mountAdminShell } from '../admin-shell.js';
 import { api, esc, gbp, toast } from '../market-ui.js';
-import { shopLogo, threadHtml, composerHtml, readPhotos, CHAT_ICON } from '../turkey-ui.js';
+import { shopLogo, threadHtml, composerHtml, readPhotos, courierLogo, CHAT_ICON } from '../turkey-ui.js';
+import { resizeImage } from '../market-ui.js';
 
 /**
  * Admin: Turkey warehouse, inside the normal admin frame.
@@ -121,8 +122,9 @@ function buyView() {
 function courView() {
   return `<section class="tw-card"><div class="tw-card-h"><h2>Couriers and prices</h2><button type="button" class="tw-btn" data-open="courier">+ Add courier</button></div>
     <p class="tw-muted" style="margin:6px 20px 0">The price list is what the customer pays for shipping. Handling, combining and storage from Settings are added on top.</p>
-    <div style="overflow-x:auto;margin-top:12px"><table class="tw-tbl"><thead><tr><th>Courier</th><th>Shown</th><th>Price list</th><th>Extra kg</th><th>Fuel</th><th>Days</th><th></th></tr></thead><tbody>
-    ${S.d.couriers.map((c) => `<tr><td><span class="two"><b>${esc(c.name)}</b><small>${esc(c.note || '')}</small></span></td><td>${c.active ? pill('here').replace('In warehouse', 'Yes') : '<span class="tw-muted">Hidden</span>'}</td>
+    <div style="overflow-x:auto;margin-top:12px"><table class="tw-tbl"><thead><tr><th>Courier</th><th>Shown to customers</th><th>Price list</th><th>Extra kg</th><th>Fuel</th><th>Days</th><th></th></tr></thead><tbody>
+    ${S.d.couriers.map((c) => `<tr><td><span class="tw-item">${courierLogo(c.logoUrl) || '<span class="tw-clogo"><small class="tw-muted">no logo</small></span>'}<span class="two"><b>${esc(c.name)}</b><small>${esc(c.note || '')}</small></span></span></td>
+      <td><span class="tw-item"><button type="button" class="tw-toggle" role="switch" aria-checked="${c.active}" data-active="${c.id}" aria-label="Show ${esc(c.name)} to customers"></button><span class="tw-muted">${c.active ? 'On' : 'Off'}</span></span></td>
       <td style="white-space:pre;font-size:13px">${esc(ratesText(c.rates))}</td><td>${c.extraKgPence ? gbp(c.extraKgPence) : '–'}</td><td>${c.fuelBp / 100}%</td><td>${c.daysMin}–${c.daysMax}</td>
       <td><button type="button" class="tw-btn ghost sm" data-open="courier" data-id="${c.id}">Edit</button></td></tr>`).join('')
       || '<tr><td colspan="7"><div class="tw-empty"><b>No couriers yet</b>Customers cannot get a price until you add one.</div></td></tr>'}</tbody></table></div></section>`;
@@ -145,7 +147,7 @@ function setView() {
 // ---------- drawers
 const cell = (attr, k, label, unit, v, dec) => `<label><small>${label}</small><span class="tw-unit" data-u="${unit}"><input class="tw-in" ${attr}="${k}" inputmode="${dec ? 'decimal' : 'numeric'}" value="${esc(v ?? '')}"></span></label>`;
 const dimsHtml = (v) => (v = v || {}, `<div class="tw-dims">${cell('name', 'w', 'Weight', 'kg', v.w, 1)}${cell('name', 'l', 'Length', 'cm', v.l)}${cell('name', 'wd', 'Width', 'cm', v.wd)}${cell('name', 'h', 'Height', 'cm', v.h)}</div>`);
-const quotesHtml = (qs) => (qs?.length ? `<div class="tw-opts">${qs.map((x) => `<div class="tw-opt"><span class="n"><b>${esc(x.name)}</b><span>${x.chargeableKg} kg charged · ${x.daysMin}–${x.daysMax} days · shipping ${gbp(x.breakdown.shipping + x.breakdown.fuel)}, fees ${gbp(x.breakdown.handling + x.breakdown.consolidation + x.breakdown.storage)}</span></span><span class="p">${gbp(x.pence)}</span></div>`).join('')}</div>` : '');
+const quotesHtml = (qs) => (qs?.length ? `<div class="tw-opts">${qs.map((x) => `<div class="tw-opt">${courierLogo(S.d.couriers.find((c) => c.id === x.courierId)?.logoUrl)}<span class="n"><b>${esc(x.name)}</b><span>${x.chargeableKg} kg charged · ${x.daysMin}–${x.daysMax} days · shipping ${gbp(x.breakdown.shipping + x.breakdown.fuel)}, fees ${gbp(x.breakdown.handling + x.breakdown.consolidation + x.breakdown.storage)}</span></span><span class="p">${gbp(x.pence)}</span></div>`).join('')}</div>` : '');
 const addrText = (a) => [a.name, a.line1, a.line2, a.city, a.postcode].filter(Boolean).join(', ');
 
 function drawerHtml() {
@@ -223,7 +225,15 @@ function drawerHtml() {
     const e = dr.id ? S.d.couriers.find((c) => c.id === dr.id) : {};
     const v = { ...e, ...(dr.v || {}) };
     h = `<h2>${e.id ? `Edit ${esc(e.name)}` : 'Add a courier'}</h2><p>What customers pay for shipping, before our fees.</p>`;
+    const logo = v.logo ?? '';
+    const presets = [['dhl', 'DHL'], ['fedex', 'FedEx'], ['ups', 'UPS']];
     b = `<label class="tw-f">Name customers see<input class="tw-in" name="name" value="${esc(v.name || '')}" placeholder="UPS Express Saver"></label>
+      <div class="tw-f">Logo <em>(customers see it next to the price)</em><input type="hidden" name="logo" value="${esc(logo)}">
+        <div class="tw-logopick">${presets.map(([k, n]) => `<button type="button" data-logo="preset:${k}" aria-pressed="${logo === `preset:${k}`}" title="${n}"><img src="/assets/carriers/${k}.png" alt="${n}"></button>`).join('')}
+          ${logo.startsWith('data:') ? `<button type="button" data-logo="${esc(logo)}" aria-pressed="true"><img src="${esc(logo)}" alt="Your logo"></button>` : ''}
+          <label title="Upload a logo">⬆ Upload<input type="file" accept="image/png,image/jpeg,image/webp" data-logofile hidden></label>
+          <button type="button" data-logo="" aria-pressed="${logo === ''}">Auto</button><button type="button" data-logo="none" aria-pressed="${logo === 'none'}">No logo</button></div>
+        <span class="tw-muted" style="font-weight:500">Auto = DHL, FedEx or UPS logo when the name contains it.</span></div>
       <label class="tw-f">Price list <em>(one line each: kg = £)</em><textarea class="tw-in" name="rates" rows="7" placeholder="0.5 = 9.90&#10;1 = 12.50&#10;2 = 16.90&#10;5 = 27.50&#10;10 = 42.00">${esc(typeof v.rates === 'string' ? v.rates : ratesText(e.rates))}</textarea></label>
       <div class="tw-row"><label class="tw-f">Each extra kg (£)<input class="tw-in" name="extraKg" value="${esc(v.extraKg ?? (e.extraKgPence ? pounds(e.extraKgPence) : ''))}"></label>
         <label class="tw-f">Fuel (%)<input class="tw-in" name="fuelPct" value="${esc(v.fuelPct ?? (e.fuelBp ? e.fuelBp / 100 : ''))}"></label></div>
@@ -283,6 +293,12 @@ function bind() {
     if (S.drawer?.kind === 'pack' && ['w', 'l', 'wd', 'h'].includes(e.target.name)) livePreview();
   });
   root.addEventListener('change', (e) => {
+    if (e.target.matches('[data-logofile]') && e.target.files?.[0]) {
+      keepDrawer();
+      // Small PNG keeps transparent backgrounds; 240 px wide is plenty for a price row.
+      resizeImage(e.target.files[0], 240, 'image/png').then((logo) => { S.drawer.v = { ...(S.drawer.v || {}), logo }; render(); }).catch((err) => toast(err.message));
+      return;
+    }
     if (!e.target.matches('[data-photos]')) return;
     keepDrawer();
     readPhotos(e.target.files, S.drawer.v?.photos || []).then((ph) => { S.drawer.v = { ...(S.drawer.v || {}), photos: ph }; render(); }).catch((err) => toast(err.message));
@@ -301,6 +317,12 @@ function bind() {
     if (ds.stage) { S.stage = S.stage === ds.stage && b.classList.contains('tw-stat') ? 'all' : ds.stage; S.view = 'list'; render(); return; }
     if (ds.open) { S.drawer = { kind: ds.open, id: ds.id || null, v: null }; S.preview = null; render(); root.querySelector('#dr input, #dr textarea')?.focus(); return; }
     if (ds.deliv) { await run(async () => { await api(`/api/admin/tr/shipments/${ds.deliv}/delivered`, { method: 'POST', body: {} }); await load(); }, 'Marked as delivered'); return; }
+    if (ds.active) {
+      const c = S.d.couriers.find((x) => x.id === ds.active);
+      await run(async () => { await api(`/api/admin/tr/couriers/${c.id}/active`, { method: 'POST', body: { active: !c.active } }); await load(); }, c.active ? `${c.name} is hidden from customers` : `${c.name} is shown to customers`);
+      return;
+    }
+    if (ds.logo != null) { keepDrawer(); S.drawer.v = { ...(S.drawer.v || {}), logo: ds.logo }; render(); return; }
     if (ds.unphoto != null) { keepDrawer(); S.drawer.v.photos = (S.drawer.v.photos || []).filter((_, i) => i !== Number(ds.unphoto)); render(); return; }
     const dr = S.drawer;
     switch (ds.act) {

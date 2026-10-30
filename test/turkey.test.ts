@@ -173,3 +173,22 @@ test('Turkey warehouse: buy it for me, and messages with photos about a parcel',
   assert.equal((await t.photo(pid, c)).data.toString(), 'fakejpeg');
   await assert.rejects(t.photo(pid, other), /not found/);
 });
+
+test('Turkey couriers: logos (ready-made, guessed, uploaded) and show/hide', async () => {
+  const { app } = await makeApp();
+  const t = app.turkey;
+  const a = await t.saveCourier({ name: 'DHL Express', rates: '5 = 20' });
+  const b = await t.saveCourier({ name: 'Aras Kargo', rates: '5 = 10', logo: 'preset:ups' });
+  const png = 'data:image/png;base64,' + Buffer.from('png').toString('base64');
+  const c = await t.saveCourier({ name: 'PTT', rates: '5 = 9', logo: png });
+  await assert.rejects(t.saveCourier({ name: 'X', rates: '1 = 1', logo: 'data:text/html;base64,AAAA' }), /logo/);
+  let list = await t.couriers();
+  assert.equal(list.find((x) => x.id === a.id)!.logoUrl, '/assets/carriers/dhl.png');
+  assert.equal(list.find((x) => x.id === b.id)!.logoUrl, '/assets/carriers/ups.png');
+  assert.equal(list.find((x) => x.id === c.id)!.logoUrl, png);
+  await t.setCourierActive(a.id, false);
+  list = await t.couriers();
+  assert.equal(list.find((x) => x.id === a.id)!.active, false);
+  const est = await t.estimate(1, '', 1);
+  assert.equal(est.quotes.some((q) => q.courierId === a.id), false);
+});

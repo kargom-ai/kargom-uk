@@ -439,6 +439,7 @@ export function buildRouter(app: App) {
   on('POST', '/api/admin/tr/buy/:id/ordered', 'admin', async (c) => app.turkey.orderedBuy(c.params.id!, c.body ?? {}));
   on('POST', '/api/admin/tr/settings', 'admin', async (c) => app.turkey.saveSettings(c.body ?? {}));
   on('POST', '/api/admin/tr/couriers', 'admin', async (c) => app.turkey.saveCourier(c.body ?? {}));
+  on('POST', '/api/admin/tr/couriers/:id/active', 'admin', async (c) => app.turkey.setCourierActive(c.params.id!, Boolean(c.body?.active)));
   on('POST', '/api/admin/tr/couriers/:id/delete', 'admin', async (c) => app.turkey.deleteCourier(c.params.id!));
   on('POST', '/api/admin/tr/receive', 'admin', async (c) => app.turkey.receive(c.body ?? {}));
   on('POST', '/api/admin/tr/packages/:id', 'admin', async (c) => app.turkey.adminPackageNote(c.params.id!, c.body ?? {}));

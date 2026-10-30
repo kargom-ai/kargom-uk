@@ -75,6 +75,7 @@ const NUM_KEYS = new Set(['handlingPence', 'consolidatePence', 'freeDays', 'stor
 export type Courier = {
   id: string; name: string; active: boolean; divisor: number; fuelBp: number; rates: Array<[number, number]>;
   extraKgPence: number; maxKg: number; daysMin: number; daysMax: number; trackingUrl: string | null; note: string | null; sort: number;
+  logo?: string | null; logoUrl?: string | null;
 };
 export type CourierQuote = {
   courierId: string; name: string; pence: number; daysMin: number; daysMax: number; chargeableKg: number;
@@ -92,6 +93,15 @@ const int = (v: unknown, name: string, min: number, max: number): number => {
 const text = (v: unknown, max: number): string | null => {
   const s = typeof v === 'string' ? v.trim().slice(0, max) : '';
   return s || null;
+};
+/** '' (guess from name), 'none', 'preset:dhl', or an uploaded small image as a data URL. */
+const parseLogo = (v: unknown): string | null => {
+  const s = typeof v === 'string' ? v.trim() : '';
+  if (!s) return null;
+  if (s === 'none') return 'none';
+  if (s.startsWith('preset:') && COURIER_LOGOS[s.slice(7)]) return s;
+  if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s) && s.length < 300_000) return s;
+  throw new AppError('bad_request', 'The logo must be a PNG, JPG or WebP picture under 200 KB');
 };
 const kgToG = (v: unknown, name = 'Weight'): number => {
   const kg = Number(String(v ?? '').replace(',', '.'));
@@ -177,10 +187,21 @@ type ShipRow = { id: string; ref: string; customer_id: string; status: string; a
   courier_id: string | null; courier_name: string | null; price_pence: number | null; paid_via: string | null; payment_ref: string | null; tracking_no: string | null; tracking_url: string | null;
   admin_note: string | null; created_at: string; quoted_at: string | null; paid_at: string | null; shipped_at: string | null; delivered_at: string | null };
 type CourierRow = { id: string; name: string; active: number; divisor: number; fuel_bp: number; rates: string; extra_kg_pence: number; max_kg: number; days_min: number; days_max: number;
-  tracking_url: string | null; note: string | null; sort: number };
+  tracking_url: string | null; note: string | null; sort: number; logo?: string | null };
+
+/** Ready-made courier logos (files in public/assets/carriers). */
+export const COURIER_LOGOS: Record<string, string> = { dhl: 'DHL', fedex: 'FedEx', ups: 'UPS' };
+/** The picture to show: an uploaded logo, a ready-made one, or a guess from the name (DHL Express → DHL). */
+export function courierLogoUrl(logo: string | null | undefined, name: string): string | null {
+  if (logo === 'none') return null;
+  if (logo?.startsWith('data:image/')) return logo;
+  const preset = logo?.startsWith('preset:') ? logo.slice(7) : Object.keys(COURIER_LOGOS).find((k) => name.toLowerCase().replace(/\s/g, '').includes(k));
+  return preset && COURIER_LOGOS[preset] ? `/assets/carriers/${preset}.png` : null;
+}
 
 const toCourier = (r: CourierRow): Courier => ({ id: r.id, name: r.name, active: Boolean(r.active), divisor: r.divisor, fuelBp: r.fuel_bp, rates: JSON.parse(r.rates),
-  extraKgPence: r.extra_kg_pence, maxKg: r.max_kg, daysMin: r.days_min, daysMax: r.days_max, trackingUrl: r.tracking_url, note: r.note, sort: r.sort });
+  extraKgPence: r.extra_kg_pence, maxKg: r.max_kg, daysMin: r.days_min, daysMax: r.days_max, trackingUrl: r.tracking_url, note: r.note, sort: r.sort,
+  logo: r.logo ?? null, logoUrl: courierLogoUrl(r.logo, r.name) });
 const pkgOut = (p: PkgRow) => ({ id: p.id, customerId: p.customer_id, status: p.status, store: p.store, orderNo: p.order_no, tracking: p.inbound_tracking, description: p.description, valueTry: p.value_try,
   weightKg: p.weight_g ? p.weight_g / 1000 : null, dims: p.dims, note: p.admin_note, hold: Boolean(p.hold), shipmentId: p.shipment_id, receivedAt: p.received_at, createdAt: p.created_at,
   autoSend: Boolean(p.auto_send), autoPref: p.auto_pref === 'fastest' ? 'fastest' : 'cheapest' });
@@ -261,22 +282,29 @@ export class TurkeyForwarding {
       rates: JSON.stringify(rates), extra_kg_pence: Math.round(Number(input.extraKg ?? 0) * 100), max_kg: int(input.maxKg ?? 30, 'Max kg', 1, 300),
       days_min: int(input.daysMin ?? 2, 'Days from', 1, 60), days_max: int(input.daysMax ?? 5, 'Days to', 1, 90), tracking_url: trackingUrl, note: text(input.note, 200),
       sort: int(input.sort ?? 0, 'Order', 0, 999),
+      logo: parseLogo(input.logo),
     };
     if (!(row.fuel_bp >= 0 && row.fuel_bp <= 10_000)) throw new AppError('bad_request', 'Fuel surcharge must be 0–100%');
     if (!(row.extra_kg_pence >= 0 && row.extra_kg_pence <= 100_000)) throw new AppError('bad_request', 'Extra kg price is not valid');
     if (row.days_max < row.days_min) row.days_max = row.days_min;
     const id = typeof input.id === 'string' && input.id ? input.id : null;
     if (id) {
-      const r = await this.db.run(`UPDATE fw_couriers SET name=$1, active=$2, divisor=$3, fuel_bp=$4, rates=$5, extra_kg_pence=$6, max_kg=$7, days_min=$8, days_max=$9, tracking_url=$10, note=$11, sort=$12 WHERE id=$13`,
-        [row.name, row.active, row.divisor, row.fuel_bp, row.rates, row.extra_kg_pence, row.max_kg, row.days_min, row.days_max, row.tracking_url, row.note, row.sort, id]);
+      const r = await this.db.run(`UPDATE fw_couriers SET name=$1, active=$2, divisor=$3, fuel_bp=$4, rates=$5, extra_kg_pence=$6, max_kg=$7, days_min=$8, days_max=$9, tracking_url=$10, note=$11, sort=$12, logo=$13 WHERE id=$14`,
+        [row.name, row.active, row.divisor, row.fuel_bp, row.rates, row.extra_kg_pence, row.max_kg, row.days_min, row.days_max, row.tracking_url, row.note, row.sort, row.logo, id]);
       if (!r.changes) throw new AppError('not_found', 'Courier not found');
       return { id };
     }
     const nid = newId('frc');
-    await this.db.run(`INSERT INTO fw_couriers (id, name, active, divisor, fuel_bp, rates, extra_kg_pence, max_kg, days_min, days_max, tracking_url, note, sort, created_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-    [nid, row.name, row.active, row.divisor, row.fuel_bp, row.rates, row.extra_kg_pence, row.max_kg, row.days_min, row.days_max, row.tracking_url, row.note, row.sort, this.now()]);
+    await this.db.run(`INSERT INTO fw_couriers (id, name, active, divisor, fuel_bp, rates, extra_kg_pence, max_kg, days_min, days_max, tracking_url, note, sort, logo, created_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+    [nid, row.name, row.active, row.divisor, row.fuel_bp, row.rates, row.extra_kg_pence, row.max_kg, row.days_min, row.days_max, row.tracking_url, row.note, row.sort, row.logo, this.now()]);
     return { id: nid };
+  }
+  /** Show or hide a courier for customers, without touching its prices. */
+  async setCourierActive(id: string, active: boolean) {
+    const r = await this.db.run('UPDATE fw_couriers SET active = $1 WHERE id = $2', [active ? 1 : 0, id]);
+    if (!r.changes) throw new AppError('not_found', 'Courier not found');
+    return { ok: true };
   }
   async deleteCourier(id: string) {
     await this.db.run('DELETE FROM fw_couriers WHERE id = $1', [id]);
@@ -330,7 +358,8 @@ export class TurkeyForwarding {
         postcode: s.whPostcode, phone: s.whPhone, country: 'Türkiye',
       } : null,
       fees: { handlingPence: s.handlingPence, consolidatePence: s.consolidatePence, freeDays: s.freeDays, storagePencePerDay: s.storagePencePerDay },
-      couriers: couriers.filter((c) => c.active).map((c) => ({ name: c.name, daysMin: c.daysMin, daysMax: c.daysMax })),
+      couriers: couriers.filter((c) => c.active).map((c) => ({ name: c.name, daysMin: c.daysMin, daysMax: c.daysMax, logoUrl: c.logoUrl })),
+      courierLogos: Object.fromEntries(couriers.map((c) => [c.id, c.logoUrl])),
       stores: STORES,
       packages: packages.map((p) => ({ ...pkgOut(p), storagePence: storageFor(p.received_at, this.clock.now(), s),
         freeUntil: p.received_at ? new Date(new Date(p.received_at).getTime() + s.freeDays * 86_400_000).toISOString() : null })),
@@ -655,7 +684,8 @@ export class TurkeyForwarding {
     const rows = await this.db.all<ShipRow>(`SELECT * FROM fw_shipments WHERE customer_id = $1 AND status IN ('shipped','delivered') ORDER BY shipped_at DESC LIMIT 50`, [customerId]);
     if (!rows.length) return [];
     const pk = await this.db.all<PkgRow>(`SELECT * FROM fw_packages WHERE customer_id = $1 AND status = 'shipped'`, [customerId]);
-    return rows.map((r) => ({ ...shipOut(r), items: pk.filter((p) => p.shipment_id === r.id).map((p) => ({ store: p.store, description: p.description })) }));
+    const logos = Object.fromEntries((await this.couriers()).map((c) => [c.id, c.logoUrl]));
+    return rows.map((r) => ({ ...shipOut(r), courierLogo: (r.courier_id && logos[r.courier_id]) || null, items: pk.filter((p) => p.shipment_id === r.id).map((p) => ({ store: p.store, description: p.description })) }));
   }
 
   // ---------- UK address we can suggest (from the customer's parcel bookings)
