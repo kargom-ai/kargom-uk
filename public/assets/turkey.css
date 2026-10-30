@@ -237,3 +237,79 @@ label.tw-opt { cursor: pointer; }
 .tc-trkbtn .mono { color: var(--ink); font-weight: 500; }
 .tc-trk { display: flex; gap: 6px; align-items: center; min-width: 220px; }
 .tc-trk .tw-in { min-height: 36px; font-size: 14px; }
+
+/* ---------- address card, parcel counters, buy-for-me list (v2) ---------- */
+.tx-addr { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.tx-ah { display: flex; align-items: flex-start; gap: 14px; }
+.tx-aic { flex: none; width: 48px; height: 48px; border-radius: 12px; background: #EAF2FE; color: #2463DB; display: grid; place-items: center; }
+.tx-at { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tx-at b { font-size: 18px; font-weight: 800; color: #0F1A2C; }
+.tx-at span { font-size: 14px; color: #6B7789; line-height: 1.4; }
+.tx-live { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; background: #E6F4EA; color: #166534; font-size: 13px; font-weight: 800; }
+.tx-live i { width: 8px; height: 8px; border-radius: 50%; background: #1E8A43; }
+.tx-code { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-radius: 14px; background: #EEF4FD; }
+.tx-code > span { display: flex; flex-direction: column; min-width: 0; }
+.tx-code small { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: #586579; }
+.tx-code b { font-size: 30px; font-weight: 800; letter-spacing: .01em; color: #0F1A2C; line-height: 1.15; }
+.tx-cbtn { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 18px; border-radius: 10px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1D4FB8; font: 700 15px 'Nunito Sans', sans-serif; cursor: pointer; }
+.tx-lines { display: flex; flex-direction: column; gap: 10px; padding: 0 4px; }
+.tx-l { display: flex; align-items: flex-start; gap: 14px; font-size: 15px; color: #1F2A3C; line-height: 1.45; }
+.tx-l svg { flex: none; color: #586579; margin-top: 2px; }
+.tx-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tx-b1, .tx-b2 { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 46px; padding: 0 12px; border-radius: 10px; font: 700 15px 'Nunito Sans', sans-serif; cursor: pointer; white-space: nowrap; }
+.tx-b1 { border: 0; background: #2463DB; color: #FFFFFF; }
+.tx-b1:hover { background: #1F56C3; }
+.tx-b2 { border: 1px solid #C9D6EA; background: #FFFFFF; color: #1F2A3C; }
+.tx-b2 svg { color: #2463DB; }
+.tx-note { margin: 0; display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; color: #6B7789; line-height: 1.45; }
+.tx-note svg { flex: none; margin-top: 1px; }
+.tx-note b { color: #1F2A3C; }
+
+.tx-parcels { padding: 16px 18px 18px; }
+.tx-ph { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.tx-ph h2 { margin: 0; font: 800 18px 'Nunito Sans', sans-serif; color: #0F1A2C; }
+.tx-total { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; color: #6B7789; font: 600 14px 'Nunito Sans', sans-serif; cursor: pointer; padding: 4px; }
+.tx-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.tx-tile { flex-direction: column; align-items: flex-start !important; gap: 6px !important; padding: 12px 12px !important; border: 1px solid transparent !important; border-radius: 12px !important; }
+.tx-tile[aria-pressed="true"] { border-color: currentColor !important; box-shadow: none !important; }
+.tx-tn { display: flex !important; flex-direction: row !important; align-items: center; gap: 10px; }
+.tx-tn i { width: 34px; height: 34px; border-radius: 9px; background: rgba(255, 255, 255, .7); display: grid; place-items: center; }
+.tx-tn b { font-size: 24px !important; font-weight: 800; color: #0F1A2C !important; }
+.tx-tile small { font-size: 13px; font-weight: 600; line-height: 1.25; color: inherit; }
+
+.tx-buys .tw-card-h { padding-bottom: 10px; }
+.tx-new { min-height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid #C9D6EA; background: #FFFFFF; color: #1D4FB8; font: 700 14px 'Nunito Sans', sans-serif; cursor: pointer; }
+.tx-blist { padding: 0 18px 6px; }
+.tx-buy { display: flex; align-items: flex-start; gap: 14px; padding: 14px 0; border-top: 1px solid #EEF2F7; }
+.tx-bth { flex: none; width: 66px; height: 66px; border-radius: 12px; background: #F3F5F8; display: grid; place-items: center; overflow: hidden; }
+.tx-bm { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tx-bm > b { font-size: 16px; font-weight: 800; color: #0F1A2C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx-bs { font-size: 14px; color: #6B7789; }
+.tx-bnote { font-size: 13px; color: #3E4A5C; }
+.tx-cancel { align-self: flex-start; border: 0; background: none; padding: 2px 0; color: #6B7789; font: 600 13px 'Nunito Sans', sans-serif; text-decoration: underline; cursor: pointer; }
+.tx-go { flex: none; align-self: center; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: #6B7789; }
+.tx-go:hover { background: #F1F5FA; color: #1F2A3C; }
+
+@media (max-width: 560px) {
+  .tx-addr { padding: 16px 14px; gap: 12px; }
+  .tx-aic { width: 44px; height: 44px; }
+  .tx-at b { font-size: 17px; }
+  .tx-code { padding: 12px 14px; }
+  .tx-code b { font-size: 26px; }
+  .tx-b1, .tx-b2 { font-size: 14px; gap: 7px; padding: 0 8px; }
+  .tx-tiles { gap: 8px; }
+  .tx-tile { padding: 10px 8px !important; }
+  .tx-tn { gap: 6px; }
+  .tx-tn i { width: 28px; height: 28px; }
+  .tx-tn i svg { width: 20px; height: 20px; }
+  .tx-tn b { font-size: 20px !important; }
+  .tx-tile small { font-size: 12px; }
+  .tx-parcels { padding: 14px 12px; }
+  .tx-blist { padding: 0 14px 4px; }
+  .tx-bth { width: 58px; height: 58px; }
+}
+@media (max-width: 380px) {
+  .tx-btns { grid-template-columns: 1fr; }
+  .tx-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.tx-bm .tw-acts-row { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px; margin-top: 6px; }

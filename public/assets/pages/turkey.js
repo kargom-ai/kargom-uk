@@ -54,29 +54,50 @@ function rows() {
   }).filter((r) => !['sent', 'done'].includes(r.stage)); // on its way to the UK: it is in the dashboard's shipments now
 }
 
+const IC = {
+  home: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path><path d="M10 20v-6h4v6"></path></svg>',
+  copy: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="13" height="13" rx="2.5"></rect><path d="M16 8V5.5A2.5 2.5 0 0 0 13.5 3h-8A2.5 2.5 0 0 0 3 5.5v8A2.5 2.5 0 0 0 5.5 16H8"></path></svg>',
+  lines: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h12M9 12h12M9 18h12"></path><circle cx="4" cy="6" r=".6" fill="currentColor"></circle><circle cx="4" cy="12" r=".6" fill="currentColor"></circle><circle cx="4" cy="18" r=".6" fill="currentColor"></circle></svg>',
+  pin: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"></path><circle cx="12" cy="9.5" r="2.5"></circle></svg>',
+  phone: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"></path></svg>',
+  info: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6M12 7.5v.01"></path></svg>',
+  truck: '<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6.5A1.5 1.5 0 0 1 3.5 5h10A1.5 1.5 0 0 1 15 6.5V16H2z" fill="#F08A24"></path><path d="M15 9h3.6a1.5 1.5 0 0 1 1.2.6l2 2.7a1.5 1.5 0 0 1 .2.9V16h-7z" fill="#E06D10"></path><circle cx="6.5" cy="17" r="2.3" fill="#3E4A5C" stroke="#FFF" stroke-width="1.4"></circle><circle cx="17.5" cy="17" r="2.3" fill="#3E4A5C" stroke="#FFF" stroke-width="1.4"></circle></svg>',
+  house: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E8A43" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path><path d="M10 20v-6h4v6"></path></svg>',
+  card: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6D3BD6" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.5"></rect><path d="M2.5 10h19"></path></svg>',
+  send: '<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 2.5L2.8 10.2l7 2.9 2.9 7z" fill="#0F8A80"></path><path d="M21.5 2.5L9.8 13.1" stroke="#E3F6F5" stroke-width="1.6"></path></svg>',
+  chev: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>',
+};
+/** "+905435531699" -> "+90 543 553 1699". */
+const prettyPhone = (v) => String(v || '').replace(/\s+/g, '').replace(/^\+90(\d{3})(\d{3})(\d{4})$/, '+90 $1 $2 $3') || v;
+
 function addressCard() {
   const d = S.d, a = d.address;
-  if (!a) return `<section class="tw-card"><div class="tc-addr"><span class="tc-code"><small>YOUR CODE</small><b>${esc(d.suite)}</b></span>
-    <span class="txt"><span class="ttl"><span class="tc-wh">${WAREHOUSE_ICON}</span>Your Istanbul address is almost ready</span><span>We are opening the warehouse. Your address appears here and we email you as soon as it is ready.</span></span></div></section>`;
+  const head = (ttl, sub, live) => `<div class="tx-ah"><span class="tx-aic">${IC.home}</span><span class="tx-at"><b>${ttl}</b><span>${sub}</span></span>${live ? '<span class="tx-live"><i></i>Active</span>' : ''}</div>`;
+  if (!a) return `<section class="tw-card tx-addr">${head('Your Istanbul address is almost ready', 'We are opening the warehouse. We email you as soon as it is ready.', false)}
+    <div class="tx-code"><span><small>YOUR CODE</small><b>${esc(d.suite)}</b></span><button type="button" class="tx-cbtn" data-copy="${esc(d.suite)}">${IC.copy}Copy</button></div></section>`;
   const mark = (v) => esc(v).split(esc(d.suite)).join(`<mark>${esc(d.suite)}</mark>`);
   const lines = [['Ad Soyad', a.name], ['Adres', a.line1], ['Adres 2', a.line2], ['İlçe', a.district], ['İl', a.city], ['Posta kodu', a.postcode], ['Telefon', a.phone]].filter((r) => r[1]);
-  return `<section class="tw-card"><div class="tc-addr">
-    <span class="tc-code"><small>YOUR CODE</small><b>${esc(d.suite)}</b></span>
-    <span class="txt"><span class="ttl"><span class="tc-wh">${WAREHOUSE_ICON}</span>Your Istanbul address</span>
-      <span>${mark(a.name)} · ${mark([a.line1, a.line2].filter(Boolean).join(', '))} · ${esc([a.district, a.city].filter(Boolean).join(' / '))} ${esc(a.postcode)} · ${esc(a.phone)}</span>
-      <span class="tw-muted">Put <b>${esc(d.suite)}</b> after your name on every order, so we know it is yours.</span></span>
-    <span class="tw-acts"><button type="button" class="tw-btn" data-copy="${esc(lines.map((r) => r[1]).concat('Türkiye').join('\n'))}">Copy address</button>
-      <button type="button" class="tw-btn ghost" data-act="lines" aria-expanded="${S.showLines}">${S.showLines ? 'Hide lines' : 'Copy line by line'}</button></span></div>
+  // The code is shown big above, so the street lines are shown without it.
+  const noCode = (v) => String(v || '').split(d.suite).join('').replace(/\s*[,·]\s*$/, '').replace(/^\s*[,·]\s*/, '').trim();
+  const street = [a.line1, a.line2].map(noCode).filter(Boolean).join(', ');
+  const town = `${[a.district, a.city].filter(Boolean).join(' / ')} ${a.postcode || ''}`.trim();
+  return `<section class="tw-card tx-addr">${head('Your Istanbul address', 'Use this address at checkout in Turkish shops.', true)}
+    <div class="tx-code"><span><small>YOUR CODE</small><b>${esc(d.suite)}</b></span><button type="button" class="tx-cbtn" data-copy="${esc(d.suite)}">${IC.copy}Copy</button></div>
+    <div class="tx-lines"><span class="tx-l">${IC.pin}<span>${esc(street)}${street ? ',' : ''}<br>${esc(town)}, Turkey</span></span>
+      ${a.phone ? `<span class="tx-l">${IC.phone}<span>${esc(prettyPhone(a.phone))}</span></span>` : ''}</div>
+    <div class="tx-btns"><button type="button" class="tx-b1" data-copy="${esc(lines.map((r) => r[1]).concat('Türkiye').join('\n'))}">${IC.copy}Copy full address</button>
+      <button type="button" class="tx-b2" data-act="lines" aria-expanded="${S.showLines}">${IC.lines}${S.showLines ? 'Hide lines' : 'Copy line by line'}</button></div>
     ${S.showLines ? `<div class="tc-fields">${lines.map(([k, v]) => `<div class="tc-field"><span><small>${esc(k)}</small><b>${mark(v)}</b></span><button type="button" class="tc-copy" data-copy="${esc(v)}">Copy</button></div>`).join('')}</div>` : ''}
+    <p class="tx-note">${IC.info}<span>Always include <b>${esc(d.suite)}</b> after your name on every order, so we know it is yours.</span></p>
   </section>`;
 }
 
 function stats(all) {
-  const tiles = [['coming', 'On the way to us'], ['here', 'In our warehouse'], ['pay', 'Ready to pay'], ['ship', 'Paid, sending']];
-  return `<div class="tw-stats">${tiles.map(([k, l]) => {
-    const n = k === 'pay' ? S.d.shipments.filter((s) => s.status === 'quoted').length : k === 'ship' ? S.d.shipments.filter((s) => s.status === 'paid').length : all.filter((r) => r.stage === k).length;
-    return `<button type="button" class="tw-stat" data-stage="${k}" aria-pressed="${S.stage === k}"><span class="ic" style="background:${STAGE[k][1]}"><i style="background:${STAGE[k][2]}"></i></span><span>${l}<b>${n}</b></span></button>`;
-  }).join('')}</div>`;
+  const tiles = [['coming', 'On the way to us', IC.truck, '#9A5B00'], ['here', 'In our warehouse', IC.house, '#166534'], ['pay', 'Ready to pay', IC.card, '#5B2BB5'], ['ship', 'Paid, sending', IC.send, '#0F766E']];
+  const count = (k) => (k === 'pay' ? S.d.shipments.filter((s) => s.status === 'quoted').length : k === 'ship' ? S.d.shipments.filter((s) => s.status === 'paid').length : all.filter((r) => r.stage === k).length);
+  return `<section class="tw-card tx-parcels"><div class="tx-ph"><h2>Your parcels</h2><button type="button" class="tx-total" data-stage="all">${all.length} total ${IC.chev}</button></div>
+    <div class="tx-tiles">${tiles.map(([k, l, ic, fg]) => `<button type="button" class="tw-stat tx-tile" data-stage="${k}" aria-pressed="${S.stage === k}" style="background:${STAGE[k][1]};color:${fg}">
+      <span class="tx-tn"><i>${ic}</i><b>${count(k)}</b></span><small>${l}</small></button>`).join('')}</div></section>`;
 }
 
 function payPanels() {
@@ -110,15 +131,17 @@ function msgBtn(p) {
 function buyCard() {
   const list = S.d.buys || [];
   if (!list.length) return '';
-  return `<section class="tw-card"><div class="tw-card-h"><h2>Buy it for me</h2><button type="button" class="tw-btn ghost sm" data-open="buy">+ New request</button></div>
-    <div style="margin-top:8px">${list.map((b) => `<div class="tc-buy">${thumb(b.image, b.store, 56)}
-      <span class="m"><a href="${esc(b.url)}" target="_blank" rel="noopener nofollow">${esc(b.title || b.details || b.url)}</a>
-        ${b.title && b.details ? `<span class="tw-muted" style="color:#3E4A5C">${esc(b.details)}</span>` : ''}
-        <span class="tw-muted">${esc(b.ref)} · ${esc(b.store || '')} · qty ${b.qty}${b.itemTry ? ` · shop price ${tl(b.itemTry)}` : ''}</span>${b.note ? `<span class="tw-muted" style="color:#3E4A5C">Kargom: ${esc(b.note)}</span>` : ''}</span>
-      <span class="tw-pill" style="background:${BUY[b.status][1]};color:${BUY[b.status][2]}"><i></i>${BUY[b.status][0]}</span>
-      ${b.status === 'quoted' ? `<span class="tw-acts-row"><button type="button" class="tw-btn" data-buypay="${b.id}" data-with="card">Pay ${gbp(b.pricePence)} by card</button>
-        <button type="button" class="tw-btn ghost" data-buypay="${b.id}" data-with="wallet" ${S.d.balancePence >= b.pricePence ? '' : 'disabled'}>Wallet</button></span>` : ''}
-      ${['requested', 'quoted'].includes(b.status) ? `<button type="button" class="tw-btn ghost sm" data-buycancel="${b.id}">Cancel</button>` : ''}</div>`).join('')}</div></section>`;
+  return `<section class="tw-card tx-buys"><div class="tw-card-h"><h2>Buy it for me</h2><button type="button" class="tx-new" data-open="buy">+ New request</button></div>
+    <div class="tx-blist">${list.map((b) => `<div class="tx-buy"><span class="tx-bth">${thumb(b.image, b.store, 58)}</span>
+      <span class="tx-bm"><b title="${esc(b.url)}">${esc(b.title || b.details || `${b.store || 'Shop'} product`)}</b>
+        <span class="tx-bs">${[b.store, `Qty ${b.qty}`, b.itemTry ? tl(b.itemTry) : ''].filter(Boolean).map(esc).join(' · ')}</span>
+        <span class="tw-pill" style="background:${BUY[b.status][1]};color:${BUY[b.status][2]};align-self:flex-start"><i></i>${BUY[b.status][0]}</span>
+        ${b.note ? `<span class="tx-bnote">Kargom: ${esc(b.note)}</span>` : ''}
+        ${b.status === 'quoted' ? `<span class="tw-acts-row"><button type="button" class="tw-btn" data-buypay="${b.id}" data-with="card">Pay ${gbp(b.pricePence)} by card</button>
+          <button type="button" class="tw-btn ghost" data-buypay="${b.id}" data-with="wallet" ${S.d.balancePence >= b.pricePence ? '' : 'disabled'}>Wallet</button>
+          <button type="button" class="tw-btn ghost sm" data-buycancel="${b.id}">Cancel</button></span>`
+          : b.status === 'requested' ? `<button type="button" class="tx-cancel" data-buycancel="${b.id}">Cancel request</button>` : ''}</span>
+      <a class="tx-go" href="${esc(b.url)}" target="_blank" rel="noopener nofollow" aria-label="Open the product page">${IC.chev}</a></div>`).join('')}</div></section>`;
 }
 
 function listCard(all) {
