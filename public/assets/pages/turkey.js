@@ -200,6 +200,41 @@ const addrFields = (a = {}) => `${addrHelpers()}<div class="tw-row"><label class
   <div class="tw-row"><label class="tw-f">Town or city<input class="tw-in" name="city" value="${esc(a.city || '')}" autocomplete="address-level2"></label>
   <label class="tw-f">Postcode<input class="tw-in" name="postcode" value="${esc(a.postcode || '')}" autocomplete="postal-code" style="text-transform:uppercase"></label></div>`;
 
+/** The product card under a pasted link. */
+function pvHtml(pv) {
+  if (!pv) return '';
+  if (pv.loading) return '<div class="tw-note" style="display:flex;align-items:center;gap:10px"><span class="spin" aria-hidden="true"></span>Reading the product page…</div>';
+  if (!pv.known) return `<div class="tw-note warn">We can read links from Trendyol, Hepsiburada, Amazon.com.tr, N11 and other Turkish shops. For ${esc(pv.store || 'this site')}, please type the details.</div>`;
+  if (!pv.title && !pv.image && !pv.priceTry) return '<div class="tw-note warn">The shop did not let us read this page right now. Please type the details below.</div>';
+  return `<div class="tw-note tw-item" style="background:#F3F8FF;align-items:flex-start">${pv.image ? `<span class="tw-thumb" style="width:72px;height:72px"><img src="${esc(pv.image)}" alt=""></span>` : logo(pv.store, 48)}
+    <span style="display:flex;flex-direction:column;gap:3px;min-width:0"><b style="font-size:15px;color:var(--ink)">${esc(pv.title || pv.store)}</b>
+      <span class="tw-muted">${esc(pv.store)}${pv.priceTry ? ` · <b style="color:var(--ink);font-size:15px">${Number(pv.priceTry).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL</b>` : ''}</span></span></div>`;
+}
+let pvTimer, pvFor = '';
+function readLink(input, now = false) {
+  clearTimeout(pvTimer);
+  const url = input.value.trim();
+  if (!/^https?:\/\/\S+\.\S+/.test(url)) { if (S.drawer?.pv) { S.drawer.pv = null; const box = root.querySelector('#pv'); if (box) box.innerHTML = ''; } return; }
+  if (url === pvFor) return;
+  pvTimer = setTimeout(async () => {
+    pvFor = url;
+    const dr = S.drawer;
+    dr.pv = { loading: true };
+    const box = () => root.querySelector('#pv');
+    if (box()) box().innerHTML = pvHtml(dr.pv);
+    let pv;
+    try { pv = await api('/api/tr/preview', { method: 'POST', body: { url } }); } catch (e) { pv = { known: true, store: '', error: e.message }; }
+    if (S.drawer !== dr || pvFor !== url) return;
+    dr.pv = pv;
+    if (box()) box().innerHTML = pvHtml(pv);
+    // fill what is still empty: shop, price paid
+    const sel = root.querySelector('#dr [name="store"]');
+    if (sel && pv.store && [...sel.options].some((o) => o.value === pv.store || o.text === pv.store)) sel.value = pv.store;
+    const price = root.querySelector('#dr [name="valueTry"]');
+    if (price && !price.value && pv.priceTry) price.value = String(Math.round(pv.priceTry));
+  }, now ? 50 : 500);
+}
+
 function drawerHtml() {
   const dr = S.drawer;
   if (!dr) return '';
@@ -209,9 +244,10 @@ function drawerHtml() {
     const v = { ...p, ...(dr.v || {}) };
     const auto = v.autoSend === true || v.autoSend === 'on';
     h = `<h2>${dr.id ? 'Edit order' : 'Add an order'}</h2><p>So we can match your parcel the moment it arrives, and fill in the customs form.</p>`;
-    b = `<div class="tw-row"><label class="tw-f">Shop<select class="tw-in" name="store" ${dr.id ? 'disabled' : ''}>${S.d.stores.map((s) => `<option ${s === (v.store || 'Trendyol') ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
+    b = `${dr.id ? '' : `<label class="tw-f">Product link <em>(paste it: we fill in the name, price and picture)</em><input class="tw-in" name="productUrl" data-link value="${esc(v.productUrl || '')}" placeholder="https://www.trendyol.com/…" inputmode="url"></label>
+      <div id="pv">${pvHtml(dr.pv)}</div>`}
+      <div class="tw-row"><label class="tw-f">Shop<select class="tw-in" name="store" ${dr.id ? 'disabled' : ''}>${S.d.stores.map((s) => `<option ${s === (v.store || 'Trendyol') ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
         <label class="tw-f">Price paid<span class="tw-unit" data-u="TL"><input class="tw-in" name="valueTry" inputmode="numeric" value="${esc(v.valueTry || '')}" placeholder="1250"></span></label></div>
-      ${dr.id ? '' : `<label class="tw-f">Product link <em>(optional: we show its picture and name)</em><input class="tw-in" name="productUrl" value="${esc(v.productUrl || '')}" placeholder="https://www.trendyol.com/…" inputmode="url"></label>`}
       <label class="tw-f">What is it? <em>(in English, for customs)</em><input class="tw-in" name="description" value="${esc(v.description || '')}" placeholder="e.g. 2 cotton T-shirts"></label>
       <div class="tw-row"><label class="tw-f">Order number <em>(optional)</em><input class="tw-in" name="orderNo" value="${esc(v.orderNo || '')}"></label>
         <label class="tw-f">Tracking in Turkey <em>(add later)</em><input class="tw-in" name="tracking" value="${esc(v.tracking || '')}" placeholder="Yurtiçi, Aras, TEX…"></label></div>
@@ -241,7 +277,8 @@ function drawerHtml() {
   } else if (dr.kind === 'buy') {
     const v = dr.v || {};
     h = '<h2>Buy it for me</h2><p>Paste the product link. We check the price, you pay, and we order it for you. It then comes to our warehouse like any other order.</p>';
-    b = `<label class="tw-f">Product link<input class="tw-in" name="url" value="${esc(v.url || '')}" placeholder="https://www.trendyol.com/…" inputmode="url"></label>
+    b = `<label class="tw-f">Product link<input class="tw-in" name="url" data-link value="${esc(v.url || '')}" placeholder="https://www.trendyol.com/…" inputmode="url"></label>
+      <div id="pv">${pvHtml(dr.pv)}</div>
       <label class="tw-f">Size, colour and anything else <em>(optional)</em><textarea class="tw-in" name="details" rows="3" placeholder="e.g. Size M, navy blue">${esc(v.details || '')}</textarea></label>
       <label class="tw-f" style="max-width:140px">Quantity<input class="tw-in" name="qty" inputmode="numeric" value="${esc(v.qty || 1)}"></label>
       <div class="tw-note">We reply with one price in £: the item, Turkish delivery to our warehouse and our service fee. Shipping to the UK is paid later, when you send your box.</div>`;
@@ -295,7 +332,11 @@ function calc() {
   }, 300);
 }
 
-root.addEventListener('input', (e) => { const k = e.target.dataset.c; if (k) { S.calc[k] = e.target.value; calc(); } });
+root.addEventListener('input', (e) => {
+  const k = e.target.dataset.c; if (k) { S.calc[k] = e.target.value; calc(); }
+  if (e.target.matches('[data-link]')) readLink(e.target);
+});
+root.addEventListener('paste', (e) => { if (e.target.matches?.('[data-link]')) setTimeout(() => readLink(e.target, true), 0); });
 root.addEventListener('change', (e) => {
   const t = e.target;
   if (t.dataset.sel) { t.checked ? S.sel.add(t.dataset.sel) : S.sel.delete(t.dataset.sel); render(); }
@@ -332,7 +373,7 @@ root.addEventListener('click', async (e) => {
   if (ds.copy != null) { try { await navigator.clipboard.writeText(ds.copy); toast('Copied'); } catch { toast(ds.copy); } return; }
   if ('close' in ds) { S.drawer = null; render(); return; }
   if (ds.stage) { S.stage = S.stage === ds.stage && b.classList.contains('tw-stat') ? 'all' : ds.stage; render(); return; }
-  if (ds.open) { S.drawer = { kind: ds.open, id: ds.id || null, v: null }; S.lk = { items: [], msg: '', bad: false, busy: false }; S.paste = false; render(); root.querySelector('#dr input:not([type=checkbox]), #dr select')?.focus(); return; }
+  if (ds.open) { pvFor = ''; S.drawer = { kind: ds.open, id: ds.id || null, v: null }; S.lk = { items: [], msg: '', bad: false, busy: false }; S.paste = false; render(); root.querySelector('#dr input:not([type=checkbox]), #dr select')?.focus(); return; }
   if (ds.cancel) { await run(async () => { await api(`/api/tr/shipments/${ds.cancel}/cancel`, { method: 'POST', body: {} }); await load(); }, 'Cancelled. Your parcels are back in the warehouse.'); return; }
   if (ds.pay) {
     const s = S.d.shipments.find((x) => x.id === ds.pay);

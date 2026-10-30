@@ -143,7 +143,11 @@ function setView() {
     <div class="tw-card-h" style="padding-top:4px"><h2>Fees</h2></div><div class="tw-pad">
     <div class="tw-row">${f('handlingPence', 'Handling per box (£)', pounds(s.handlingPence))}${f('consolidatePence', 'Combining, per extra parcel (£)', pounds(s.consolidatePence))}
       ${f('freeDays', 'Free storage (days)', s.freeDays)}${f('storagePencePerDay', 'Then per parcel per day (£)', pounds(s.storagePencePerDay))}</div>
-    <div><button type="button" class="tw-btn big" data-act="saveSet">Save settings</button></div></div></section>`;
+    <div><button type="button" class="tw-btn big" data-act="saveSet">Save settings</button></div></div></section>
+  <section class="tw-card"><div class="tw-card-h"><h2>Test a product link</h2></div><div class="tw-pad">
+    <span class="tw-muted">Paste a Trendyol, Hepsiburada… link to see what our server can read from it (name, price, picture). If the shop blocks us, the steps show where.</span>
+    <div class="tc-find"><input class="tw-in" id="pvurl" placeholder="https://www.trendyol.com/…" style="text-transform:none"><button type="button" class="tw-btn" data-act="pvtest">Test</button></div>
+    ${S.pvtest ? `<div class="tw-note" style="font-family:ui-monospace,Menlo,monospace;font-size:12px;white-space:pre-wrap">${esc(S.pvtest)}</div>` : ''}</div></section>`;
 }
 
 // ---------- drawers
@@ -362,6 +366,14 @@ function bind() {
         break;
       }
       case 'delCour': if (!confirm('Delete this courier? Prices already sent to customers stay as they are.')) return; await run(async () => { await api(`/api/admin/tr/couriers/${dr.id}/delete`, { method: 'POST', body: {} }); S.drawer = null; await load(); }, 'Deleted'); break;
+      case 'pvtest': {
+        const url = root.querySelector('#pvurl')?.value || '';
+        S.pvtest = 'Reading…'; render();
+        try { const r = await api(`/api/admin/tr/preview-test?url=${encodeURIComponent(url)}`); S.pvtest = `Name: ${r.title || '–'}\nPrice: ${r.priceTry ? `${r.priceTry} TL` : '–'}\nPicture: ${r.image ? 'yes' : 'no'}\n\n${r.steps.join('\n')}`; }
+        catch (e) { S.pvtest = e.message; }
+        render(); const i = root.querySelector('#pvurl'); if (i) i.value = url;
+        break;
+      }
       case 'saveSet': {
         const body = Object.fromEntries([...root.querySelectorAll('#sf [name]')].map((i) => [i.name, i.value]));
         await run(async () => { await api('/api/admin/tr/settings', { method: 'POST', body }); await load(); }, 'Settings saved');

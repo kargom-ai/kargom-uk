@@ -6,7 +6,7 @@ import { newId } from '../core/ids.ts';
 import { acct, type Ledger } from '../ledger/ledger.ts';
 import type { Wallet } from '../wallet/wallet.ts';
 import type { PaymentGateway } from '../payments/stripe.ts';
-import { productPreview, isShopLink, type Preview } from './preview.ts';
+import { cachedPreview, isShopLink, type Preview } from './preview.ts';
 
 /**
  * Turkey warehouse: the customer shops on Trendyol, Hepsiburada, Amazon.com.tr… using our
@@ -348,12 +348,14 @@ export class TurkeyForwarding {
     const packages = await this.db.all<PkgRow>(`SELECT * FROM fw_packages WHERE customer_id = $1 AND (status <> 'shipped' OR created_at > $2) ORDER BY created_at DESC`,
       [customerId, new Date(this.clock.now().getTime() - 90 * 86_400_000).toISOString()]);
     const shipments = await this.db.all<ShipRow>('SELECT * FROM fw_shipments WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 50', [customerId]);
+    const buyRows = await this.db.all<BuyRow>(`SELECT * FROM fw_buys WHERE customer_id = $1 AND (status IN ('requested','quoted','paid') OR created_at > $2) ORDER BY created_at DESC LIMIT 50`, [customerId, new Date(this.clock.now().getTime() - 30 * 86_400_000).toISOString()]);
+    this.backfill(buyRows, packages);
     const ready = Boolean(s.whLine1 && s.whCity);
     return {
       suite: code,
       ukAddress: await this.ukAddress(customerId),
       suggestedAddress: await this.suggestedAddress(customerId),
-      buys: (await this.db.all<BuyRow>(`SELECT * FROM fw_buys WHERE customer_id = $1 AND (status IN ('requested','quoted','paid') OR created_at > $2) ORDER BY created_at DESC LIMIT 50`, [customerId, new Date(this.clock.now().getTime() - 30 * 86_400_000).toISOString()])).map(buyOut),
+      buys: buyRows.map(buyOut),
       notes: await this.notes(customerId),
       shopLogos: Object.keys(SHOP_DOMAINS),
       balancePence: await this.wallet.balance(customerId),
@@ -698,7 +700,38 @@ export class TurkeyForwarding {
   }
 
   /** Reads product pages (swapped in tests). */
-  preview: (url: string) => Promise<Preview> = (url) => productPreview(url);
+  preview: (url: string) => Promise<Preview> = (url) => cachedPreview(url);
+  private tried = new Set<string>();
+
+  /** What the customer sees the moment they paste a link: shop, name, price and picture. */
+  async linkPreview(urlIn: unknown) {
+    const url = text(urlIn, 1000);
+    if (!url || !/^https?:\/\//i.test(url)) throw new AppError('bad_request', 'Paste the link to the product');
+    if (!isShopLink(url)) return { store: storeFromUrl(url), known: false, title: null, priceTry: null, image: null };
+    const pv = await this.preview(url);
+    return { store: storeFromUrl(url), known: true, title: pv.title, priceTry: pv.priceTry, image: dataUrl(pv.image) };
+  }
+  /** Admin test: what our server gets back from a shop link, step by step. */
+  async previewTest(urlIn: unknown) {
+    const url = text(urlIn, 1000) ?? '';
+    const { productPreview } = await import('./preview.ts');
+    const pv = await productPreview(url);
+    return { title: pv.title, priceTry: pv.priceTry, image: Boolean(pv.image), steps: pv.log ?? [] };
+  }
+  /** Orders and requests made before we read links (or when the shop was slow): fill them in once, in the background. */
+  private backfill(buys: Array<{ id: string; url: string; title?: string | null; image?: string | null }>, pkgs: Array<{ id: string; product_url?: string | null; product_title?: string | null; image?: string | null }>) {
+    for (const b of buys) {
+      if (b.title || b.image || this.tried.has(b.id) || !isShopLink(b.url)) continue;
+      this.tried.add(b.id);
+      this.preview(b.url).then((pv) => (pv.title || pv.image ? this.db.run('UPDATE fw_buys SET title = $1, image = $2, item_try = COALESCE(item_try, $3) WHERE id = $4',
+        [pv.title, dataUrl(pv.image), pv.priceTry ? Math.round(pv.priceTry) : null, b.id]) : null)).catch(() => {});
+    }
+    for (const p of pkgs) {
+      if (!p.product_url || p.product_title || p.image || this.tried.has(p.id)) continue;
+      this.tried.add(p.id);
+      this.preview(p.product_url).then((pv) => (pv.title || pv.image ? this.db.run('UPDATE fw_packages SET product_title = $1, image = $2 WHERE id = $3', [pv.title, dataUrl(pv.image), p.id]) : null)).catch(() => {});
+    }
+  }
   /** Get the product's name and picture: wait up to 4 s so the page can show it at once, then finish in the background. */
   private async withPreview(url: string, save: (pv: Preview) => Promise<unknown>) {
     const job = this.preview(url).then(async (pv) => { if (pv.title || pv.image) await save(pv); }).catch((e) => console.warn(`[turkey] preview: ${(e as Error).message}`));
@@ -782,7 +815,7 @@ export class TurkeyForwarding {
     const ref = `BUY-${1001 + Number(seq?.n ?? 0)}`;
     await this.db.run(`INSERT INTO fw_buys (id, ref, customer_id, status, url, details, qty, store, created_at) VALUES ($1,$2,$3,'requested',$4,$5,$6,$7,$8)`,
       [id, ref, customerId, url, text(input.details, 1000), int(input.qty ?? 1, 'Quantity', 1, 20), storeFromUrl(url), this.now()]);
-    await this.withPreview(url, (pv) => this.db.run('UPDATE fw_buys SET title = $1, image = $2 WHERE id = $3', [pv.title, dataUrl(pv.image), id]));
+    await this.withPreview(url, (pv) => this.db.run('UPDATE fw_buys SET title = $1, image = $2, item_try = COALESCE(item_try, $3) WHERE id = $4', [pv.title, dataUrl(pv.image), pv.priceTry ? Math.round(pv.priceTry) : null, id]));
     return { id, ref };
   }
 
