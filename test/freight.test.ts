@@ -80,6 +80,24 @@ test('freight forwarders: Google search anywhere, numbers hidden for visitors', 
   delete process.env.GOOGLE_PLACES_API_KEY;
 });
 
+test('top forwarders: port cities merged, best rated with many reviews first', async () => {
+  const { topForwarders } = await import('../src/freight/forwarders.ts');
+  process.env.GOOGLE_PLACES_API_KEY = 'k2';
+  const asked: string[] = [];
+  const pl = (id: string, name: string, rating: number, n: number) => ({ id, displayName: { text: name }, formattedAddress: 'Port Rd, Felixstowe IP11, UK', rating, userRatingCount: n });
+  const f = (async (_u: string, init: any) => {
+    const q = JSON.parse(init.body).textQuery as string; asked.push(q);
+    const places = q.includes('Felixstowe') ? [pl('A', 'Small Freight', 5, 2), pl('B', 'Big Freight', 4.8, 400)] : [pl('B', 'Big Freight', 4.8, 400), pl('C', 'Mid Freight', 4.6, 90)];
+    return new Response(JSON.stringify({ places }), { status: 200 });
+  }) as typeof fetch;
+  const r = await topForwarders('Felixstowe, United Kingdom|Southampton, United Kingdom', 'GB', false, f);
+  assert.equal(asked.length, 2);
+  assert.deepEqual(r.places.map((p) => p.company), ['Big Freight', 'Mid Freight', 'Small Freight']);
+  assert.equal((r.places[0] as Record<string, unknown>).city, 'Felixstowe');
+  await assert.rejects(topForwarders('', 'GB', false, f), /place/);
+  delete process.env.GOOGLE_PLACES_API_KEY;
+});
+
 test('forwarding: estimate for a US pair of shoes to the UK, and the waiting list', async () => {
   const { forwardingEstimate, joinForwardingWaitlist } = await import('../src/forwarding/forwarding.ts');
   const r = await forwardingEstimate('US', 'GB', '2');

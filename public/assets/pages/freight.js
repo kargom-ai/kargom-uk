@@ -23,7 +23,7 @@ const S = {
   fc: (() => { const v = qs.get('fc') || ''; return !v || /^[AT]:/.test(v) ? v : `${qs.get('toType') === 'tiktok' ? 'T' : 'A'}:${v}`; })(),
   load: pick(qs.get('load'), ['boxes', 'pallets', 'container'], 'container'), box: pick(qs.get('box'), ['container20', 'container40', 'container40HC'], 'container40'),
   qty: qs.get('qty') || '1', kg: qs.get('kg') || '', l: qs.get('l') || '', w: qs.get('w') || '', h: qs.get('h') || '',
-  busy: false, res: null, err: '', me: null, fwd: null,
+  busy: false, res: null, err: '', me: null, fwd: null, best: null, sort: 'rec', fopen: '',
 };
 
 const IC = {
@@ -276,46 +276,101 @@ function fwdCard(p, where = '') {
   return `<article class="offer gplace"><div class="offer-top"><div class="co">${logoHtml(p)}<div class="co-t"><b>${esc(p.company)}</b><span>${rating}</span>${where ? `<span class="fr-where">${esc(where)}</span>` : ''}${p.area ? `<span class="muted" style="font-size:13px">${esc(p.area)}</span>` : ''}</div></div></div>
     <div class="acts">${ourQuote}${tel}${more}</div></article>`;
 }
-/** Best first: good rating with enough reviews to trust it. */
-const fwdScore = (p) => (p.rating || 0) * Math.min(1, (p.reviewCount || 0) / 25) + Math.min(p.reviewCount || 0, 500) / 100000;
-/** The pick shown right under the prices: the 2 best at the destination and the best at the origin. */
+/** Best first: good rating with enough reviews to trust it (same idea as the server's ranking). */
+const fwdScore = (p) => (p.rating ? (p.rating * (p.reviewCount || 0) + 4.2 * 15) / ((p.reviewCount || 0) + 15) : -1);
+const pickKey = (p) => p.placeId || `${p.company}|${p.phone || ''}`;
+const signupHref = () => `/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}`;
+const bestMode = () => S.res?.rates?.[0]?.mode || (S.load === 'container' ? 'FCL' : 'air');
+const googleFoot = () => `<div class="fr-fwd-foot"><span class="g-attr">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></span>
+  ${S.me ? '' : `<span class="muted">Phone numbers are free for members. <a href="${signupHref()}">Sign up free</a></span>`}</div>`;
+
+/**
+ * Where to look for the best forwarders at the destination. For sea freight the strongest
+ * forwarders sit in the container-port cities, so those come first whatever the delivery town.
+ */
+function bestCities() {
+  const c = code(S.to), country = countryName(S.to);
+  const ports = [...new Set(portsFor(c).filter((x) => x[2] === 'sea').map((x) => x[1].replace(/\s*\(.*\)$/, '').replace(/\s*\/.*$/, '')))];
+  const town = destination().town || place(S.to).city;
+  const list = S.load === 'container' || !town ? ports.slice(0, 3) : [town, ...ports.filter((x) => x !== town).slice(0, 2)];
+  return (list.length ? list : [town]).filter(Boolean).map((x) => `${x}, ${country}`);
+}
+
+/** Phones: the 2 best at the destination and the best at the origin, right under the prices. */
 function topPicks() {
-  if (!S.fwd) return [];
-  const best = (side, n) => {
-    const g = S.fwd.find((x) => x.side === side);
-    return g ? [...g.places].sort((a, b) => fwdScore(b) - fwdScore(a)).slice(0, n).map((p) => ({ p, where: `In ${g.label.split(', ').pop()}` })) : [];
-  };
-  return [...best('to', 2), ...best('from', 1)];
+  const dest = (S.best?.places || []).slice(0, 2).map((p) => ({ p, where: `In ${countryName(S.to)}` }));
+  const g = S.fwd?.[0];
+  const orig = g ? [...g.places].sort((a, b) => fwdScore(b) - fwdScore(a)).slice(0, 1).map((p) => ({ p, where: `In ${g.label.split(', ').pop()}` })) : [];
+  return [...dest, ...orig];
 }
-const pickKey = (p) => p.placeId || p.id || `${p.company}|${p.phone || ''}`;
 function topHtml() {
-  if (!S.res || !S.fwd) return '';
-  if (S.fwd.some((g) => g.busy)) return '<section class="card fr-top"><b class="fr-top-h">Recommended forwarders</b><p class="muted" style="margin:0">Finding companies…</p></section>';
+  if (!S.res || (!S.fwd && !S.best)) return '';
+  const busy = S.best?.busy || S.fwd?.some((g) => g.busy);
   const picks = topPicks();
-  if (!picks.length) return '';
-  return `<section class="fr-top"><div class="fr-top-head"><h2>Recommended forwarders</h2><span class="muted">Best rated on Google at both ends of your route</span></div>
-    <div class="list">${picks.map(({ p, where }) => fwdCard(p, where)).join('')}</div>
-    <div class="fr-fwd-foot"><span class="g-attr">Listings from <b class="g-logo"><i>G</i><i>o</i><i>o</i><i>g</i><i>l</i><i>e</i></b></span>
-      ${S.me ? '' : `<span class="muted">Phone numbers are free for members. <a href="/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}">Sign up free</a></span>`}</div></section>`;
+  const mobile = busy ? '<section class="card fr-top fr-only-m"><b class="fr-top-h">Recommended forwarders</b><p class="muted" style="margin:0">Finding companies…</p></section>'
+    : picks.length ? `<section class="fr-top fr-only-m"><div class="fr-top-head"><h2>Recommended forwarders</h2><span class="muted">Best rated on Google at both ends of your route</span></div>
+    <div class="list">${picks.map(({ p, where }) => fwdCard(p, where)).join('')}</div>${googleFoot()}</section>` : '';
+  return mobile + bestListHtml();
 }
-/** Only the recommended pick is shown (above the form); the page ends with the form. */
+
+/** Computer screens: the 10 best forwarders at the destination, as bookable rows (no prices). */
+function bestListHtml() {
+  const b = S.best;
+  if (!b || (!b.busy && !b.places.length)) return '';
+  const head = `<div class="fl-head"><span><h2>Forwarders &amp; rates</h2><span class="muted">The best rated freight forwarders in ${esc(countryName(S.to))}${S.load === 'container' ? ', in the main container-port cities' : ''}</span></span>
+    ${b.busy ? '' : `<label class="fl-sort">Sort by<span class="fx">${`<select class="inp" data-sort>${[['rec', 'Recommended'], ['rating', 'Highest rating'], ['reviews', 'Most reviews']].map(([v, l]) => `<option value="${v}" ${S.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`}${FX.chev}</span></label>`}</div>`;
+  if (b.busy) return `<section class="fl fr-only-d">${head}<div class="card fl-busy"><span class="spin" aria-hidden="true"></span>Finding the best forwarders…</div></section>`;
+  const list = [...b.places];
+  if (S.sort === 'rating') list.sort((x, y) => (y.rating || 0) - (x.rating || 0) || y.reviewCount - x.reviewCount);
+  if (S.sort === 'reviews') list.sort((x, y) => y.reviewCount - x.reviewCount);
+  const what = S.load === 'container' ? `FCL · ${S.qty || 1} × ${{ container20: '20 ft', container40: '40 ft', container40HC: '40 ft High Cube' }[S.box]}` : `${S.qty || 1} ${S.load}`;
+  const top3 = new Set(b.places.slice(0, 3).map(pickKey));
+  const ports = new Set(portsFor(code(S.to)).filter((x) => x[2] === 'sea').map((x) => x[1].replace(/\s*\(.*\)$/, '').replace(/\s*\/.*$/, '')));
+  const rows = list.map((p) => {
+    const k = pickKey(p), open = S.fopen === k;
+    const tel = p.phone ? `<a class="btn ghost sm" href="${S.me ? `tel:${esc(String(p.intlPhone || p.phone).replace(/[^\d+]/g, ''))}` : signupHref()}">📞 ${S.me ? esc(p.phone) : 'Sign up to see number'}</a>` : '';
+    const more = S.me ? `${p.website ? `<a class="btn ghost sm" href="${esc(p.website)}" target="_blank" rel="noopener nofollow">Website</a>` : ''}${p.mapsUrl ? `<a class="btn ghost sm" href="${esc(p.mapsUrl)}" target="_blank" rel="noopener">Map</a>` : ''}` : '';
+    return `<article class="fl-row"><span class="fl-logo">${logoHtml(p)}</span>
+      <div class="fl-mid"><span class="fl-name"><b>${esc(p.company)}</b>${top3.has(k) ? '<span class="fl-rec">Recommended</span>' : ''}</span>
+        <span class="fl-sub">${esc(what)} · ${esc(originPlace().text.split(',')[0])} → ${esc(destination().text.split(',')[0])}</span>
+        <span class="fl-rate">${p.rating ? `${stars(p.rating)}<span class="stars-n">${p.rating.toFixed(1)} · ${p.reviewCount} Google review${p.reviewCount === 1 ? '' : 's'}</span>` : '<span class="stars-n">No reviews yet</span>'}</span>
+        <span class="fl-chips">${p.city && ports.has(p.city) ? `<span>${FX.anchor}Near ${esc(p.city)} port</span>` : ''}${p.area ? `<span>${FX.pin}${esc(p.area)}</span>` : ''}</span></div>
+      <div class="fl-act"><a class="btn fl-book go-btn" href="${quoteHref(bestMode())}">${goIcon(true)}Book</a>
+        <button type="button" class="fl-more" data-fopen="${esc(k)}" aria-expanded="${open}" aria-label="More about ${esc(p.company)}">${FX.chev}</button></div>
+      ${open ? `<div class="fl-extra">${tel}${more}${!tel && !more ? '<span class="muted">No phone number listed on Google.</span>' : ''}</div>` : ''}</article>`;
+  }).join('');
+  return `<section class="fl fr-only-d">${head}<div class="card fl-list">${rows}</div>${googleFoot()}</section>`;
+}
+/** The page ends with the form: nothing listed below it. */
 function fwdHtml() { return ''; }
 let fwdKey = '';
 async function loadForwarders() {
-  const wanted = fwdPlaces();
-  const key = wanted.map((w) => w.label + w.country).join('|');
-  if (key === fwdKey && S.fwd) return;
+  const origin = fwdPlaces()[0];
+  const cities = bestCities();
+  const key = `${origin.label}${origin.country}|${cities.join('|')}|${code(S.to)}`;
+  if (key === fwdKey && (S.fwd || S.best)) return;
   fwdKey = key;
-  S.fwd = wanted.map((w) => ({ ...w, busy: true, places: [], error: null }));
+  S.fwd = [{ ...origin, busy: true, places: [], error: null }];
+  S.best = { busy: true, places: [] };
+  S.fopen = '';
   paint();
-  await Promise.all(S.fwd.map(async (g) => {
-    try {
-      const r = await api(`/api/freight/forwarders?${new URLSearchParams({ place: g.label, country: g.country })}`);
-      if (!r.enabled) { S.fwd = null; return; }
-      g.places = r.places; g.error = r.error || null;
-    } catch (e) { g.error = e.message; }
-    g.busy = false;
-  }));
+  await Promise.all([
+    (async () => {
+      const g = S.fwd[0];
+      try {
+        const r = await api(`/api/freight/forwarders?${new URLSearchParams({ place: g.label, country: g.country })}`);
+        if (!r.enabled) { S.fwd = null; return; }
+        g.places = r.places; g.error = r.error || null;
+      } catch (e) { g.error = e.message; }
+      g.busy = false;
+    })(),
+    (async () => {
+      try {
+        const r = await api(`/api/freight/forwarders/top?${new URLSearchParams({ cities: cities.join('|'), country: code(S.to) })}`);
+        S.best = r.enabled ? { busy: false, places: r.places } : null;
+      } catch { S.best = { busy: false, places: [] }; }
+    })(),
+  ]);
   paint();
 }
 
@@ -399,6 +454,7 @@ async function loadSailings() {
 }
 
 root.addEventListener('input', (e) => {
+  if (e.target.dataset?.sort !== undefined) { S.sort = e.target.value; paint(); return; }
   const k = e.target.dataset?.k;
   if (!k) return;
   S[k] = e.target.value;
@@ -422,6 +478,8 @@ async function locate() {
 }
 
 root.addEventListener('click', (e) => {
+  const fo = e.target.closest('[data-fopen]');
+  if (fo) { S.fopen = S.fopen === fo.dataset.fopen ? '' : fo.dataset.fopen; paint(); return; }
   const t = e.target.closest('[data-set],[data-go],[data-here]');
   if (!t) return;
   if (t.dataset.here !== undefined) { locate(); return; }

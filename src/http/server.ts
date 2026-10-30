@@ -21,7 +21,7 @@ import { routeInfo, coords } from '../market/route.ts';
 import { googleEnabled, googleAuthUrl, googleUser, newState } from '../auth/google.ts';
 import { placeLogo } from '../market/places.ts';
 import { freightRates, parseFreightQuery } from '../freight/rates.ts';
-import { freightForwarders } from '../freight/forwarders.ts';
+import { freightForwarders, topForwarders } from '../freight/forwarders.ts';
 import { forwardingEstimate, joinForwardingWaitlist } from '../forwarding/forwarding.ts';
 import { shopIcon } from '../forwarding/turkey.ts';
 import { eurosenderTestOrder } from '../freight/eurosender.ts';
@@ -451,6 +451,7 @@ export function buildRouter(app: App) {
   on('POST', '/api/admin/tr/shipments/:id/measure', 'admin', async (c) => app.turkey.measure(c.params.id!, c.body ?? {}, Boolean(c.body?.preview)));
   on('POST', '/api/admin/tr/shipments/:id/ship', 'admin', async (c) => app.turkey.ship(c.params.id!, c.body ?? {}));
   on('POST', '/api/admin/tr/shipments/:id/delivered', 'admin', async (c) => app.turkey.delivered(c.params.id!));
+  on('GET', '/api/freight/forwarders/top', 'public', async (c) => { publicLimiter.check(ip(c)); return topForwarders(c.query.get('cities'), c.query.get('country'), Boolean(c.user)); });
   on('GET', '/api/freight/forwarders', 'public', async (c) => { publicLimiter.check(ip(c)); return freightForwarders(c.query.get('place'), c.query.get('country'), Boolean(c.user)); });
   on('GET', '/api/freight/rates', 'public', async (c) => { freightLimiter.check(ip(c)); return freightRates(parseFreightQuery(c.query)); });
   /** Next Maersk ships between the main ports (needs MAERSK_CONSUMER_KEY). */
