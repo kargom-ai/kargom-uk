@@ -73,3 +73,16 @@ test('falls back to the next Maersk address when one is not switched on', async 
   assert.equal(seen.at(-1), 'https://api.maersk.com/products/ocean-products');
   delete process.env.MAERSK_CONSUMER_KEY;
 });
+
+test('port to port costs less than door to door, and says so', async () => {
+  const base = { origin: 'Shanghai, China', destination: 'Felixstowe, United Kingdom', fromCountry: 'CN', toCountry: 'GB', load: 'container40', qty: '1' };
+  const none = (async () => new Response('{}')) as any;
+  const d2d = await freightRates(parseFreightQuery(new URLSearchParams(base)), none);
+  const p2p = await freightRates(parseFreightQuery(new URLSearchParams({ ...base, fromType: 'port', toType: 'port' })), none);
+  const d2p = await freightRates(parseFreightQuery(new URLSearchParams({ ...base, toType: 'port' })), none);
+  const fcl = (r: any) => r.rates.find((x: any) => x.mode === 'FCL').minPence;
+  assert.ok(fcl(p2p) < fcl(d2p) && fcl(d2p) < fcl(d2d));
+  assert.equal(p2p.scope, 'port to port');
+  assert.equal(d2p.scope, 'door to port');
+  assert.match(p2p.basis, /terminal handling/);
+});

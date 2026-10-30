@@ -24,6 +24,8 @@ export type FreightRate = { mode: string; label: string; minPence: number; maxPe
 export type FreightQuery = {
   origin: string; destination: string; fromCountry: string; toCountry: string; fromPostcode?: string; toPostcode?: string;
   load: FreightLoad; quantity: number; weightKg: number; lengthCm: number; widthCm: number; heightCm: number; fromTown?: string; toTown?: string;
+  /** 'port' = the customer delivers to / collects from the port or airport themselves. Default 'door'. */
+  fromType?: 'door' | 'port'; toType?: 'door' | 'port';
 };
 
 const LOADS: FreightLoad[] = ['boxes', 'pallets', 'container20', 'container40', 'container40HC'];
@@ -81,6 +83,14 @@ const NEAR = new Set(['uk>uk', 'uk>eu', 'eu>uk', 'eu>eu']);
 /** Charges per container on top of the sea index: collection, terminal handling, customs, delivery. */
 const FCL_EXTRAS = 1400;
 const LCL_FIXED = 280;
+/**
+ * What the door-to-door extras are made of, per end. A port end drops collection or delivery,
+ * export or import clearance and haulage; terminal handling stays.
+ *   FCL $/container: 150 terminal handling + 550 origin door + 700 destination door = FCL_EXTRAS
+ *   LCL: fixed $ and a share of the per-m³ rate; air: fixed $ and a share of the per-kg rate
+ */
+const DOOR = { fcl: { from: 550, to: 700 }, lcl: { from: 100, to: 90, share: 0.15 }, air: { from: 60, to: 60, share: 0.1 } };
+function ends(q: FreightQuery) { return { fromDoor: q.fromType !== 'port', toDoor: q.toType !== 'port' }; }
 const CONTAINER: Record<string, { factor: number; cbm: number }> = { container20: { factor: 0.62, cbm: 33 }, container40: { factor: 1, cbm: 67 }, container40HC: { factor: 1.06, cbm: 76 } };
 const usdToGbp = () => Number(process.env.USD_GBP) || 0.78;
 
@@ -108,6 +118,7 @@ export function parseFreightQuery(q: URLSearchParams): FreightQuery {
     fromCountry: str(q.get('fromCountry'), 2).toUpperCase() || 'GB', toCountry: str(q.get('toCountry'), 2).toUpperCase() || 'GB',
     fromPostcode: str(q.get('fromPostcode'), 10).toUpperCase(), toPostcode: str(q.get('toPostcode'), 10).toUpperCase(),
     fromTown: str(q.get('fromTown'), 60), toTown: str(q.get('toTown'), 60),
+    fromType: q.get('fromType') === 'port' ? 'port' : 'door', toType: q.get('toType') === 'port' ? 'port' : 'door',
   };
 }
 
@@ -138,7 +149,7 @@ async function road(q: FreightQuery, near: string, f: typeof fetch): Promise<Fre
   return out;
 }
 
-export async function freightRates(q: FreightQuery, f: typeof fetch = fetch): Promise<{ rates: FreightRate[]; note: string | null; basis: string }> {
+export async function freightRates(q: FreightQuery, f: typeof fetch = fetch): Promise<{ rates: FreightRate[]; note: string | null; basis: string; scope: string }> {
   const lane = `${region(q.fromCountry)}>${region(q.toCountry)}`;
   const container = q.load.startsWith('container');
   const out: FreightRate[] = [];
@@ -147,9 +158,15 @@ export async function freightRates(q: FreightQuery, f: typeof fetch = fetch): Pr
   const cbm = container ? CONTAINER[q.load]!.cbm * q.quantity : (q.lengthCm * q.widthCm * q.heightCm / 1e6) * q.quantity;
   const kg = container ? 0 : q.weightKg * q.quantity;
 
+  const { fromDoor, toDoor } = ends(q);
+  const fclExtras = FCL_EXTRAS - (fromDoor ? 0 : DOOR.fcl.from) - (toDoor ? 0 : DOOR.fcl.to);
+  const lclFixed = LCL_FIXED - (fromDoor ? 0 : DOOR.lcl.from) - (toDoor ? 0 : DOOR.lcl.to);
+  const lclRate = L.lcl * (1 - (fromDoor ? 0 : DOOR.lcl.share) - (toDoor ? 0 : DOOR.lcl.share));
+  const airFixed = 180 - (fromDoor ? 0 : DOOR.air.from) - (toDoor ? 0 : DOOR.air.to);
+  const airRate = L.air * (1 - (fromDoor ? 0 : DOOR.air.share) - (toDoor ? 0 : DOOR.air.share));
   if (container) {
     const c = CONTAINER[q.load]!;
-    if (!near) out.push(row('FCL', (L.fcl * c.factor + FCL_EXTRAS) * q.quantity, L.sea));
+    if (!near) out.push(row('FCL', (L.fcl * c.factor + fclExtras) * q.quantity, L.sea));
     else out.push(...(await road(q, near, f)).filter((r) => r.mode === 'FTL'));
   } else {
     const airKg = Math.max(kg, cbm * 167);
@@ -160,9 +177,9 @@ export async function freightRates(q: FreightQuery, f: typeof fetch = fetch): Pr
       out.push(row('express', Math.max(45, 25 + expKg * perKg), near ? [1, 3] : L.expDays));
     }
     if (!near) {
-      if (airKg >= 45) out.push(row('air', Math.max(250, 180 + airKg * L.air), L.airDays));
-      if (cbm <= 18 && (cbm >= 0.5 || kg >= 150)) out.push(row('LCL', LCL_FIXED + Math.max(1, cbm, kg / 1000) * L.lcl, [L.sea[0] + 5, L.sea[1] + 7]));
-      if (cbm >= 12) out.push(row('FCL', (L.fcl * (cbm > 33 ? 1 : 0.62) + FCL_EXTRAS) * Math.max(1, Math.ceil(cbm / (cbm > 33 ? 67 : 33))), L.sea));
+      if (airKg >= 45) out.push(row('air', Math.max(fromDoor || toDoor ? 250 : 150, airFixed + airKg * airRate), L.airDays));
+      if (cbm <= 18 && (cbm >= 0.5 || kg >= 150)) out.push(row('LCL', lclFixed + Math.max(1, cbm, kg / 1000) * lclRate, [L.sea[0] + 5, L.sea[1] + 7]));
+      if (cbm >= 12) out.push(row('FCL', (L.fcl * (cbm > 33 ? 1 : 0.62) + fclExtras) * Math.max(1, Math.ceil(cbm / (cbm > 33 ? 67 : 33))), L.sea));
     } else if (q.load === 'pallets' || expKg > 70) out.push(...(await road(q, near, f)));
   }
   // live pallet-network prices replace our road estimate where Cargoboard covers the route
@@ -174,6 +191,7 @@ export async function freightRates(q: FreightQuery, f: typeof fetch = fetch): Pr
     rates: all,
     note: all.length ? null : 'We could not estimate this one. Freight companies can still price it for you.',
     basis: near ? 'typical UK and European haulage rates'
-      : `${indexWeek ? `the Drewry World Container Index of ${new Date(indexWeek + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Drewry market indices'}, the Freightos Air Index, plus typical collection, customs clearance and delivery charges`,
+      : `${indexWeek ? `the Drewry World Container Index of ${new Date(indexWeek + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Drewry market indices'}, the Freightos Air Index, plus ${fromDoor && toDoor ? 'typical collection, customs clearance and delivery charges' : !fromDoor && !toDoor ? 'terminal handling (port to port: no collection, delivery or customs)' : fromDoor ? 'collection and export clearance, delivered to the destination port' : 'import clearance and delivery from the origin port'}`,
+    scope: near ? 'door to door' : `${fromDoor ? 'door' : 'port'} to ${toDoor ? 'door' : 'port'}`,
   };
 }

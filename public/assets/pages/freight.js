@@ -1,6 +1,7 @@
 import { api, esc, gbp, toast, wrapLabels, UK_PC, stars, logoHtml } from '../market-ui.js';
 import { OPTIONS, SEP, place, isUk } from '../countries.js';
 import { AMAZON, TIKTOK } from '../warehouses.js';
+import { portsFor, portByCode } from '../ports.js';
 
 /**
  * Compare freight rates: air, sea (LCL / FCL) and road price ranges for stock moving between
@@ -13,9 +14,14 @@ const root = document.getElementById('root');
 const qs = new URLSearchParams(location.search);
 const pick = (v, list, d) => (list.includes(v) ? v : d);
 const S = {
-  from: place(qs.get('from')) ? qs.get('from') : 'China', fromCity: qs.get('fromCity') || '',
-  to: place(qs.get('to')) ? qs.get('to') : 'United Kingdom', toType: pick(qs.get('toType'), ['business', 'home', 'amazon', 'tiktok'], 'business'), toPlace: qs.get('toPlace') || '', fc: qs.get('fc') || '',
-  load: pick(qs.get('load'), ['boxes', 'pallets', 'container'], 'boxes'), box: pick(qs.get('box'), ['container20', 'container40', 'container40HC'], 'container20'),
+  from: place(qs.get('from')) ? qs.get('from') : 'China', fromCity: '',
+  to: place(qs.get('to')) ? qs.get('to') : 'United Kingdom', toPlace: qs.get('toPlace') || '',
+  // where the goods start and end: a door (factory, business, home, warehouse, fulfilment centre) or a port / airport
+  origin: pick(qs.get('origin'), ['factory', 'port', 'business', 'home'], 'factory'),
+  dest: pick(qs.get('dest'), ['port', 'warehouse', 'fc', 'business', 'home'], { amazon: 'fc', tiktok: 'fc', home: 'home' }[qs.get('toType')] || 'business'),
+  fromPort: qs.get('fromPort') || '', toPort: qs.get('toPort') || '',
+  fc: (() => { const v = qs.get('fc') || ''; return !v || /^[AT]:/.test(v) ? v : `${qs.get('toType') === 'tiktok' ? 'T' : 'A'}:${v}`; })(),
+  load: pick(qs.get('load'), ['boxes', 'pallets', 'container'], 'container'), box: pick(qs.get('box'), ['container20', 'container40', 'container40HC'], 'container40'),
   qty: qs.get('qty') || '1', kg: qs.get('kg') || '', l: qs.get('l') || '', w: qs.get('w') || '', h: qs.get('h') || '',
   busy: false, res: null, err: '', me: null, fwd: null,
 };
@@ -41,21 +47,33 @@ const countrySel = (k, v) => `<select class="inp" data-k="${k}" aria-label="${k 
 const code = (name) => place(name)?.code || 'GB';
 const chip = (k, v, label, on) => `<button type="button" class="chip" data-set="${k}" data-v="${v}" aria-pressed="${on}">${label}</button>`;
 
+/** Amazon and TikTok Shop fulfilment centres in the destination country. */
 function warehouses() {
   const c = code(S.to);
-  if (S.toType === 'amazon') return (AMAZON[c] || []).map(([fc, town, pc]) => ({ v: fc, t: `${fc} · ${town}`, town, pc }));
-  if (S.toType === 'tiktok') return (TIKTOK[c] || []).map(([town, pc]) => ({ v: town, t: `${town}`, town, pc }));
-  return [];
+  return [...(AMAZON[c] || []).map(([fc, town, pc]) => ({ v: `A:${fc}`, t: `${fc} · ${town}`, town, pc, group: 'Amazon FBA' })),
+    ...(TIKTOK[c] || []).map(([town, pc]) => ({ v: `T:${town}`, t: town, town, pc, group: 'TikTok Shop' }))];
 }
+/** 'amazon' | 'tiktok' | 'home' | 'business', for the texts sent to forwarders. */
+const toKind = () => (S.dest === 'fc' ? (S.fc.startsWith('T:') ? 'tiktok' : 'amazon') : S.dest === 'home' ? 'home' : 'business');
+const countryName = (name) => (isUk(name) ? 'United Kingdom' : place(name).n);
 
+function originPlace() {
+  const p = place(S.from);
+  const port = S.origin === 'port' ? portByCode(p.code, S.fromPort) : null;
+  return port ? { text: `${port[1]}, ${countryName(S.from)}`, town: port[1].replace(/ \(.*\)$/, ''), pc: '', port } : { text: `${p.city}, ${countryName(S.from)}`, town: '', pc: '' };
+}
 function destination() {
   const p = place(S.to);
-  if (S.toType === 'amazon' || S.toType === 'tiktok') {
+  if (S.dest === 'fc') {
     const w = warehouses().find((x) => x.v === S.fc);
-    if (w) return { text: `${w.town} ${w.pc}, ${p.n === 'England' ? 'United Kingdom' : p.n}`, pc: w.pc, town: w.town.replace(/,.*$| \(.*\)$/, '') };
+    if (w) return { text: `${w.town} ${w.pc}, ${countryName(S.to)}`, pc: w.pc, town: w.town.replace(/,.*$| \(.*\)$/, '') };
+  }
+  if (S.dest === 'port') {
+    const port = portByCode(p.code, S.toPort);
+    if (port) return { text: `${port[1]}, ${countryName(S.to)}`, pc: '', town: port[1].replace(/ \(.*\)$/, ''), port };
   }
   const t = S.toPlace.trim();
-  return { text: `${t || p.city}, ${isUk(S.to) ? 'United Kingdom' : p.n}`, pc: t };
+  return { text: `${t || p.city}, ${countryName(S.to)}`, pc: t };
 }
 
 function totals() {
@@ -65,24 +83,31 @@ function totals() {
 }
 
 function formHtml() {
+  const opt = (v, label, on) => `<option value="${v}" ${on ? 'selected' : ''}>${label}</option>`;
+  const portSel = (k, country, val) => {
+    const list = portsFor(country);
+    if (!list.length) return '';
+    const grp = (kind, label) => { const l = list.filter((x) => x[2] === kind); return l.length ? `<optgroup label="${label}">${l.map(([c, n]) => opt(c, `${esc(n)} (${c})`, c === val)).join('')}</optgroup>` : ''; };
+    return `<label class="fld">${k === 'fromPort' ? 'Port or airport' : 'Port or airport'}<select class="inp" data-k="${k}"><option value="">Choose…</option>${grp('sea', 'Sea ports')}${grp('air', 'Airports')}</select></label>`;
+  };
   const wh = warehouses();
-  const marketNote = (S.toType === 'amazon' || S.toType === 'tiktok') && !wh.length
-    ? `<p class="hint" style="margin:0">${S.toType === 'amazon' ? 'Amazon' : 'TikTok Shop'} warehouses are listed for the UK and the USA. For ${esc(S.to)}, enter the warehouse postcode from your shipping plan below.</p>` : '';
-  const toInput = wh.length
-    ? `<label class="fld">${S.toType === 'amazon' ? 'Amazon fulfilment centre' : 'TikTok Shop warehouse'} <i>*</i><select class="inp" data-k="fc"><option value="">Choose…</option>${wh.map((w) => `<option value="${esc(w.v)}" ${w.v === S.fc ? 'selected' : ''}>${esc(w.t)}</option>`).join('')}</select></label>`
-    : `<label class="fld">Town or postcode <em>(optional)</em><input class="inp" data-k="toPlace" value="${esc(S.toPlace)}" placeholder="e.g. ${esc(place(S.to)?.city || '')}"></label>`;
+  const destField = S.dest === 'port' ? portSel('toPort', code(S.to), S.toPort)
+    : S.dest === 'fc' ? (wh.length
+      ? `<label class="fld">Fulfilment centre <i>*</i><select class="inp" data-k="fc"><option value="">Choose…</option>${['Amazon FBA', 'TikTok Shop'].map((g) => { const l = wh.filter((w) => w.group === g); return l.length ? `<optgroup label="${g}">${l.map((w) => opt(esc(w.v), esc(w.t), w.v === S.fc)).join('')}</optgroup>` : ''; }).join('')}</select></label>`
+      : `<label class="fld">Fulfilment centre postcode <em>(optional)</em><input class="inp" data-k="toPlace" value="${esc(S.toPlace)}" placeholder="From your shipping plan"></label>`)
+    : `<label class="fld">Postcode <em>(optional)</em><input class="inp" data-k="toPlace" value="${esc(S.toPlace)}" placeholder="e.g. ${isUk(S.to) ? 'M1 1AE' : esc(place(S.to)?.pc || '')}"></label>`;
   const unit = S.load === 'boxes' ? 'boxes' : 'pallets';
   return wrapLabels(`<section class="card fr-form">
     <div class="fr-row">
       <div class="fr-side"><span class="lbl">From</span>
         <label class="fld">Country${countrySel('from', S.from)}</label>
-        <label class="fld">Town, port or postcode <em>(optional)</em><input class="inp" data-k="fromCity" value="${esc(S.fromCity)}" placeholder="e.g. ${esc(place(S.from)?.city || '')}"></label>
-        ${isUk(S.from) ? `<button type="button" class="btn ghost sm" data-here style="align-self:flex-start">📍 ${S.locating ? 'Finding you…' : 'Use my location'}</button>` : ''}
+        <label class="fld">Origin<select class="inp" data-k="origin">${opt('factory', 'Factory / warehouse', S.origin === 'factory')}${opt('port', 'Port / airport', S.origin === 'port')}${opt('business', 'Business address', S.origin === 'business')}${opt('home', 'Residential address', S.origin === 'home')}</select></label>
+        ${S.origin === 'port' ? portSel('fromPort', place(S.from).code, S.fromPort) : ''}
       </div>
       <div class="fr-side"><span class="lbl">To</span>
         <label class="fld">Country${countrySel('to', S.to)}</label>
-        <div class="chips">${chip('toType', 'business', 'Business', S.toType === 'business')}${chip('toType', 'home', 'Home', S.toType === 'home')}${chip('toType', 'amazon', 'Amazon FBA', S.toType === 'amazon')}${chip('toType', 'tiktok', 'TikTok Shop', S.toType === 'tiktok')}</div>
-        ${toInput}${marketNote}
+        <label class="fld">Destination<select class="inp" data-k="dest">${opt('port', 'Port / airport', S.dest === 'port')}${opt('warehouse', 'Warehouse', S.dest === 'warehouse')}${opt('fc', 'Fulfilment centre (Amazon, TikTok)', S.dest === 'fc')}${opt('business', 'Business address', S.dest === 'business')}${opt('home', 'Residential address', S.dest === 'home')}</select></label>
+        ${destField}
       </div>
     </div>
     <div class="fr-what"><span class="lbl">What are you shipping?</span>
@@ -171,7 +196,7 @@ function resultsHtml() {
   const days = (x) => (x.daysMin ? `${x.daysMin}${x.daysMax && x.daysMax !== x.daysMin ? `–${x.daysMax}` : ''} days` : '');
   const money = (p, c) => (c === 'GBP' ? gbp(p).replace('.00', '') : `${(p / 100).toLocaleString('en-GB', { style: 'currency', currency: c, maximumFractionDigits: 0 })}`);
   return `<section class="fr-res">
-    <div class="g-head"><h2 style="margin:0;font-size:22px">Freight rates</h2><span class="muted" style="font-size:13px">${esc(S.from)} → ${esc(destination().text)}</span></div>
+    <div class="g-head"><h2 style="margin:0;font-size:22px">Freight rates</h2><span class="muted" style="font-size:13px">${esc(originPlace().text)} → ${esc(destination().text)}${r.scope ? ` · <b style="color:#2463DB">${esc(r.scope[0].toUpperCase() + r.scope.slice(1))}</b>` : ''}</span></div>
     ${r.note ? `<p class="hint" style="margin:0">${esc(r.note)}</p>` : ''}
     <div class="list">${r.rates.map((x) => `<article class="offer fr-rate">
       <div class="offer-top"><div class="co"><span class="co-logo fr-ic">${MODE_IC[x.mode] || IC.box}</span><div class="co-t"><b>${esc(x.label)}</b><span class="muted" style="font-size:13px">${esc(MODE_TIP[x.mode] || '')}</span></div></div>
@@ -180,7 +205,7 @@ function resultsHtml() {
     </article>`).join('')}</div>
     ${sailingsHtml()}
     ${r.rates.length ? '' : `<div class="empty-box"><b>Get prices from freight companies</b><span>Tell us about the shipment and freight forwarders and hauliers send you their prices.</span><a class="btn" href="${quoteHref(S.load === 'container' ? 'FCL' : 'air')}">Get firm quotes</a></div>`}
-    <p class="muted" style="font-size:12.5px;margin:0">Estimates by Kargom, based on ${esc(r.basis || 'current market rates')}. Door to door, excluding import duty and VAT. Real quotes can be higher or lower.${r.rates.some((x) => x.live) ? ' Live prices come straight from the carrier and include VAT.' : ''}</p>
+    <p class="muted" style="font-size:12.5px;margin:0">Estimates by Kargom, based on ${esc(r.basis || 'current market rates')}. ${esc(r.scope ? r.scope[0].toUpperCase() + r.scope.slice(1) : 'Door to door')}, excluding import duty and VAT. Real quotes can be higher or lower.${r.rates.some((x) => x.live) ? ' Live prices come straight from the carrier and include VAT.' : ''}</p>
   </section>`;
 }
 
@@ -188,15 +213,14 @@ function resultsHtml() {
 const WA = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"></path></svg>';
 const placeLabel = (name, town) => { const p = place(name); return `${town || p.city}, ${isUk(name) ? 'United Kingdom' : p.n}`; };
 function fwdPlaces() {
-  const w = warehouses().find((x) => x.v === S.fc);
-  const toTown = (S.toType === 'amazon' || S.toType === 'tiktok') && w ? w.town.replace(/ \(.*\)$/, '') : S.toPlace.trim();
-  return [{ side: 'from', label: placeLabel(S.from, S.fromCity.trim()), country: place(S.from).code }, { side: 'to', label: placeLabel(S.to, toTown), country: code(S.to) }];
+  const o = originPlace(), d = destination();
+  return [{ side: 'from', label: placeLabel(S.from, o.town), country: place(S.from).code }, { side: 'to', label: placeLabel(S.to, d.town || ''), country: code(S.to) }];
 }
 function shipText() {
   const what = S.load === 'container' ? `${S.qty || 1} x ${{ container20: '20 ft', container40: '40 ft', container40HC: '40 ft High Cube' }[S.box]} container`
     : `${S.qty || 1} ${S.load === 'boxes' ? 'boxes' : 'pallets'}, ${S.kg} kg each${S.l && S.w && S.h ? `, ${S.l}x${S.w}x${S.h} cm` : ''}`;
-  const dest = destination().text + (S.toType === 'amazon' && S.fc ? ` (Amazon ${S.fc})` : S.toType === 'tiktok' ? ' (TikTok Shop warehouse)' : '');
-  return `Hello, I found you on Kargom.co.uk. Could you quote me for this shipment?\n\nFrom: ${placeLabel(S.from, S.fromCity.trim())}\nTo: ${dest}\nGoods: ${what}\n\nPlease send your best price for air and sea, door to door. Thank you.`;
+  const dest = destination().text + (toKind() === 'amazon' && S.fc ? ` (Amazon ${S.fc.slice(2)})` : toKind() === 'tiktok' ? ' (TikTok Shop warehouse)' : '');
+  return `Hello, I found you on Kargom.co.uk. Could you quote me for this shipment?\n\nFrom: ${originPlace().text}\nTo: ${dest}\nGoods: ${what}\n\nPlease send your best price for air and sea, door to door. Thank you.`;
 }
 function fwdCard(p) {
   const signup = `/login?mode=register&next=${encodeURIComponent(location.pathname + location.search)}`;
@@ -272,23 +296,24 @@ async function go({ auto: quiet = false } = {}) {
   const container = S.load === 'container';
   if (!container && !(Number(S.kg) > 0)) return fail('Enter the weight of one box or pallet.');
   if (S.load === 'boxes' && !(Number(S.l) > 0 && Number(S.w) > 0 && Number(S.h) > 0)) return fail('Enter the size of one box (length, width and height in cm).');
-  if ((S.toType === 'amazon' || S.toType === 'tiktok') && warehouses().length && !S.fc) return fail(`Choose the ${S.toType === 'amazon' ? 'Amazon fulfilment centre' : 'TikTok Shop warehouse'}.`);
+  if (S.dest === 'fc' && warehouses().length && !S.fc) return fail('Choose the fulfilment centre.');
   const my = ++seq;
   S.err = ''; S.busy = true; paint();
-  const from = place(S.from), dest = destination();
-  const fromTxt = `${S.fromCity.trim() || from.city}, ${isUk(S.from) ? 'United Kingdom' : from.n}`;
+  const from = place(S.from), dest = destination(), o = originPlace();
+  const fromTxt = o.text;
   const q = new URLSearchParams({
     origin: fromTxt, destination: dest.text, fromCountry: from.code, toCountry: code(S.to), load: container ? S.box : S.load, qty: S.qty || '1',
     ...(container ? {} : { kg: S.kg, l: S.l, w: S.w, h: S.h }),
     // a postcode and town at each end (the customer's, or a sample for the country) so pallet networks can price it
-    fromPostcode: postcodeOf(S.fromCity, from), toPostcode: postcodeOf(dest.pc, place(S.to)),
-    fromTown: townOf(S.fromCity, from), toTown: townOf(dest.town || S.toPlace, place(S.to)),
+    fromPostcode: from.pc, toPostcode: postcodeOf(dest.pc, place(S.to)),
+    fromTown: o.town || from.city, toTown: townOf(dest.town || S.toPlace, place(S.to)),
+    fromType: S.origin === 'port' ? 'port' : 'door', toType: S.dest === 'port' ? 'port' : 'door',
   });
   try {
     const res = await api(`/api/freight/rates?${q}`);
     if (my !== seq) return; // a newer search has started
     S.res = res;
-    const keep = new URLSearchParams({ from: S.from, to: S.to, toType: S.toType, load: S.load, qty: S.qty, ...(S.fromCity && { fromCity: S.fromCity }), ...(S.toPlace && { toPlace: S.toPlace }), ...(S.fc && { fc: S.fc }), ...(container ? { box: S.box } : { kg: S.kg, l: S.l, w: S.w, h: S.h }) });
+    const keep = new URLSearchParams({ from: S.from, to: S.to, origin: S.origin, dest: S.dest, load: S.load, qty: S.qty, ...(S.fromPort && { fromPort: S.fromPort }), ...(S.toPort && { toPort: S.toPort }), ...(S.toPlace && { toPlace: S.toPlace }), ...(S.fc && { fc: S.fc }), ...(container ? { box: S.box } : { kg: S.kg, l: S.l, w: S.w, h: S.h }) });
     history.replaceState(null, '', `/freight?${keep}`);
   } catch (e) { if (my !== seq) return; S.res = null; S.err = e.message; }
   S.busy = false; paint();
@@ -298,12 +323,12 @@ async function go({ auto: quiet = false } = {}) {
 
 async function loadSailings() {
   S.sail = null;
-  const want = `${S.from}|${S.fromCity}|${S.to}|${S.toPlace}|${S.fc}`;
+  const o = originPlace(), dest = destination();
+  const want = `${S.from}|${S.fromPort}|${S.to}|${S.toPort}|${S.toPlace}|${S.fc}`;
   if (!S.res?.rates?.some((x) => x.mode === 'LCL' || x.mode === 'FCL')) return;
-  const dest = destination();
   try {
-    const r = await api(`/api/freight/sailings?${new URLSearchParams({ from: place(S.from).code, fromTown: S.fromCity.trim(), to: code(S.to), toTown: dest.town || S.toPlace || '' })}`);
-    if (r.enabled && r.sailings?.length && want === `${S.from}|${S.fromCity}|${S.to}|${S.toPlace}|${S.fc}`) { S.sail = r; paint(); }
+    const r = await api(`/api/freight/sailings?${new URLSearchParams({ from: place(S.from).code, fromTown: o.town, to: code(S.to), toTown: dest.town || S.toPlace || '' })}`);
+    if (r.enabled && r.sailings?.length && want === `${S.from}|${S.fromPort}|${S.to}|${S.toPort}|${S.toPlace}|${S.fc}`) { S.sail = r; paint(); }
   } catch { /* schedules are a bonus */ }
 }
 
@@ -311,9 +336,13 @@ root.addEventListener('input', (e) => {
   const k = e.target.dataset?.k;
   if (!k) return;
   S[k] = e.target.value;
-  if (k === 'from' || k === 'to' || k === 'fc' || k === 'box') { if (k === 'to') S.fc = ''; render(); auto(0); return; }
+  if (['from', 'to', 'fc', 'box', 'origin', 'dest', 'fromPort', 'toPort'].includes(k)) {
+    if (k === 'from') S.fromPort = '';
+    if (k === 'to' || k === 'dest') { S.fc = ''; S.toPort = ''; }
+    render(); auto(0); return;
+  }
   const t = document.getElementById('tot'); if (t) t.textContent = totals();
-  auto(k === 'fromCity' || k === 'toPlace' ? 900 : 600);
+  auto(k === 'toPlace' ? 900 : 600);
 });/** "Use my location" for UK collections: phone position → nearest postcode. */
 async function locate() {
   if (S.locating) return;
@@ -332,7 +361,6 @@ root.addEventListener('click', (e) => {
   if (t.dataset.here !== undefined) { locate(); return; }
   if (t.dataset.go !== undefined) { clearTimeout(timer); go(); return; }
   S[t.dataset.set] = t.dataset.v;
-  if (t.dataset.set === 'toType') S.fc = '';
   if (t.dataset.set === 'load') {
     S.kg = ''; S.l = ''; S.w = ''; S.h = '';
   }

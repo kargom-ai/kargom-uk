@@ -4,7 +4,8 @@ import { OPTIONS, SEP, isUk, place } from '../countries.js';
 
 /** Country list for a <select>: the UK first, a gap, then the world. `sel` is pre-selected. */
 const countryOpts = (sel = 'United Kingdom') => OPTIONS.map((t) => ({ t, sep: t === SEP, sel: t === sel }));
-const LOADS = { Boxes: 'boxes', Pallets: 'pallets', Container: 'container' };
+/** Freight 'Load' choices; the first (a 40 ft container) is selected by default. */
+const LOADS = { 'Container 40 ft': ['container', 'container40'], 'Container 20 ft': ['container', 'container20'], Pallets: ['pallets'], Boxes: ['boxes'] };
 const SHOP_IN = ['United States', 'United Kingdom', 'China', 'Germany', 'Italy', 'France', 'Japan', 'Turkey'];
 const LOGOS = { 'Royal Mail': 'royalmail', Evri: 'evri', DPD: 'dpd', InPost: 'inpost', UPS: 'ups', DHL: 'dhl', FedEx: 'fedex', Parcelforce: 'parcelforce', Yodel: 'yodel' };
 
@@ -73,7 +74,8 @@ class Component extends DCLogic {
     }
     if (st.mode === 'freight') {
       e.preventDefault();
-      const q = new URLSearchParams({ from: field('Shipping from'), to: field('Shipping to'), load: LOADS[field('Load')] || 'boxes' });
+      const [load, box] = LOADS[field('Load')] || LOADS['Container 40 ft'];
+      const q = new URLSearchParams({ from: field('Shipping from'), to: field('Shipping to'), load, ...(box && { box }) });
       location.href = `/freight?${q}`;
       return;
     }
@@ -110,7 +112,7 @@ class Component extends DCLogic {
     const F = {
       uk: [{ ...b, label: 'Collect from', isSelect: true, options: countryOpts() }, { ...b, label: 'Delivering to', isSelect: true, options: countryOpts() }, weight, dims],
       freight: [{ ...b, label: 'Shipping from', isSelect: true, options: countryOpts('China') }, { ...b, label: 'Shipping to', isSelect: true, options: countryOpts() },
-        { ...b, label: 'Load', isSelect: true, options: Object.keys(LOADS).map((t) => ({ t, sep: false, sel: false })), flex: '1 1 150px' }],
+        { ...b, label: 'Load', isSelect: true, options: Object.keys(LOADS).map((t, i) => ({ t, sep: false, sel: i === 0 })), flex: '1 1 150px' }],
       move: [{ ...b, ...here, label: 'Moving from (postcode)', isInput: true, placeholder: 'e.g. M1 1AE' }, { ...b, label: 'Moving to (postcode)', isInput: true, placeholder: 'e.g. LS1 5HD' },
         { ...b, label: 'Home size', isSelect: true, options: Object.keys(HOME_SIZE).map((t) => ({ t, sep: false, sel: false })), flex: '1 1 150px' }],
       track: [{ ...b, label: 'Tracking number', isInput: true, placeholder: 'Enter your tracking number', flex: '999 1 400px' }],
