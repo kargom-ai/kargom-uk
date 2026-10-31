@@ -80,3 +80,25 @@ test('Resend email attaches the label PDF by URL and goes to the guest email', a
   assert.deepEqual(body.to, ['ann@example.com']);
   assert.match(body.attachments[0].path, /^https:\/\/kargom\.eu\/api\/guest\/label\/[\w-]+\/pdf$/);
 });
+
+test('every booking emails the label PDF in the Kargom design, even when texts are off for instant labels', async () => {
+  const { ResendEmail } = await import('../src/notify/channels.ts');
+  const sent: any[] = [];
+  const em = new ResendEmail({ apiKey: 're_x', from: 'Kargom <labels@kargom.co.uk>', baseUrl: 'https://kargom.co.uk', fetchImpl: (async (_u: string, i: RequestInit) => { sent.push(JSON.parse(String(i.body))); return new Response(JSON.stringify({ id: 'em_2' })); }) as any });
+  const { app } = await makeApp();
+  app.notifier.configure([em], 'https://kargom.co.uk', 'guests');
+  const c = await makeCustomer(app);
+  await app.wallet.topUp(c, 1000, 'pi_e');
+  const q = (await app.quotes.quote(c, ukReq())).quotes[0]!;
+  await app.bookings.book({ customerId: c, quoteToken: q.token, payWith: 'wallet', idempotencyKey: 'em1' });
+  await new Promise((x) => setTimeout(x, 40));
+  assert.equal(sent.length, 1, 'account customer gets the label email');
+  const b = sent[0];
+  assert.match(b.attachments[0].path, /^https:\/\/kargom\.co\.uk\/api\/guest\/label\/[\w-]+\/pdf$/);
+  assert.match(b.attachments[0].filename, /^Kargom-label-KGM-/);
+  assert.match(b.html, /assets\/logo-white\.png/);
+  assert.match(b.html, /Label ready/);
+  assert.match(b.html, /Open and print your label/);
+  assert.match(b.html, /Delivering to/);
+  assert.match(b.text, /Tracking number:/);
+});

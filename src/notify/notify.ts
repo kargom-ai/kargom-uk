@@ -39,15 +39,17 @@ export class Notifier {
 
   async labelReady(shipmentId: string, opts: { instant?: boolean } = {}): Promise<Array<{ channel: string; status: string; detail?: string }>> {
     if (!this.channels.length || !this.publicUrl) return [];
-    if (opts.instant && this.instantPolicy === 'none') return [];
-    const s = await this.db.get<{ id: string; ref: string; customer_id: string; status: string; label_url: string | null; tracking_number: string | null; service_name: string; carrier: string; from_json: string }>(
-      'SELECT id, ref, customer_id, status, label_url, tracking_number, service_name, carrier, from_json FROM shipments WHERE id = $1', [shipmentId]);
+    const s = await this.db.get<{ id: string; ref: string; customer_id: string; status: string; label_url: string | null; tracking_number: string | null; service_name: string; carrier: string;
+      from_json: string; to_json: string; parcel_json: string; price_pence: number; created_at: string }>(
+      'SELECT id, ref, customer_id, status, label_url, tracking_number, service_name, carrier, from_json, to_json, parcel_json, price_pence, created_at FROM shipments WHERE id = $1', [shipmentId]);
     if (!s || s.status === 'failed' || !s.label_url) return [];
     const c = await this.db.get<{ phone: string | null; name: string; email: string; company: string | null; account_type: string }>(
       'SELECT phone, name, email, company, account_type FROM customers WHERE id = $1', [s.customer_id]);
-    if (opts.instant && this.instantPolicy === 'guests' && c?.account_type !== 'guest') return [];
+    // The label always goes to the customer's email (with the PDF). Texts and WhatsApp follow the instant-label setting.
+    const textsOn = !opts.instant || (this.instantPolicy !== 'none' && (this.instantPolicy === 'all' || c?.account_type === 'guest'));
     const from = JSON.parse(s.from_json) as Address;
-    const to = toE164(from.phone, from.country) ?? toE164(c?.phone, 'GB');
+    const dest = JSON.parse(s.to_json) as Address;
+    const to = textsOn ? toE164(from.phone, from.country) ?? toE164(c?.phone, 'GB') : null;
     const email = (c?.account_type === 'guest' ? c?.company : c?.email) || from.email || '';
     if (!to && !email) return [{ channel: 'all', status: 'skipped', detail: 'no mobile number or email' }];
 
@@ -55,9 +57,23 @@ export class Notifier {
     const token = randomBytes(24).toString('base64url');
     await this.db.run('INSERT INTO guest_links (token_hash, shipment_id, email, created_at) VALUES ($1,$2,$3,$4)', [
       sha256(token), s.id, (c?.account_type === 'guest' ? c.company : c?.email) ?? '', this.clock.now().toISOString()]);
+    let parcel = '';
+    try {
+      const p = JSON.parse(s.parcel_json) as { weightGrams?: number; lengthCm?: number; widthCm?: number; heightCm?: number };
+      parcel = [p.weightGrams ? `${Number((p.weightGrams / 1000).toFixed(2))} kg` : '', p.lengthCm && p.widthCm && p.heightCm ? `${p.lengthCm} × ${p.widthCm} × ${p.heightCm} cm` : ''].filter(Boolean).join(' · ');
+    } catch { /* old rows */ }
+    const carrier = CARRIER_LABEL[s.carrier] || '';
+    const LOGO: Record<string, string> = { royal_mail: 'royalmail', evri: 'evri', dpd: 'dpd', inpost: 'inpost', yodel: 'yodel', parcelforce: 'parcelforce', ups: 'ups', dhl: 'dhl', fedex: 'fedex' };
     const msg = {
-      to: to ?? '', email, name: (from.name || c?.name || 'there').split(/\s+/)[0]!, service: s.service_name || CARRIER_LABEL[s.carrier] || 'parcel',
-      tracking: s.tracking_number || s.ref, ref: s.ref, link: `${this.publicUrl}/l/${token}`, pdfUrl: `${this.publicUrl}/api/guest/label/${token}/pdf`,
+      to: to ?? '', email, name: (from.name || c?.name || 'there').split(/\s+/)[0]!, service: s.service_name || carrier || 'parcel',
+      tracking: s.tracking_number || s.ref, ref: s.ref, link: `${this.publicUrl}/l/${token}`, pdfUrl: `${this.publicUrl}/api/guest/label/${token}/pdf`, baseUrl: this.publicUrl,
+      details: {
+        carrier, carrierLogo: LOGO[s.carrier] ? `/assets/carriers/${LOGO[s.carrier]}.png` : null,
+        toName: dest.name, toAddress: [dest.line1, dest.line2, `${dest.city} ${dest.postcode}`].filter(Boolean).join('\n'),
+        from: [from.city, from.postcode].filter(Boolean).join(' '), parcel,
+        paid: `£${(s.price_pence / 100).toFixed(2)}`, booked: new Date(s.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        dropOff: /drop|shop|locker|post office/i.test(s.service_name),
+      },
     };
     const out: Array<{ channel: string; status: string; detail?: string }> = [];
     for (const ch of this.channels) {
@@ -96,7 +112,8 @@ export class Notifier {
     const ch = this.channels.find((c) => c.id === 'email');
     if (!ch) throw new Error('Email is not set up yet. Save the Resend details first.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(address)) throw new Error('That does not look like an email address.');
-    const id = await ch.sendLabelReady({ to: '', email: address, name: 'there', service: 'TEST', tracking: 'TEST123', ref: 'TEST', link: `${this.publicUrl || 'https://kargom.eu'}/l/test`, pdfUrl: '' });
+    const id = await ch.sendLabelReady({ to: '', email: address, name: 'there', service: 'Royal Mail Tracked 48', tracking: 'TEST123456GB', ref: 'KGM-UK-TEST', link: `${this.publicUrl || 'https://kargom.co.uk'}/l/test`, pdfUrl: '', baseUrl: this.publicUrl,
+      details: { carrier: 'Royal Mail', carrierLogo: '/assets/carriers/royalmail.png', toName: 'Sample Recipient', toAddress: '10 Downing Street\nLondon SW1A 2AA', from: 'Manchester M1 1AE', parcel: '2 kg · 30 × 20 × 15 cm', paid: '£4.59', booked: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), dropOff: true } });
     return `Sent to ${address} (email ${id})`;
   }
 
