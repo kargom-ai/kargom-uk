@@ -78,11 +78,11 @@ function waAllHtml(j, places) {
 function noOffersHtml(j) {
   // sea and air: the forwarders that matter are at the destination (customs and delivery)
   const abroad = j.kind === 'freight' && ['sea', 'air'].includes(j.details?.load);
-  const who = j.kind === 'removals' ? 'removal companies' : j.kind === 'transport' ? 'transport companies' : abroad ? 'freight forwarders' : 'hauliers';
+  const who = j.kind === 'removals' ? 'removal companies' : abroad ? 'freight forwarders' : 'hauliers';
   const area = abroad ? j.toArea : j.fromArea;
   const near = S.near;
   const list = !near ? '<p class="muted" style="margin:0">Finding companies near you…</p>'
-    : !near.partners.length ? `<p class="muted" style="margin:0">No ${who} have joined near ${esc(area)} yet. Your request is still open to every ${j.kind === 'removals' ? 'removal company' : j.kind === 'transport' ? 'transport company on FreightMatch' : abroad ? 'freight forwarder' : 'haulier'}${j.kind === 'transport' ? '' : ' on Kargom'}.</p>`
+    : !near.partners.length ? `<p class="muted" style="margin:0">No ${who} have joined near ${esc(area)} yet. Your request is still open to every ${j.kind === 'removals' ? 'removal company' : abroad ? 'freight forwarder' : 'haulier'} on Kargom.</p>`
     : near.partners.map((p) => `<article class="offer">
         <div class="offer-top"><div class="co">${logoHtml(p)}<div class="co-t"><b>${esc(p.company)}</b><span>${ratingHtml(p)}</span>
           <span class="muted" style="font-size:13px">${p.basedIn ? `Based in ${esc(p.basedIn)}` : 'UK'}${p.milesAway !== null && p.milesAway !== undefined ? ` · ${p.milesAway} mile${p.milesAway === 1 ? '' : 's'} from you` : ''}${p.jobsWon ? ` · ${p.jobsWon} job${p.jobsWon > 1 ? 's' : ''} won` : ''}</span></div></div></div>
@@ -104,7 +104,7 @@ function noOffersHtml(j) {
         ${p.mapsUrl ? `<a class="btn ghost" href="${esc(p.mapsUrl)}" target="_blank" rel="noopener nofollow">View on Google Maps</a>` : ''}</div>
     </article>`).join('')}`;
   return `<div class="noff"><b>No offers yet</b><span>Your request has gone to ${who} on Kargom. Each offer appears here and in your email.</span></div>
-    <h3 style="margin:8px 0 0;font-size:18px">${j.kind === 'removals' ? 'Removal companies' : j.kind === 'transport' ? 'Transport companies' : abroad ? 'Freight forwarders' : 'Hauliers'} near ${esc(area)}</h3>
+    <h3 style="margin:8px 0 0;font-size:18px">${j.kind === 'removals' ? 'Removal companies' : abroad ? 'Freight forwarders' : 'Hauliers'} near ${esc(area)}</h3>
     ${list}
     ${gHtml}`;
 }

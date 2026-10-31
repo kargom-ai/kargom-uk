@@ -22,7 +22,6 @@ import { googleEnabled, googleAuthUrl, googleUser, newState } from '../auth/goog
 import { placeLogo } from '../market/places.ts';
 import { freightRates, parseFreightQuery } from '../freight/rates.ts';
 import { freightForwarders, topForwarders } from '../freight/forwarders.ts';
-import { board, boardJob, boardPhoto, townFor } from '../market/match.ts';
 import { minimalLabelPdf } from '../guest/pdf.ts';
 import { forwardingEstimate, joinForwardingWaitlist } from '../forwarding/forwarding.ts';
 import { shopIcon } from '../forwarding/turkey.ts';
@@ -490,11 +489,6 @@ export function buildRouter(app: App) {
   on('POST', '/api/jobs/:id/offers/:offer/accept', 'customer', async (c) => app.market.acceptOffer(me(c), c.params.id!, c.params.offer!));
   on('POST', '/api/jobs/:id/review', 'customer', async (c) => app.market.review(me(c), c.params.id!, c.body.rating, c.body.comment));
   on('GET', '/api/jobs/:id/photos/:photo', 'customer', async (c) => image(c, await app.market.photo(me(c), c.params.id!, c.params.photo!), 'private, max-age=86400'));
-  /* ---- Kargom FreightMatch: public job board ---- */
-  on('GET', '/api/match/board', 'public', async (c) => { publicLimiter.check(ip(c)); return board(app.db, c.query, new Date().toISOString().slice(0, 10)); });
-  on('GET', '/api/match/jobs/:id', 'public', async (c) => boardJob(app.db, c.params.id!));
-  on('GET', '/api/match/jobs/:id/photos/:pid', 'public', async (c) => image(c, await boardPhoto(app.db, c.params.id!, c.params.pid!), 'public, max-age=3600'));
-  on('GET', '/api/match/postcode', 'public', async (c) => { publicLimiter.check(ip(c)); return (await townFor(String(c.query.get('pc') ?? '').slice(0, 12))) ?? { postcode: null, town: null }; });
   on('GET', '/api/partners/:id', 'public', async (c) => app.market.profile(c.params.id!));
   on('GET', '/api/partners/:id/logo', 'public', async (c) => image(c, await app.market.logo(c.params.id!), 'public, max-age=86400'));
   on('POST', '/api/partner/register', 'public', async (c) => {

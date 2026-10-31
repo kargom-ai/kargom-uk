@@ -3,7 +3,7 @@ import type { Clock } from '../core/clock.ts';
 import { AppError } from '../core/errors.ts';
 import { newId } from '../core/ids.ts';
 import type { AuthService } from '../auth/auth.ts';
-import { haversineMiles, outcodeCoords, routeInfo } from './route.ts';
+import { haversineMiles, outcodeCoords } from './route.ts';
 import { nearbyOnGoogle, placesEnabled, forwardersOnGoogle } from './places.ts';
 import { estimatePrice } from './estimate.ts';
 import { requestSheet } from './sheet.ts';
@@ -21,7 +21,7 @@ import { randomBytes } from 'node:crypto';
  * columns so "pay this offer by card on Kargom" can be added without reshaping data.
  */
 
-export type Kind = 'removals' | 'freight' | 'transport';
+export type Kind = 'removals' | 'freight';
 export type Addr = { line1: string; line2?: string; city: string; postcode: string; country: string };
 type Partner = { id: string; customer_id: string; kind: Kind; company: string; phone: string; email: string; website: string | null; about: string | null; areas: string | null; base_postcode: string | null; fleet: string | null; logo: string | null; status: string; created_at: string };
 type Job = { id: string; ref: number; customer_id: string; kind: Kind; status: string; title: string; details: string; from_addr: string; to_addr: string; from_area: string; to_area: string; distance_miles: number | null; move_date: string | null; contact_phone: string; accepted_offer_id: string | null; share_token?: string | null; created_at: string; updated_at: string };
@@ -29,9 +29,7 @@ type Offer = { id: string; job_id: string; partner_id: string; price_pence: numb
 
 export type Notice = (to: string, subject: string, heading: string, lines: string[], link?: { href: string; text: string }) => Promise<unknown>;
 
-const KINDS: Kind[] = ['removals', 'freight', 'transport'];
-/** Partners sign up as one of these; any partner can quote a FreightMatch (transport) job. */
-const PARTNER_KINDS: Kind[] = ['removals', 'freight'];
+const KINDS: Kind[] = ['removals', 'freight'];
 const COUNTRIES = ['GB', 'IE', 'FR', 'DE', 'NL', 'BE', 'ES', 'IT', 'PL', 'PT', 'AT', 'DK', 'SE', 'CZ', 'CH', 'GR',
   'US', 'CN', 'HK', 'TW', 'VN', 'IN', 'BD', 'PK', 'TR', 'AE', 'SA', 'JP', 'KR', 'SG', 'TH', 'MY', 'ID', 'CA', 'MX', 'BR', 'AU', 'NZ', 'ZA', 'NG'];
 const NO_POSTCODE = ['HK', 'AE', 'SA', 'NG'];
@@ -67,11 +65,11 @@ const basePc = (v: unknown) => {
 };
 const initials = (name: string) => { const [f, l] = name.trim().split(/\s+/); return `${f ?? ''}${l ? ` ${l[0]}.` : ''}`; };
 
-function address(v: unknown, who: string, streetOptional = false): Addr {
+function address(v: unknown, who: string): Addr {
   const a = (v ?? {}) as Record<string, unknown>;
   const out: Addr = { line1: s(a.line1, 120), line2: s(a.line2, 120), city: s(a.city, 80), postcode: s(a.postcode, 12).toUpperCase(), country: s(a.country, 2).toUpperCase() || 'GB' };
   if (!COUNTRIES.includes(out.country)) throw new AppError('bad_request', `We do not cover that country for ${who} yet`);
-  if (out.line1.length < 2 && !streetOptional) throw new AppError('bad_request', `Enter the first line of the ${who} address`);
+  if (out.line1.length < 2) throw new AppError('bad_request', `Enter the first line of the ${who} address`);
   if (out.city.length < 2) throw new AppError('bad_request', `Enter the town or city for the ${who} address`);
   if (out.country === 'GB' && !/^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/.test(out.postcode)) throw new AppError('bad_request', `Enter a full UK postcode for the ${who} address`);
   if (out.country !== 'GB' && !NO_POSTCODE.includes(out.country) && out.postcode.length < 3) throw new AppError('bad_request', `Enter the postcode for the ${who} address`);
@@ -82,37 +80,7 @@ const SIZE_LABEL: Record<string, string> = { studio: 'Studio flat', '1': '1 bedr
 const VEHICLE_LABEL: Record<string, string> = { van: 'Large van', '7.5t': '7.5 tonne lorry', '18t': '18 tonne rigid', '26t': '26 tonne rigid', artic: 'Articulated lorry (13.6 m)' };
 
 /** Validate what the customer filled in and turn it into a clean details object + title. */
-/** FreightMatch categories (same keys in public/assets/match-ui.js). */
-export const MATCH_CATS = {
-  furniture: 'Furniture and general items', boxes: 'Boxes and parcels', home: 'Home move', office: 'Office move', pallets: 'Pallets and haulage',
-  cars: 'Cars', motorbikes: 'Motorbikes', vehicles: 'Vans, caravans and other vehicles', boats: 'Boats', pianos: 'Pianos', machinery: 'Machinery and equipment', other: 'Other',
-} as const;
-export type MatchCat = keyof typeof MATCH_CATS;
-const VEHICLE_CATS = ['cars', 'motorbikes', 'vehicles', 'boats'];
-const ACCESS_CATS = ['furniture', 'home', 'office', 'pianos'];
-
 export function cleanDetails(kind: Kind, d: Record<string, unknown>) {
-  if (kind === 'transport') {
-    const category = oneOf(d.category, Object.keys(MATCH_CATS) as MatchCat[]);
-    const what = s(d.what, 200);
-    if (what.length < 3) throw new AppError('bad_request', 'Describe what needs moving (at least 3 characters)');
-    const qty = Math.round(n(d.qty) || 1);
-    if (!(qty >= 1 && qty <= 500)) throw new AppError('bad_request', 'Enter how many (1 to 500)');
-    const weightKg = Math.round(n(d.weightKg));
-    const v = (d.vehicle ?? {}) as Record<string, unknown>;
-    const a = (d.access ?? {}) as Record<string, unknown>;
-    const floor = (x: unknown) => oneOf(x, ['ground', '1', '2', '3', '4+'] as const, 'ground');
-    const details = {
-      category, what, qty, weightKg: weightKg > 0 && weightKg <= 44_000 ? weightKg : 0,
-      size: category === 'home' ? oneOf(d.size, ['studio', '1', '2', '3', '4', '5'] as const, '2') : category === 'office' ? oneOf(d.size, ['small', 'medium', 'large'] as const, 'small') : '',
-      vehicle: VEHICLE_CATS.includes(category) ? { make: s(v.make, 40), model: s(v.model, 40), runs: v.runs === undefined ? true : b(v.runs) } : null,
-      access: ACCESS_CATS.includes(category) ? { fromFloor: floor(a.fromFloor), toFloor: floor(a.toFloor), lift: b(a.lift), helpers: b(a.helpers) } : null,
-      dateFlex: oneOf(d.dateFlex, ['exact', 'week', 'flexible'] as const, 'week'),
-      notes: s(d.notes, 1000),
-    };
-    const t = what.replace(/\s+/g, ' ');
-    return { details, title: (t[0]!.toUpperCase() + t.slice(1)).slice(0, 80) };
-  }
   if (kind === 'removals') {
     const moveType = oneOf(d.moveType, ['home', 'office', 'items'] as const);
     const size = moveType === 'items' ? '' : oneOf(d.size, (moveType === 'home' ? ['studio', '1', '2', '3', '4', '5'] : ['small', 'medium', 'large']) as readonly string[]);
@@ -191,7 +159,7 @@ export class Market {
   /* ---------------- partners ---------------- */
 
   async registerPartner(input: { email: string; password: string; name: string; company: string; phone: string; kind: string; basePostcode?: string }) {
-    const kind = oneOf(input.kind, PARTNER_KINDS);
+    const kind = oneOf(input.kind, KINDS);
     const company = s(input.company, 120);
     if (company.length < 2) throw new AppError('bad_request', 'Enter your company name');
     if (!phoneOk(s(input.phone, 40))) throw new AppError('bad_request', 'Enter a phone number customers can call');
@@ -269,8 +237,8 @@ export class Market {
 
   async createJob(customerId: string, input: Record<string, unknown>) {
     const kind = oneOf(input.kind, KINDS);
-    const from = address(input.from, kind === 'removals' ? 'moving from' : 'collection', kind === 'transport');
-    const to = address(input.to, kind === 'removals' ? 'moving to' : 'delivery', kind === 'transport');
+    const from = address(input.from, kind === 'removals' ? 'moving from' : 'collection');
+    const to = address(input.to, kind === 'removals' ? 'moving to' : 'delivery');
     if (kind === 'removals' && (from.country !== 'GB' || to.country !== 'GB')) throw new AppError('bad_request', 'Home moves are within the UK for now');
     const { details, title } = cleanDetails(kind, (input.details ?? {}) as Record<string, unknown>);
     const moveDate = isoDate(input.date, kind === 'removals' ? 'moving date' : 'collection date', true)!;
@@ -282,8 +250,7 @@ export class Market {
       if (!/^data:image\/(jpeg|png|webp);base64,/.test(ph)) throw new AppError('bad_request', 'Photos must be JPG, PNG or WebP');
       if (ph.length > MAX_PHOTO_CHARS) throw new AppError('bad_request', 'A photo is too large');
     }
-    let miles = n(input.distanceMiles);
-    if (!(miles > 0) && kind === 'transport') miles = await routeInfo({ postcode: from.postcode, country: from.country }, { postcode: to.postcode, country: to.country }).then((r) => r.miles).catch(() => NaN);
+    const miles = n(input.distanceMiles);
     const id = newId('job');
     const now = this.now();
     await this.db.tx(async (q) => {
@@ -295,10 +262,8 @@ export class Market {
       for (const ph of photos) await q.run('INSERT INTO job_photos (id, job_id, data, created_at) VALUES ($1,$2,$3,$4)', [newId('pho'), id, ph, now]);
     });
     // Tell every active partner of this kind (they choose whether to quote).
-    const partners = kind === 'transport'
-      ? await this.db.all<{ email: string; company: string }>("SELECT email, company FROM partners WHERE status = 'active' LIMIT 500")
-      : await this.db.all<{ email: string; company: string }>("SELECT email, company FROM partners WHERE kind = $1 AND status = 'active' LIMIT 500", [kind]);
-    for (const p of partners) this.send(p.email, `New ${kind === 'removals' ? 'moving' : kind === 'transport' ? 'FreightMatch' : 'freight'} request: ${title}`, 'New request on Kargom',
+    const partners = await this.db.all<{ email: string; company: string }>("SELECT email, company FROM partners WHERE kind = $1 AND status = 'active' LIMIT 500", [kind]);
+    for (const p of partners) this.send(p.email, `New ${kind === 'removals' ? 'moving' : 'freight'} request: ${title}`, 'New request on Kargom',
       [`${title}, ${area(from)} → ${area(to)}, on ${moveDate}.`, 'Open it to see the details and send your price.'], { href: `${this.publicUrl}/partner/requests/${id}`, text: 'View the request' });
     return this.customerJob(customerId, id);
   }
@@ -393,7 +358,7 @@ export class Market {
     if (!j) throw new AppError('not_found', 'Not found');
     if (j.customer_id !== customerId) {
       const p = await this.requirePartner(customerId);
-      if (p.kind !== j.kind && j.kind !== 'transport') throw new AppError('not_found', 'Not found');
+      if (p.kind !== j.kind) throw new AppError('not_found', 'Not found');
     }
     const r = await this.db.get<{ data: string }>('SELECT data FROM job_photos WHERE id = $1 AND job_id = $2', [photoId, jobId]);
     const m = /^data:(image\/[a-z]+);base64,(.+)$/.exec(r?.data ?? '');
@@ -413,9 +378,7 @@ export class Market {
 
   /** Active partners of a kind, closest to `from` first. */
   private async rankPartners(kind: Kind, from: { postcode: string; city: string; country: string }, f?: typeof fetch) {
-    const ps = kind === 'transport'
-      ? await this.db.all<Partner>("SELECT * FROM partners WHERE status = 'active' LIMIT 300")
-      : await this.db.all<Partner>("SELECT * FROM partners WHERE kind = $1 AND status = 'active' LIMIT 300", [kind]);
+    const ps = await this.db.all<Partner>("SELECT * FROM partners WHERE kind = $1 AND status = 'active' LIMIT 300", [kind]);
     const here = from.country === 'GB' ? await outcodeCoords(outward(from.postcode), f) : null;
     const area = (pc: string) => (/^[A-Z]+/.exec(pc.toUpperCase()) ?? [''])[0];
     const scored = await Promise.all(ps.map(async (p) => {
@@ -561,7 +524,7 @@ export class Market {
       `SELECT j.*, o.status AS my_status, o.price_pence AS my_price,
               (SELECT COUNT(*) FROM job_offers x WHERE x.job_id = j.id AND x.status IN ('pending','accepted')) AS offers
        FROM jobs j LEFT JOIN job_offers o ON o.job_id = j.id AND o.partner_id = $1
-       WHERE (j.kind = $2 OR j.kind = 'transport') AND j.customer_id != $3 AND (j.status = 'open' OR o.id IS NOT NULL)
+       WHERE j.kind = $2 AND j.customer_id != $3 AND (j.status = 'open' OR o.id IS NOT NULL)
        ORDER BY j.created_at DESC LIMIT 300`, [p.id, p.kind, customerId]);
     const list = rows.map((j) => ({
       ...this.jobView(j, false), offers: Number(j.offers), myStatus: j.my_status, myPricePence: j.my_price === null ? null : Number(j.my_price),
@@ -575,7 +538,7 @@ export class Market {
   async partnerJob(customerId: string, jobId: string) {
     const p = await this.requirePartner(customerId);
     const j = await this.db.get<Job>('SELECT * FROM jobs WHERE id = $1', [jobId]);
-    if (!j || (j.kind !== p.kind && j.kind !== 'transport') || j.customer_id === customerId) throw new AppError('not_found', 'Request not found');
+    if (!j || j.kind !== p.kind || j.customer_id === customerId) throw new AppError('not_found', 'Request not found');
     const mine = await this.db.get<Offer>('SELECT * FROM job_offers WHERE job_id = $1 AND partner_id = $2', [j.id, p.id]);
     if (j.status !== 'open' && !mine) throw new AppError('not_found', 'This request is no longer open');
     const won = mine?.status === 'accepted';
@@ -592,7 +555,7 @@ export class Market {
   async makeOffer(customerId: string, jobId: string, v: Record<string, unknown>) {
     const p = await this.requirePartner(customerId);
     const j = await this.db.get<Job>('SELECT * FROM jobs WHERE id = $1', [jobId]);
-    if (!j || (j.kind !== p.kind && j.kind !== 'transport') || j.customer_id === customerId) throw new AppError('not_found', 'Request not found');
+    if (!j || j.kind !== p.kind || j.customer_id === customerId) throw new AppError('not_found', 'Request not found');
     if (j.status !== 'open') throw new AppError('conflict', 'This request is no longer taking offers');
     const pounds = n(String(v.price ?? '').replace(/[£,\s]/g, ''));
     if (!(pounds >= 10 && pounds <= 100_000)) throw new AppError('bad_request', 'Enter your total price in pounds, including VAT');
@@ -624,7 +587,7 @@ export class Market {
 
   async partnerStats(customerId: string) {
     const p = await this.requirePartner(customerId);
-    const open = await this.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs j WHERE (j.kind = $1 OR j.kind = 'transport') AND j.status = 'open' AND j.customer_id != $2 AND NOT EXISTS (SELECT 1 FROM job_offers o WHERE o.job_id = j.id AND o.partner_id = $3)", [p.kind, customerId, p.id]);
+    const open = await this.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM jobs j WHERE j.kind = $1 AND j.status = 'open' AND j.customer_id != $2 AND NOT EXISTS (SELECT 1 FROM job_offers o WHERE o.job_id = j.id AND o.partner_id = $3)", [p.kind, customerId, p.id]);
     const sent = await this.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM job_offers WHERE partner_id = $1 AND status = 'pending'", [p.id]);
     const won = await this.db.get<{ n: number; sum: number | null }>("SELECT COUNT(*) AS n, SUM(price_pence) AS sum FROM job_offers WHERE partner_id = $1 AND status = 'accepted'", [p.id]);
     return { open: Number(open?.n ?? 0), pending: Number(sent?.n ?? 0), won: Number(won?.n ?? 0), wonPence: Number(won?.sum ?? 0) };
