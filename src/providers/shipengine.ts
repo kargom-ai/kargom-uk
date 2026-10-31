@@ -55,20 +55,58 @@ export function normaliseCarrier(code: string, friendly: string): string {
 const toPence = (amount: number) => Math.round(amount * 100);
 
 /** Carriers reject empty strings and nulls in odd places, so only send fields that have a value. */
-function seAddress(a: Address) {
+/** Split a long street line at word breaks into pieces of at most `max` characters (UK carriers allow 40 per line). */
+export function splitLine(text: string, max = 40): string[] {
+  const out: string[] = [];
+  let cur = '';
+  for (const w of text.replace(/\s+/g, ' ').trim().split(' ')) {
+    const word = w.length > max ? w.slice(0, max) : w;
+    if (!cur) cur = word;
+    else if (`${cur} ${word}`.length <= max) cur = `${cur} ${word}`;
+    else { out.push(cur.replace(/,$/, '')); cur = word; }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/**
+ * Phone in the form UK carriers accept (starting 0 or 44), or null when it is not a UK number.
+ * "+44 7700 900123" -> "447700900123", "7700900123" -> "07700900123".
+ */
+export function ukPhone(raw: string | undefined | null): string | null {
+  let d = String(raw ?? '').replace(/[^\d+]/g, '');
+  if (d.startsWith('+')) d = d.slice(1);
+  if (d.startsWith('0044')) d = d.slice(2);
+  if (d.startsWith('440')) d = `44${d.slice(3)}`; // "+44 (0)7700..."
+  if (/^44\d{9,10}$/.test(d) || /^0\d{9,10}$/.test(d)) return d;
+  if (/^7\d{9}$/.test(d)) return `0${d}`; // mobile typed without the 0
+  return null;
+}
+
+const UKISH = ['GB', 'JE', 'GG', 'IM'];
+
+function seAddress(a: Address, role: 'from' | 'to') {
+  // Line 1 may be at most 40 characters: the rest moves to lines 2 and 3.
+  const lines = [...splitLine(a.line1 || 'Address'), ...(a.line2 ? splitLine(a.line2) : [])];
+  // Most carriers insist on a phone number; quotes from the homepage do not have one yet.
+  const fallback = process.env.DEFAULT_SHIPPER_PHONE ?? '07700900000';
+  const typed = a.phone && a.phone.trim() ? a.phone.trim() : '';
+  const phone = UKISH.includes(a.country) ? (ukPhone(typed) ?? ukPhone(fallback) ?? fallback) : (typed || fallback);
   const out: Record<string, string> = {
-    name: a.name || 'Customer',
-    // Most carriers insist on a phone number; quotes from the homepage do not have one yet.
-    phone: a.phone && a.phone.trim() ? a.phone.trim() : (process.env.DEFAULT_SHIPPER_PHONE ?? '07700900000'),
-    address_line1: a.line1 || 'Address',
+    name: (a.name || 'Customer').slice(0, 40),
+    address_line1: lines[0]!,
     city_locality: a.city || 'City',
     postal_code: a.postcode,
     country_code: a.country,
     address_residential_indicator: 'unknown',
   };
-  if (a.company) out.company_name = a.company;
-  if (a.email) out.email = a.email;
-  if (a.line2) out.address_line2 = a.line2;
+  if (phone) out.phone = phone;
+  if (a.company) out.company_name = a.company.slice(0, 40);
+  // Carriers want an email for the sender: theirs if we have it, otherwise our order desk.
+  const email = a.email || (role === 'from' ? process.env.DEFAULT_SHIPPER_EMAIL || 'orders@kargom.co.uk' : '');
+  if (email) out.email = email;
+  if (lines[1]) out.address_line2 = lines[1];
+  if (lines[2]) out.address_line3 = lines.slice(2).join(' ').slice(0, 40);
   return out;
 }
 
@@ -115,8 +153,8 @@ export class ShipEngineProvider implements ShippingProvider {
   private shipmentBody(req: ShipmentRequest) {
     const p = req.parcel;
     return {
-      ship_from: seAddress(req.from),
-      ship_to: seAddress(req.to),
+      ship_from: seAddress(req.from, 'from'),
+      ship_to: seAddress(req.to, 'to'),
       packages: [
         {
           weight: { value: p.weightGrams, unit: 'gram' },
