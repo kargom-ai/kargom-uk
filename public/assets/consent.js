@@ -1,6 +1,7 @@
 /*
- * Google Ads tag (AW-18548186219) with cookie consent, as UK law (PECR / UK GDPR) asks:
- * nothing from Google loads until the visitor clicks Accept. The choice is remembered for 6 months.
+ * Google Ads tag (AW-18548186219) with Google Consent Mode v2, as UK law (PECR / UK GDPR) asks:
+ * the tag loads on every page, but no advertising cookies are written until the visitor clicks Accept.
+ * The choice is remembered for 6 months.
  * Any element with data-cookie-settings opens the banner again (e.g. a "Cookie settings" link in the footer).
  */
 (function () {
@@ -16,18 +17,23 @@
   }
   function save(choice) { try { localStorage.setItem(KEY, JSON.stringify({ choice: choice, at: Date.now() })); } catch (e) { /* private mode */ } }
 
-  var loaded = false;
-  function load() {
-    if (loaded) return;
-    loaded = true;
-    gtag('consent', 'default', { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted' });
+  // Consent Mode v2: the tag is always on the page (so Google can see it), but with everything "denied":
+  // no cookies are written and nothing personal is stored until the visitor clicks Accept.
+  var GRANTED = { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted' };
+  gtag('consent', 'default', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied', wait_for_update: 500 });
+  gtag('set', 'ads_data_redaction', true);
+  gtag('set', 'url_passthrough', true);
+  if (read() === 'granted') gtag('consent', 'update', GRANTED);
+  if (!document.querySelector('script[src*="googletagmanager.com/gtag/js"]')) {
     var s = document.createElement('script');
     s.async = true;
     s.src = 'https://www.googletagmanager.com/gtag/js?id=' + AW;
-    document.head.appendChild(s);
-    gtag('js', new Date());
-    gtag('config', AW);
+    (document.head || document.documentElement).appendChild(s);
   }
+  gtag('js', new Date());
+  gtag('config', AW);
+  var loaded = true;
+  function load() { gtag('consent', 'update', GRANTED); }
 
   /** For later: window.kgConversion('AW-…/label', { value: 4.99, currency: 'GBP', transaction_id: 'KGM-…' }) */
   window.kgConversion = function (sendTo, extra) { if (loaded) gtag('event', 'conversion', Object.assign({ send_to: sendTo }, extra || {})); };
@@ -54,7 +60,7 @@
       b.addEventListener('click', function () { fn(); box.remove(); });
       return b;
     }
-    btns.appendChild(btn('Reject', false, function () { save('denied'); }));
+    btns.appendChild(btn('Reject', false, function () { save('denied'); gtag('consent', 'update', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied' }); }));
     btns.appendChild(btn('Accept', true, function () { save('granted'); load(); }));
     box.appendChild(p);
     box.appendChild(btns);

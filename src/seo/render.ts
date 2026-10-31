@@ -69,6 +69,7 @@ ${headTags(o)}
 <link rel="stylesheet" href="/assets/seo.css">
 <link rel="stylesheet" href="/assets/foot.css">
 <script type="module" src="/assets/pages/seo.js"></script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18548186219"></script>
 <script src="/assets/consent.js" defer></script>
 ${ld.map(jsonLd).join('\n')}
 </head>
@@ -546,7 +547,7 @@ export function cookiesPage() {
 <p>This policy explains the cookies and similar storage used on Kargom.co.uk, which is run by ${esc(c.name)}.</p>
 
 <h2>Our approach</h2>
-<p>Most of our cookies are strictly necessary for the site to work, such as keeping you signed in and taking payments securely. UK law (the Privacy and Electronic Communications Regulations) allows these without consent. We also use <b>Google Ads cookies</b> to see which of our ads bring visitors. These are set <b>only if you click Accept</b> on our cookie banner. If you click Reject, nothing from Google Ads is loaded.</p>
+<p>Most of our cookies are strictly necessary for the site to work, such as keeping you signed in and taking payments securely. UK law (the Privacy and Electronic Communications Regulations) allows these without consent. We also use <b>Google Ads cookies</b> to see which of our ads bring visitors. These cookies are set <b>only if you click Accept</b> on our cookie banner. Our pages load Google's tag in "consent mode": until you accept, it writes no cookies and stores nothing on your device, and only sends Google basic, cookieless signals (such as that a page was viewed).</p>
 
 <h2>Cookies we use</h2>
 <div class="tblwrap"><table class="tbl"><thead><tr><th>Name</th><th>Set by</th><th>Purpose</th><th>How long</th></tr></thead><tbody>
