@@ -215,16 +215,23 @@ export class ShipEngineProvider implements ShippingProvider {
   async buyLabel(rate: ProviderRate, _req: ShipmentRequest, _idempotencyKey: string): Promise<Label> {
     // A rate id is used up once a label is bought from it, so never hand it out again.
     for (const [k, v] of this.rateCache) if (v.rates.some((x) => x.providerRateId === rate.providerRateId)) this.rateCache.delete(k);
-    const out = await this.call<{
-      label_id: string;
-      tracking_number: string;
-      label_download?: { pdf?: string; href?: string };
-      shipment_cost?: { amount: number };
-    }>('POST', `/labels/rates/${encodeURIComponent(rate.providerRateId)}`, {
-      label_format: this.cfg.labelFormat ?? 'pdf',
-      label_layout: this.cfg.labelLayout ?? '4x6',
-      ...(this.cfg.testLabels ? { test_label: true } : {}),
-    });
+    type Out = { label_id: string; tracking_number: string; label_download?: { pdf?: string; href?: string }; shipment_cost?: { amount: number } };
+    let out: Out;
+    try {
+      out = await this.call<Out>('POST', `/labels/rates/${encodeURIComponent(rate.providerRateId)}`, {
+        label_format: this.cfg.labelFormat ?? 'pdf',
+        label_layout: this.cfg.labelLayout ?? '4x6',
+        ...(this.cfg.testLabels ? { test_label: true } : {}),
+      });
+    } catch (e) {
+      // Test mode: some carriers (most UK ones on ShipStation) cannot make test labels. Rather than fail,
+      // hand back our own sample label marked "not valid for postage", so the booking flow can be tried.
+      if (this.cfg.testLabels && /test labels? (are|is) not supported/i.test((e as Error).message)) {
+        const id = `test-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+        return { providerLabelId: id, trackingNumber: `TEST${Date.now().toString().slice(-9)}`, labelUrl: `/api/test-label/${id}.pdf?c=${encodeURIComponent(rate.carrierName ?? rate.carrier)}&s=${encodeURIComponent(rate.serviceName)}`, cost: rate.cost };
+      }
+      throw e;
+    }
     return {
       providerLabelId: out.label_id,
       trackingNumber: out.tracking_number,
@@ -234,6 +241,7 @@ export class ShipEngineProvider implements ShippingProvider {
   }
 
   async voidLabel(providerLabelId: string): Promise<boolean> {
+    if (providerLabelId.startsWith('test-')) return true; // our own sample label: nothing to cancel at the carrier
     const out = await this.call<{ approved?: boolean }>('PUT', `/labels/${encodeURIComponent(providerLabelId)}/void`);
     return Boolean(out.approved);
   }

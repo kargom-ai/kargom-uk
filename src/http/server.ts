@@ -22,6 +22,7 @@ import { googleEnabled, googleAuthUrl, googleUser, newState } from '../auth/goog
 import { placeLogo } from '../market/places.ts';
 import { freightRates, parseFreightQuery } from '../freight/rates.ts';
 import { freightForwarders, topForwarders } from '../freight/forwarders.ts';
+import { minimalLabelPdf } from '../guest/pdf.ts';
 import { forwardingEstimate, joinForwardingWaitlist } from '../forwarding/forwarding.ts';
 import { shopIcon } from '../forwarding/turkey.ts';
 import { eurosenderTestOrder } from '../freight/eurosender.ts';
@@ -300,6 +301,14 @@ export function buildRouter(app: App) {
   on('GET', '/api/guest/address', 'public', async (c) => {
     guestLimiter.check(ip(c));
     return { ...(await addresses.byPostcode(c.query.get('postcode') ?? '')), fullList: addresses.hasAddressList };
+  });
+  /** Sample label for carriers that cannot make ShipStation test labels (test mode only); says it is not valid for postage. */
+  on('GET', '/api/test-label/:id', 'public', async (c) => {
+    const q = (k: string) => String(c.query.get(k) ?? '').slice(0, 60);
+    const pdf = minimalLabelPdf(['TEST LABEL - NOT VALID FOR POSTAGE', q('c'), q('s'), '', `Label: ${c.params.id!.replace(/\.pdf$/, '').slice(0, 40)}`, '',
+      'This carrier does not make test labels.', 'A real label is made when the site', 'runs in live mode.']);
+    c.res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': String(pdf.length), 'Cache-Control': 'no-store', 'Content-Disposition': 'inline; filename="test-label.pdf"' });
+    c.res.end(pdf);
   });
   on('GET', '/api/guest/label/:token', 'public', async (c) => guest.view(c.params.token!));
   on('POST', '/api/guest/demo-pay/:token', 'public', async (c) => guest.demoPay(c.params.token!));

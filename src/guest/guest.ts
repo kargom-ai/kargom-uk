@@ -107,7 +107,7 @@ export class GuestCheckout {
   async labelPdf(token: string): Promise<Buffer> {
     const { s } = await this.shipmentFor(token);
     if (!s.label_url) throw new AppError('not_found', 'The label is not ready yet');
-    if (s.provider === 'mock' || s.label_url.startsWith('https://labels.example/')) {
+    if (s.provider === 'mock' || s.label_url.startsWith('https://labels.example/') || s.label_url.startsWith('/api/test-label/')) {
       const t = JSON.parse(s.to_json) as Address, f = JSON.parse(s.from_json) as Address;
       return minimalLabelPdf([`TEST LABEL - ${s.service_name}`, `Tracking: ${s.tracking_number ?? ''}`, `Ref: ${s.ref}`, '',
         'FROM:', f.name, f.line1, `${f.city} ${f.postcode}`, '', 'TO:', t.name, t.line1, ...(t.line2 ? [t.line2] : []), `${t.city} ${t.postcode}`]);
