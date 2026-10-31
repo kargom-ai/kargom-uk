@@ -40,10 +40,13 @@ class Component extends DCLogic {
     document.addEventListener('kg-inbox', (e) => this.setState({ inbox: e.detail }));
     loadInbox().then(() => { if (['ship', 'wallet', 'help'].includes(this.state.nav)) readArea(this.state.nav); });
     const sq = new URLSearchParams(location.search);
-    if (sq.get('shopify')) {
+    for (const [k, name] of [['shopify', 'Shopify'], ['woo', 'WooCommerce']]) {
+      if (!sq.get(k)) continue;
       history.replaceState(null, '', '/app?view=int');
-      if (sq.get('shopify') === 'connected') this.say('Shopify connected. Your unshipped orders are below.');
-      else this.say(sq.get('msg') || 'Shopify could not be connected. Please try again.');
+      if (sq.get(k) === 'connected') {
+        this.say(`${name} connected. Your orders will appear in a few seconds.`);
+        setTimeout(() => api('/api/shop').then((shop) => this.setState({ shop })).catch(() => {}), 5000);
+      } else this.say(sq.get('msg') || `${name} could not be connected. Please try again.`);
     }
     const back = new URLSearchParams(location.search).get('topup');
     if (back) {
@@ -297,44 +300,52 @@ class Component extends DCLogic {
       ['ebay', 'eBay', 'e', '#E53238', 'Pull sold items and mark them dispatched automatically.'], ['etsy', 'Etsy', 'E', '#F1641E', 'Bring in Etsy orders with buyer addresses filled in.'],
       ['amazon', 'Amazon', 'a', '#232F3E', 'Seller Central orders, with tracking sent to Amazon.'], ['wix', 'Wix', 'W', '#0C6EFC', 'Connect your Wix store and ship from one place.'],
       ['squarespace', 'Squarespace', 'S', '#1F2A3C', 'Import orders from your Squarespace commerce site.'], ['csv', 'CSV upload', '↑', '#33AEEF', 'Upload a spreadsheet of addresses to book in bulk.']];
-    const apps = APPS.filter(([id]) => id !== 'shopify').map(([, name, ini, color, desc]) => ({ name, ini, color, desc, state: 'Coming soon', stFg: '#8593A8', border: '#E1E7EF',
+    const apps = APPS.filter(([id]) => id !== 'shopify' && id !== 'woo').map(([, name, ini, color, desc]) => ({ name, ini, color, desc, state: 'Coming soon', stFg: '#8593A8', border: '#E1E7EF',
       cta: 'Notify me', bBg: '#FFFFFF', bFg: '#3E4A5C', bBorder: '#C9D6EA', toggle: () => this.say(`We will email you when ${name} is ready.`) }));
 
-    // ---- Shopify (live)
-    const SH = st.shop || { enabled: false, stores: [], orders: [] };
-    const shConnected = SH.stores.length > 0;
+    // ---- connected shops (Shopify, WooCommerce)
+    const SH = st.shop || { shopify: { enabled: false, stores: [] }, woo: { enabled: false, stores: [] }, orders: [] };
     const when = (iso) => (iso ? dateTime(iso) : 'not yet');
-    const shStores = SH.stores.map((x) => ({ name: x.name, shop: x.shop, synced: `Last checked ${when(x.lastSyncAt)}`,
-      disconnect: async () => { try { this.setState({ shop: await api(`/api/shop/stores/${x.id}/disconnect`, { method: 'POST' }) }); this.say(`${x.name} disconnected`); } catch (e) { this.say(e.message); } } }));
-    const shOpen = SH.orders.filter((o) => o.status === 'open');
-    const shDone = SH.orders.filter((o) => o.status === 'shipped').slice(0, 10);
     const shRow = (o) => {
       const done = o.status === 'shipped', err = done && !o.pushedAt && o.pushError;
+      const pn = o.platform === 'woo' ? 'WooCommerce' : 'Shopify';
       return { name: o.name, store: o.store, date: shortDate(o.orderedAt), to: [o.to.name, o.to.city, o.to.postcode, o.to.country !== 'GB' ? o.to.country : ''].filter(Boolean).join(' · '),
         items: o.items.slice(0, 3).join(', ') + (o.items.length > 3 ? ` +${o.items.length - 3} more` : ''), kg: o.weightGrams ? `${(o.weightGrams / 1000).toFixed(1)} kg` : 'Weight not set',
         total: o.totalPence ? `${o.currency === 'GBP' || !o.currency ? '£' : `${o.currency} `}${(o.totalPence / 100).toFixed(2)}` : '',
-        open: !done, chip: done ? (o.pushedAt ? 'Tracking sent to Shopify' : err ? 'Tracking not sent' : 'Waiting for label') : 'Needs shipping',
+        chip: done ? (o.pushedAt ? `Tracking sent to ${pn}` : err ? 'Tracking not sent' : 'Waiting for label') : 'Needs shipping',
         chipCls: done ? (o.pushedAt ? 'ok' : err ? 'bad' : 'wait') : 'todo', err: err ? o.pushError : '',
         shipUrl: `/app/send?shopOrder=${encodeURIComponent(o.id)}`,
         hide: async () => { try { this.setState({ shop: await api(`/api/shop/orders/${o.id}/ignore`, { method: 'POST' }) }); } catch (e) { this.say(e.message); } } };
     };
-    const shop = {
-      on: SH.enabled && !shConnected, off: !SH.enabled && !shConnected, connected: shConnected, notConnected: !shConnected,
-      status: shConnected ? `Connected · ${SH.stores.map((x) => x.name).join(', ')}` : SH.enabled ? 'Not connected' : 'Switching on soon',
-      statusCls: shConnected ? 'ok' : 'todo', stores: shStores, orders: shOpen.map(shRow), shipped: shDone.map(shRow),
-      hasOrders: shOpen.length > 0, noOrders: shConnected && shOpen.length === 0, hasShipped: shDone.length > 0,
-      count: shOpen.length ? `${shOpen.length} order${shOpen.length > 1 ? 's' : ''} to ship` : '',
-      connect: () => {
-        const v = String(field('Shopify store') || '').trim();
-        if (!v) { this.say('Type your Shopify address, for example my-shop.myshopify.com'); return; }
-        location.href = `/api/shop/shopify/connect?shop=${encodeURIComponent(v)}`;
-      },
-      sync: async () => {
-        this.say('Checking Shopify for new orders…');
-        try { const r = await api('/api/shop/sync', { method: 'POST' }); this.setState({ shop: r }); this.say(r.added ? `${r.added} new order${r.added > 1 ? 's' : ''} from Shopify` : 'No new orders'); } catch (e) { this.say(e.message); }
-      },
+    const shopSync = async () => {
+      this.say('Checking your shops for new orders…');
+      try {
+        const r = await api('/api/shop/sync', { method: 'POST' }); this.setState({ shop: r });
+        this.say(r.errors?.length ? r.errors[0] : r.added ? `${r.added} new order${r.added > 1 ? 's' : ''}` : 'No new orders');
+      } catch (e) { this.say(e.message); }
     };
-
+    const PLAT = {
+      shopify: { title: 'Shopify', input: 'Shopify store', label: 'Your Shopify address', ph: 'my-shop.myshopify.com', btn: 'Connect Shopify',
+        lead: 'Paid orders that still need shipping come in here. Click Ship, pick a courier and print the label. The tracking number goes back to the Shopify order, and Shopify emails your customer.',
+        go: (v) => `/api/shop/shopify/connect?shop=${encodeURIComponent(v)}`, need: 'Type your Shopify address, for example my-shop.myshopify.com' },
+      woo: { title: 'WooCommerce', input: 'WooCommerce site', label: 'Your shop website', ph: 'https://www.my-shop.co.uk', btn: 'Connect WooCommerce',
+        lead: 'Orders in Processing come in here. After you book, the tracking number is added to the order (your customer gets it by email) and the order is marked Completed. You approve Kargom once in your WordPress admin.',
+        go: (v) => `/api/shop/woo/connect?site=${encodeURIComponent(v)}`, need: 'Type your shop website, for example https://www.my-shop.co.uk' },
+    };
+    const shopCards = Object.entries(PLAT).map(([id, P]) => {
+      const info = SH[id] || { enabled: false, stores: [] };
+      const connected = info.stores.length > 0;
+      const mine = SH.orders.filter((o) => o.platform === id);
+      const open = mine.filter((o) => o.status === 'open'), done = mine.filter((o) => o.status === 'shipped').slice(0, 10);
+      return { ...P, isShopify: id === 'shopify', isWoo: id === 'woo',
+        on: info.enabled && !connected, off: !info.enabled && !connected, connected,
+        status: connected ? `Connected · ${info.stores.map((x) => x.name).join(', ')}` : info.enabled ? 'Not connected' : 'Switching on soon', statusCls: connected ? 'ok' : 'todo',
+        stores: info.stores.map((x) => ({ name: x.name, shop: x.shop.replace(/^https:\/\//, ''), synced: `Last checked ${when(x.lastSyncAt)}`,
+          disconnect: async () => { try { this.setState({ shop: await api(`/api/shop/stores/${x.id}/disconnect`, { method: 'POST' }) }); this.say(`${x.name} disconnected`); } catch (e) { this.say(e.message); } } })),
+        orders: open.map(shRow), shipped: done.map(shRow), hasOrders: open.length > 0, noOrders: connected && open.length === 0, hasShipped: done.length > 0,
+        count: open.length ? `${open.length} order${open.length > 1 ? 's' : ''} to ship` : '', sync: shopSync,
+        connect: () => { const v = String(field(P.input) || '').trim(); if (!v) { this.say(P.need); return; } location.href = P.go(v); } };
+    });
     // ---- settings
     const SET = [['profile', 'Profile'], ['company', 'Company'], ['prefs', 'Preferences'], ['notif', 'Notifications'], ['sec', 'Security'], ['team', 'Team']];
     const setTabs = SET.map(([id, label]) => ({ label, on: st.setTab === id ? 'true' : 'false', line: st.setTab === id ? '#2463DB' : 'transparent', fg: st.setTab === id ? '#1F2A3C' : '#586579',
@@ -442,7 +453,7 @@ class Component extends DCLogic {
       nav, isDash: st.nav === 'dash', isWallet: st.nav === 'wallet',
       isShip: st.nav === 'ship', isInv: st.nav === 'inv', isAddr: st.nav === 'addr', isRet: false, isInt: st.nav === 'int', isSet: st.nav === 'set',
       shipRows, shipTabs, hasSel: selCount > 0, selCount, clearSel: () => this.setState({ shipSel: {} }), shipShown: shipRows.length ? `1–${shipRows.length}` : '0', shipTotal: String(st.shipments.length), pages: [],
-      invoices, invStats, billing, addrs, abTabs, returns: [], payers: [], retSvcs: [], apps, shop,
+      invoices, invStats, billing, addrs, abTabs, returns: [], payers: [], retSvcs: [], apps, shopCards,
       copyTxt: 'Copy link', copyLink: () => {}, apiKey: 'Available on request', keyBtn: 'Request', toggleKey: () => this.say('Ask us in Help for API access.'),
       setTabs, fields, setForm: st.setTab === 'profile' || st.setTab === 'company', setPrefs: st.setTab === 'prefs', setNotif: st.setTab === 'notif', setSec: st.setTab === 'sec', setTeam: st.setTab === 'team',
       formats, prefToggles, notifs, sessions, team, saved,

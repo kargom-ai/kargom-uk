@@ -745,12 +745,20 @@ export function buildRouter(app: App) {
     try { await app.shopify.callback(c.query); return redirect(c, '/app?view=int&shopify=connected'); }
     catch (e) { console.warn(`[shopify] callback: ${(e as Error).message}`); return redirect(c, `/app?view=int&shopify=error&msg=${encodeURIComponent((e as Error).message.slice(0, 120))}`); }
   });
-  on('GET', '/api/shop', 'customer', async (c) => app.shopify.overview(me(c)));
-  on('POST', '/api/shop/sync', 'customer', async (c) => { marketLimiter.check(me(c)); return app.shopify.sync(me(c)); });
-  on('POST', '/api/shop/stores/:id/disconnect', 'customer', async (c) => app.shopify.disconnect(me(c), c.params.id!));
-  on('GET', '/api/shop/orders/:id', 'customer', async (c) => app.shopify.prefill(me(c), c.params.id!));
-  on('POST', '/api/shop/orders/:id/ignore', 'customer', async (c) => app.shopify.ignore(me(c), c.params.id!));
-  on('POST', '/api/shop/orders/:id/link', 'customer', async (c) => app.shopify.link(me(c), c.params.id!, str(c.body?.shipmentId, 'Shipment', 60)));
+  on('GET', '/api/shop', 'customer', async (c) => app.stores.overview(me(c)));
+  on('POST', '/api/shop/sync', 'customer', async (c) => { marketLimiter.check(me(c)); return app.stores.sync(me(c)); });
+  on('POST', '/api/shop/stores/:id/disconnect', 'customer', async (c) => app.stores.disconnect(me(c), c.params.id!));
+  on('GET', '/api/shop/orders/:id', 'customer', async (c) => app.stores.prefill(me(c), c.params.id!));
+  on('POST', '/api/shop/orders/:id/ignore', 'customer', async (c) => app.stores.ignore(me(c), c.params.id!));
+  on('POST', '/api/shop/orders/:id/link', 'customer', async (c) => app.stores.link(me(c), c.params.id!, str(c.body?.shipmentId, 'Shipment', 60)));
+  // ---------- WooCommerce: the merchant approves Kargom on their own WordPress site, which posts us an API key
+  on('GET', '/api/shop/woo/connect', 'customer', async (c) => {
+    marketLimiter.check(me(c));
+    try { return redirect(c, await app.woo.authorizeUrl(me(c), c.query.get('site'), siteBase(c.req))); }
+    catch (e) { return redirect(c, `/app?view=int&woo=error&msg=${encodeURIComponent((e as Error).message.slice(0, 120))}`); }
+  });
+  on('POST', '/api/shop/woo/callback', 'webhook', async (c) => { publicLimiter.check(ip(c)); await app.woo.callback(c.raw); return { ok: true }; });
+  on('GET', '/api/shop/woo/return', 'public', async (c) => redirect(c, c.query.get('success') === '1' ? '/app?view=int&woo=connected' : '/app?view=int&woo=error&msg=' + encodeURIComponent('The connection was not approved in WooCommerce.')));
   on('POST', '/webhooks/shopify', 'webhook', async (c) => {
     const secret = process.env.SHOPIFY_API_SECRET ?? '';
     if (!secret || !validWebhookHmac(c.raw, c.req.headers['x-shopify-hmac-sha256'] as string | undefined, secret)) throw new AppError('unauthorized', 'Bad Shopify signature');

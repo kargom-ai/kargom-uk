@@ -17,8 +17,8 @@ import { CARRIER_LABEL } from '../notify/names.ts';
 export const SHOPIFY_DEFAULT_SCOPES = 'read_orders,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders';
 const SHOP_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
 
-type Conn = { id: string; customer_id: string; platform: string; shop: string; shop_name: string | null; token: string | null; scopes: string | null; status: string; last_sync_at: string | null; created_at: string };
-type OrderRow = { id: string; connection_id: string; customer_id: string; external_id: string; name: string; ordered_at: string; buyer_email: string | null; ship_to: string; items: string;
+export type Conn = { id: string; customer_id: string; platform: string; shop: string; shop_name: string | null; token: string | null; scopes: string | null; status: string; last_sync_at: string | null; created_at: string };
+export type OrderRow = { id: string; connection_id: string; customer_id: string; external_id: string; name: string; ordered_at: string; buyer_email: string | null; ship_to: string; items: string;
   weight_grams: number; total_pence: number; currency: string | null; fulfillment_orders: string; status: string; shipment_id: string | null; pushed_at: string | null; push_error: string | null; synced_at: string };
 export type ShipTo = { name: string; company: string; line1: string; line2: string; city: string; postcode: string; country: string; phone: string; email: string };
 
@@ -45,7 +45,7 @@ export function validWebhookHmac(raw: string, header: string | undefined, secret
   return got.length === want.length && timingSafeEqual(Buffer.from(got), Buffer.from(want));
 }
 
-const TRACK_URL: Record<string, (n: string) => string> = {
+export const TRACK_URL: Record<string, (n: string) => string> = {
   royal_mail: (n) => `https://www.royalmail.com/track-your-item#/tracking-results/${n}`, evri: (n) => `https://www.evri.com/track/parcel/${n}/details`,
   dpd: (n) => `https://track.dpd.co.uk/parcels/${n}`, yodel: (n) => `https://www.yodel.co.uk/track/${n}`, parcelforce: (n) => `https://www.parcelforce.com/track-trace?trackNumber=${n}`,
   ups: (n) => `https://www.ups.com/track?tracknum=${n}`, dhl: (n) => `https://www.dhl.com/gb-en/home/tracking/tracking-express.html?submit=1&tracking-id=${n}`,
@@ -241,6 +241,8 @@ export class ShopifyIntegration {
   async pushTracking(shipmentId: string) {
     const o = await this.db.get<OrderRow>('SELECT * FROM shop_orders WHERE shipment_id = $1', [shipmentId]);
     if (!o || o.pushed_at) return false;
+    const conn = await this.db.get<Conn>('SELECT * FROM shop_connections WHERE id = $1', [o.connection_id]);
+    if (conn?.platform !== 'shopify') return false;
     const s = await this.db.get<{ tracking_number: string | null; carrier: string; status: string }>('SELECT tracking_number, carrier, status FROM shipments WHERE id = $1', [shipmentId]);
     if (!s?.tracking_number || s.status === 'failed') return false;
     const fos = JSON.parse(o.fulfillment_orders) as string[];

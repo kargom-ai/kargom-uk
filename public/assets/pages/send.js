@@ -85,17 +85,17 @@ class Component extends DCLogic {
       const a = { name: t.name || t.company, company: t.company || undefined, phone: t.phone, email: t.email, line1: t.line1, line2: t.line2, city: t.city, postcode: t.postcode, country: t.country || 'GB' };
       const intl = a.country !== 'GB';
       const kg = Math.max(0.1, Math.round((o.weightGrams || 1000) / 100) / 10);
-      const parcel = { id: 'shop', name: `Shopify order ${o.name}`, kg, l: 30, w: 20, h: 15 };
+      const parcel = { id: 'shop', name: `${o.platformName || 'Shop'} order ${o.name}`, kg, l: 30, w: 20, h: 15 };
       const goods = intl ? (o.items || []).map((it, i) => ({ id: `shop-${i}`, name: it.name, value: (it.valuePence || 0) / 100, hs: '', origin: 'GB', qty: it.quantity || 1 })) : [];
       const st = this.state;
       this.setState({
         mode: intl ? 'intl' : 'uk', myRecips: [a, ...st.myRecips.filter((x) => addrKey(x) !== addrKey(a))], recip: addrKey(a),
         parcels: [parcel, ...st.parcels.filter((p) => p.id !== 'shop')], parcel: 'shop',
         savedItems: [...goods.map(({ qty, ...g }) => g), ...st.savedItems.filter((x) => !String(x.id).startsWith('shop-'))],
-        items: Object.fromEntries(goods.map((g) => [g.id, g.qty])), shopOrder: { id: o.id, name: o.name },
+        items: Object.fromEntries(goods.map((g) => [g.id, g.qty])), shopOrder: { id: o.id, name: o.name, pn: o.platformName || 'Shop' },
       });
-      try { sessionStorage.setItem('kg_shop_order', JSON.stringify({ id: o.id, name: o.name })); } catch { /* private mode */ }
-      toast(`Filled in from Shopify order ${o.name}. Check the parcel size, then choose a courier.`);
+      try { sessionStorage.setItem('kg_shop_order', JSON.stringify({ id: o.id, name: o.name, pn: o.platformName || 'Shop' })); } catch { /* private mode */ }
+      toast(`Filled in from ${o.platformName || 'Shop'} order ${o.name}. Check the parcel size, then choose a courier.`);
     } catch (e) { toast(e.message); }
   }
 
@@ -108,8 +108,8 @@ class Component extends DCLogic {
       await api(`/api/shop/orders/${encodeURIComponent(so.id)}/link`, { method: 'POST', body: { shipmentId } });
       try { sessionStorage.removeItem('kg_shop_order'); } catch { /* fine */ }
       this.setState({ shopOrder: null });
-      toast(`Shopify order ${so.name} will be marked as shipped with this tracking number.`);
-    } catch (e) { toast(`Could not update Shopify: ${e.message}`); }
+      toast(`${so.pn || 'Shopify'} order ${so.name} will be marked as shipped with this tracking number.`);
+    } catch (e) { toast(`Could not update ${so.pn || 'your shop'}: ${e.message}`); }
   }
 
   /** Label that the courier issues later (Packlink): refresh the done screen when it arrives. */

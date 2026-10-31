@@ -2,6 +2,8 @@ import { Market } from './market/market.ts';
 import { TurkeyForwarding } from './forwarding/turkey.ts';
 import { Inbox } from './notify/inbox.ts';
 import { ShopifyIntegration } from './integrations/shopify.ts';
+import { WooIntegration } from './integrations/woo.ts';
+import { StoreHub } from './integrations/stores.ts';
 import type { Db } from './db/db.ts';
 import { migrate } from './db/migrate.ts';
 import { systemClock, type Clock } from './core/clock.ts';
@@ -75,6 +77,8 @@ export async function createApp(db: Db, config: AppConfig, payments: PaymentGate
     return channels.map((c) => c.id);
   };
   const shopify = new ShopifyIntegration(db, clock, box);
+  const woo = new WooIntegration(db, clock, box);
+  const stores = new StoreHub(db, shopify, woo);
   const turkey = new TurkeyForwarding(db, clock, ledger, wallet, payments);
   turkey.publicUrl = market.publicUrl;
   const inbox = new Inbox(db, clock);
@@ -103,8 +107,8 @@ export async function createApp(db: Db, config: AppConfig, payments: PaymentGate
   };
   bookings.onLabelReady = (id, instant) => {
     shipInfo(id).then((s) => s && inbox.push(s.customer_id, 'ship', `Label ready: ${s.ref}`, `To ${toName(s.to_json)}. Print it before drop-off.`, '/app?view=ship')).catch(() => {}); notifier.labelReady(id, { instant }).catch((e) => console.warn(`[notify] ${id}: ${(e as Error).message}`));
-    shopify.pushTracking(id).catch(() => {}); };
-  return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments, notifier, refreshNotifier, market, turkey, inbox, shopify };
+    stores.pushTracking(id).catch(() => {}); };
+  return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments, notifier, refreshNotifier, market, turkey, inbox, shopify, woo, stores };
 }
 
 export type App = Awaited<ReturnType<typeof createApp>>;
