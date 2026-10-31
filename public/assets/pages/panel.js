@@ -1,4 +1,4 @@
-import { DCLogic, mount, field, api, gbp as gbpP, shortDate, dateTime, CARRIER_LOGO, CARRIER_NAME, uid } from '../dc.js';
+import { DCLogic, mount, field, api, gbp as gbpP, shortDate, dateTime, CARRIER_LOGO, CARRIER_NAME, uid, trackLink } from '../dc.js';
 import { openPaySheet } from '../pay.js';
 import { loadInbox, readArea } from '../bell.js';
 
@@ -99,12 +99,12 @@ class Component extends DCLogic {
       return { id: s.id, no: s.ref, to: to.name, city: `${to.city} ${to.postcode}`, logo: CARRIER_LOGO[s.carrier] || '', service: s.service_name, key,
         status: STATUS_LABEL[s.status] || S[key][0], sBg: S[key][1], sFg: S[key][2], price: gbp(s.price_pence / 100), date: shortDate(s.created_at),
         isShip: true, isJob: false, hasLogo: Boolean(CARRIER_LOGO[s.carrier]), noLogo: !CARRIER_LOGO[s.carrier], at: s.created_at,
-        labelUrl: s.label_url || '#', trackUrl: s.tracking_number ? `https://kargoradari.com/?q=${encodeURIComponent(s.tracking_number)}` : '#',
+        labelUrl: s.label_url || '#', trackUrl: s.tracking_number ? trackLink(s.carrier, s.tracking_number) : '#',
         ...adjOf(s), on: on ? 'true' : 'false', ring: on ? '#2463DB' : '#9FB0C8', box: on ? '#2463DB' : '#FFFFFF',
         toggle: () => this.setState({ shipSel: { ...st.shipSel, [s.id]: !on } }),
         ...card({ to: `${to.city} ${to.postcode}`, toFull: `${to.name}, ${to.city} ${to.postcode}`, carrier: CARRIER_NAME[s.carrier] || '', service: shortService(s.carrier, s.service_name), date: shortDate(s.created_at), price: gbp(s.price_pence / 100),
-          act: key === 'print' ? 'Label' : 'Track', actCls: key === 'print' ? 'print' : '', actUrl: key === 'print' ? (s.label_url || '#') : (s.tracking_number ? `https://kargoradari.com/?q=${encodeURIComponent(s.tracking_number)}` : '#'),
-          moreUrl: s.tracking_number ? `https://kargoradari.com/?q=${encodeURIComponent(s.tracking_number)}` : (s.label_url || '#') }) };
+          act: key === 'print' ? 'Label' : 'Track', actCls: key === 'print' ? 'print' : '', actUrl: key === 'print' ? (s.label_url || '#') : (s.tracking_number ? trackLink(s.carrier, s.tracking_number) : '#'),
+          moreUrl: s.tracking_number ? trackLink(s.carrier, s.tracking_number) : (s.label_url || '#') }) };
     };
     const all = st.shipments.map(shipRow);
     // Moving & freight requests sit in the same "Recent" list on the dashboard.

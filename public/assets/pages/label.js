@@ -1,4 +1,4 @@
-import { DCLogic, mount, api, CARRIER_NAME } from '../dc.js';
+import { DCLogic, mount, api, CARRIER_NAME, trackLink } from '../dc.js';
 
 /** Guest label page: /l/<secret token>. Waits for the label, then preview, print, download and share. */
 const token = decodeURIComponent(location.pathname.split('/')[2] || '');
@@ -55,7 +55,7 @@ class Component extends DCLogic {
       fromTxt: s ? `${s.from.name}, ${s.from.line1}, ${s.from.city} ${s.from.postcode}` : '',
       toTxt: s ? `${s.to.name}, ${s.to.line1}, ${s.to.city} ${s.to.postcode}` : '',
       service: s?.service || '', parcelTxt: s ? `${Math.round(s.parcel.weightGrams / 100) / 10} kg · ${s.parcel.lengthCm}×${s.parcel.widthCm}×${s.parcel.heightCm} cm` : '',
-      trackUrl: s?.tracking ? `https://kargoradari.com/?q=${encodeURIComponent(s.tracking)}` : '#',
+      trackUrl: s?.tracking ? trackLink(s.carrier, s.tracking) : '#',
       registerUrl: `/register${s?.email ? `?email=${encodeURIComponent(s.email)}` : ''}`,
       toast: !!st.toast, toastTxt: st.toast,
     };

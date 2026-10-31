@@ -1,4 +1,4 @@
-import { DCLogic, mount, field, api, uid, CARRIER_LOGO, CARRIER_NAME } from '../dc.js';
+import { DCLogic, mount, field, api, uid, CARRIER_LOGO, CARRIER_NAME, trackLink } from '../dc.js';
 import { openPaySheet } from '../pay.js';
 import { NAV } from '../shell.js';
 import { shrinkPhoto, clipboardText, postcodeHere } from '../photo-address.js';
@@ -432,7 +432,7 @@ class Component extends DCLogic {
       paidLabel: D ? (D.shipment.pay_method === 'wallet' ? 'Paid from wallet' : 'Paid by card') : '',
       doneLine: D ? (D.shipment.status === 'awaiting_label' ? `Paid. ${D.shipment.service_name} to ${doneTo.name}, ${town(doneTo)}. The courier issues this label shortly, usually within an hour: it appears here and under Shipments by itself${st.me?.notify?.email || st.me?.notify?.sms || st.me?.notify?.whatsapp ? `, and we send it to you ${[st.me.notify.email && 'by email', st.me.notify.sms && 'by SMS', st.me.notify.whatsapp && 'on WhatsApp'].filter(Boolean).join(' and ')}` : ''}.` : `${D.shipment.service_name} to ${doneTo.name}, ${town(doneTo)}. Print the label and ${D.quote.dropOff ? 'drop it off at the shop or locker.' : 'have the parcel ready for collection.'}`) : '',
       doneRef: D ? D.shipment.ref : '', doneTracking: D ? (D.shipment.tracking_number || '') : '',
-      labelUrl: D?.shipment.label_url || '#', trackUrl: D?.shipment.tracking_number ? `https://kargoradari.com/?q=${encodeURIComponent(D.shipment.tracking_number)}` : '#',
+      labelUrl: D?.shipment.label_url || '#', trackUrl: D?.shipment.tracking_number ? trackLink(D.shipment.carrier, D.shipment.tracking_number) : '#',
       meName: me.name, meIni: (me.name || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase(), meType: me.account_type === 'business' ? 'Business account' : 'Personal account',
     };
   }

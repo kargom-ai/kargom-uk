@@ -192,6 +192,27 @@ export const CARRIER_LOGO = {
   royal_mail: '/assets/carriers/royalmail.png', evri: '/assets/carriers/evri.png', dpd: '/assets/carriers/dpd.png', inpost: '/assets/carriers/inpost.png',
   ups: '/assets/carriers/ups.png', dhl: '/assets/carriers/dhl.png', fedex: '/assets/carriers/fedex.png', parcelforce: '/assets/carriers/parcelforce.png', yodel: '/assets/carriers/yodel.png',
 };
+/**
+ * The courier's own tracking page for a tracking number. Unknown courier: our /track page,
+ * which recognises the courier from the number and links to its site.
+ */
+const TRACK_URL = {
+  royal_mail: (n) => `https://www.royalmail.com/track-your-item#/tracking-results/${n}`,
+  evri: (n) => `https://www.evri.com/track/parcel/${n}/details`,
+  dpd: (n) => `https://track.dpd.co.uk/parcels/${n}`,
+  inpost: () => 'https://inpost.co.uk/',
+  yodel: (n) => `https://www.yodel.co.uk/track/${n}`,
+  parcelforce: (n) => `https://www.parcelforce.com/track-trace?trackNumber=${n}`,
+  ups: (n) => `https://www.ups.com/track?tracknum=${n}`,
+  dhl: (n) => `https://www.dhl.com/gb-en/home/tracking/tracking-express.html?submit=1&tracking-id=${n}`,
+  fedex: (n) => `https://www.fedex.com/fedextrack/?trknbr=${n}`,
+};
+export function trackLink(carrier, number) {
+  if (!number) return '#';
+  const n = encodeURIComponent(String(number).trim());
+  return TRACK_URL[carrier] ? TRACK_URL[carrier](n) : `/track?n=${n}`;
+}
+
 export const CARRIER_NAME = { royal_mail: 'Royal Mail', evri: 'Evri', dpd: 'DPD', inpost: 'InPost', ups: 'UPS', dhl: 'DHL', fedex: 'FedEx', parcelforce: 'Parcelforce', yodel: 'Yodel' };
 
 /** Representative postcodes so the homepage can price without a full address. */
