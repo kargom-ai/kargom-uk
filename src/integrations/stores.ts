@@ -2,15 +2,17 @@ import type { Db } from '../db/db.ts';
 import { AppError } from '../core/errors.ts';
 import type { ShopifyIntegration, Conn, OrderRow, ShipTo } from './shopify.ts';
 import type { WooIntegration } from './woo.ts';
+import type { TicimaxIntegration } from './ticimax.ts';
 
-export const PLATFORM_NAME: Record<string, string> = { shopify: 'Shopify', woo: 'WooCommerce' };
+export const PLATFORM_NAME: Record<string, string> = { shopify: 'Shopify', woo: 'WooCommerce', ticimax: 'Ticimax' };
 
 /** One place for the sender's connected shops: Shopify, WooCommerce (and later others). */
 export class StoreHub {
   private readonly db: Db;
   readonly shopify: ShopifyIntegration;
   readonly woo: WooIntegration;
-  constructor(db: Db, shopify: ShopifyIntegration, woo: WooIntegration) { this.db = db; this.shopify = shopify; this.woo = woo; }
+  readonly ticimax: TicimaxIntegration;
+  constructor(db: Db, shopify: ShopifyIntegration, woo: WooIntegration, ticimax: TicimaxIntegration) { this.db = db; this.shopify = shopify; this.woo = woo; this.ticimax = ticimax; }
 
   async overview(customerId: string) {
     const conns = await this.db.all<Conn>("SELECT * FROM shop_connections WHERE customer_id = $1 AND status = 'active' ORDER BY created_at", [customerId]);
@@ -22,6 +24,7 @@ export class StoreHub {
       enabled: this.shopify.enabled,
       shopify: { enabled: this.shopify.enabled, stores: conns.filter((c) => c.platform === 'shopify').map(store) },
       woo: { enabled: true, stores: conns.filter((c) => c.platform === 'woo').map(store) },
+      ticimax: { enabled: true, stores: conns.filter((c) => c.platform === 'ticimax').map(store) },
       orders: rows.filter((o) => byId[o.connection_id]).map((o) => this.view(o, byId[o.connection_id]!)),
     };
   }
@@ -41,6 +44,7 @@ export class StoreHub {
       try { added += (await this.shopify.sync(customerId)).added; } catch (e) { errors.push((e as Error).message); }
     }
     try { added += await this.woo.sync(customerId); } catch (e) { errors.push((e as Error).message); }
+    try { added += await this.ticimax.sync(customerId); } catch (e) { errors.push((e as Error).message); }
     return { added, errors, ...(await this.overview(customerId)) };
   }
 
@@ -85,6 +89,6 @@ export class StoreHub {
 
   /** Called when a label is ready too. Each platform only acts on its own orders. */
   async pushTracking(shipmentId: string) {
-    return (await this.shopify.pushTracking(shipmentId)) || (await this.woo.pushTracking(shipmentId));
+    return (await this.shopify.pushTracking(shipmentId)) || (await this.woo.pushTracking(shipmentId)) || (await this.ticimax.pushTracking(shipmentId));
   }
 }

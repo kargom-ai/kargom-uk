@@ -18,7 +18,7 @@ import { TRACK_URL, type Conn, type OrderRow, type ShipTo } from './shopify.ts';
 
 const pence = (amount: unknown) => Math.round(Number(amount ?? 0) * 100) || 0;
 
-function privateIp(ip: string): boolean {
+export function privateIp(ip: string): boolean {
   if (isIP(ip) === 6) {
     const x = ip.toLowerCase();
     if (x === '::1' || x === '::' || x.startsWith('fc') || x.startsWith('fd') || x.startsWith('fe80')) return true;

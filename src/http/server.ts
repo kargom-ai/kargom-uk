@@ -758,6 +758,12 @@ export function buildRouter(app: App) {
     catch (e) { return redirect(c, `/app?view=int&woo=error&msg=${encodeURIComponent((e as Error).message.slice(0, 120))}`); }
   });
   on('POST', '/api/shop/woo/callback', 'webhook', async (c) => { publicLimiter.check(ip(c)); await app.woo.callback(c.raw); return { ok: true }; });
+  // ---------- Ticimax: shop address + the "Yetki Kodu" the merchant creates in their Ticimax admin
+  on('POST', '/api/shop/ticimax/connect', 'customer', async (c) => {
+    marketLimiter.check(me(c));
+    await app.ticimax.connect(me(c), c.body?.site, c.body?.key);
+    return app.stores.overview(me(c));
+  });
   on('GET', '/api/shop/woo/return', 'public', async (c) => redirect(c, c.query.get('success') === '1' ? '/app?view=int&woo=connected' : '/app?view=int&woo=error&msg=' + encodeURIComponent('The connection was not approved in WooCommerce.')));
   on('POST', '/webhooks/shopify', 'webhook', async (c) => {
     const secret = process.env.SHOPIFY_API_SECRET ?? '';
