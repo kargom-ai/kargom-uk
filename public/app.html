@@ -27,6 +27,7 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
 <script type="module" src="/assets/pages/panel.js"></script>
 <link rel="stylesheet" href="/assets/quickquote.css">
 <link rel="stylesheet" href="/assets/recent.css">
+<link rel="stylesheet" href="/assets/shop.css">
 <link rel="stylesheet" href="/assets/mobile.css">
 </head>
 <body data-page="app">
@@ -537,6 +538,65 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
           <h1 style="margin: 0; font-family: 'Nunito Sans', sans-serif; font-size: 32px; font-weight: 700; letter-spacing: -0.015em">Integrations</h1>
           <span style="font-size: 14px; color: #586579">Connect your store: orders come in by themselves and tracking numbers go back to your customers.</span>
         </div>
+        <section class="sh">
+          <div class="sh-head">
+            <span class="sh-logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg></span>
+            <span class="sh-title"><b>Shopify</b><span class="sh-chip {{shop.statusCls}}">{{shop.status}}</span></span>
+            <sc-if value="{{shop.connected}}" hint-placeholder-val="{{ false }}"><button type="button" class="sh-btn ghost" onClick="{{shop.sync}}">Check for new orders</button></sc-if>
+          </div>
+          <p class="sh-lead">Paid orders that still need shipping come in here. Click Ship, pick a courier and print the label. The tracking number goes back to the Shopify order, and Shopify emails your customer.</p>
+          <sc-if value="{{shop.off}}" hint-placeholder-val="{{ false }}">
+            <p class="sh-note">We are finishing the Shopify app approval. You will be able to connect your store here very soon.</p>
+          </sc-if>
+          <sc-if value="{{shop.on}}" hint-placeholder-val="{{ true }}">
+            <div class="sh-connect">
+              <label class="sh-field"><span>Your Shopify address</span>
+                <input aria-label="Shopify store" placeholder="my-shop.myshopify.com" autocomplete="off" spellcheck="false">
+              </label>
+              <button type="button" class="sh-btn" onClick="{{shop.connect}}">Connect Shopify</button>
+            </div>
+          </sc-if>
+          <sc-for list="{{shop.stores}}" as="x" hint-placeholder-count="0">
+            <div class="sh-store"><span><b>{{x.name}}</b> <small>{{x.shop}} · {{x.synced}}</small></span><button type="button" class="sh-link" onClick="{{x.disconnect}}">Disconnect</button></div>
+          </sc-for>
+          <sc-if value="{{shop.hasOrders}}" hint-placeholder-val="{{ false }}">
+            <h3 class="sh-sub">{{shop.count}}</h3>
+            <div class="sh-list">
+              <sc-for list="{{shop.orders}}" as="o" hint-placeholder-count="2">
+                <article class="sh-order">
+                  <div class="sh-o-main">
+                    <span class="sh-o-top"><b>{{o.name}}</b><span class="sh-chip {{o.chipCls}}">{{o.chip}}</span><small>{{o.date}}</small></span>
+                    <span class="sh-o-to">{{o.to}}</span>
+                    <span class="sh-o-items">{{o.items}}</span>
+                    <span class="sh-o-meta">{{o.kg}} · {{o.total}}</span>
+                  </div>
+                  <div class="sh-o-act">
+                    <a class="sh-btn" href="{{o.shipUrl}}">Ship</a>
+                    <button type="button" class="sh-link" onClick="{{o.hide}}">Hide</button>
+                  </div>
+                </article>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{shop.noOrders}}" hint-placeholder-val="{{ false }}">
+            <p class="sh-note">All caught up. New paid orders will show here: click "Check for new orders" any time.</p>
+          </sc-if>
+          <sc-if value="{{shop.hasShipped}}" hint-placeholder-val="{{ false }}">
+            <h3 class="sh-sub">Recently shipped</h3>
+            <div class="sh-list">
+              <sc-for list="{{shop.shipped}}" as="o" hint-placeholder-count="0">
+                <article class="sh-order done">
+                  <div class="sh-o-main">
+                    <span class="sh-o-top"><b>{{o.name}}</b><span class="sh-chip {{o.chipCls}}">{{o.chip}}</span><small>{{o.date}}</small></span>
+                    <span class="sh-o-to">{{o.to}}</span>
+                    <sc-if value="{{o.err}}" hint-placeholder-val="{{ false }}"><span class="sh-o-err">{{o.err}}</span></sc-if>
+                  </div>
+                </article>
+              </sc-for>
+            </div>
+          </sc-if>
+        </section>
+        <h3 class="sh-sub" style="margin: 4px 0 0">More integrations</h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px">
           <sc-for list="{{apps}}" as="a" hint-placeholder-count="8">
             <section style="background: #FFFFFF; border: 1px solid {{a.border}}; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px">

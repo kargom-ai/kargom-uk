@@ -23,7 +23,7 @@ class Component extends DCLogic {
       nav: views.includes(startView) ? startView : 'dash', tab: 'all', txTab: 'all', topup: false, amt: 50, method: 'card', toast: '', auto: false, adj: '',
       hT: '', newT: false, cat: 'where_is_my_parcel', shipSel: {}, abTab: 'rec', setTab: 'profile',
       notif: { booked: [1, 0], collected: [1, 0], out: [0, 1], deliv: [1, 1], issue: [1, 1], low: [1, 0] }, fmt: 'a4', qr: true, cover: false, tfa: false,
-      me: null, bal: 0, statement: [], shipments: [], adjustments: [], tickets: [], jobs: [], fwd: [], inbox: { unread: {}, total: 0 }, thread: null, loaded: false,
+      shop: null, me: null, bal: 0, statement: [], shipments: [], adjustments: [], tickets: [], jobs: [], fwd: [], inbox: { unread: {}, total: 0 }, thread: null, loaded: false,
     };
     this.draft = '';
   }
@@ -39,6 +39,12 @@ class Component extends DCLogic {
     await this.reload();
     document.addEventListener('kg-inbox', (e) => this.setState({ inbox: e.detail }));
     loadInbox().then(() => { if (['ship', 'wallet', 'help'].includes(this.state.nav)) readArea(this.state.nav); });
+    const sq = new URLSearchParams(location.search);
+    if (sq.get('shopify')) {
+      history.replaceState(null, '', '/app?view=int');
+      if (sq.get('shopify') === 'connected') this.say('Shopify connected. Your unshipped orders are below.');
+      else this.say(sq.get('msg') || 'Shopify could not be connected. Please try again.');
+    }
     const back = new URLSearchParams(location.search).get('topup');
     if (back) {
       history.replaceState(null, '', '/app?view=wallet');
@@ -62,6 +68,7 @@ class Component extends DCLogic {
   async reload() {
     const [w, s, a, t, j, fw] = await Promise.all([api('/api/wallet'), api('/api/shipments'), api('/api/adjustments'), api('/api/tickets'), api('/api/jobs').catch(() => ({ jobs: [] })), api('/api/tr/sent').catch(() => ({ boxes: [] }))]);
     this.setState({ bal: w.balancePence / 100, statement: w.statement, shipments: s.shipments, adjustments: a.adjustments, tickets: t.tickets, jobs: j.jobs, fwd: fw.boxes, loaded: true });
+    api('/api/shop').then((shop) => this.setState({ shop })).catch(() => this.setState({ shop: { enabled: false, stores: [], orders: [] } }));
     if (this.state.nav === 'help' && !this.state.hT && t.tickets[0]) this.openTicket(t.tickets[0].id);
   }
 
@@ -290,8 +297,43 @@ class Component extends DCLogic {
       ['ebay', 'eBay', 'e', '#E53238', 'Pull sold items and mark them dispatched automatically.'], ['etsy', 'Etsy', 'E', '#F1641E', 'Bring in Etsy orders with buyer addresses filled in.'],
       ['amazon', 'Amazon', 'a', '#232F3E', 'Seller Central orders, with tracking sent to Amazon.'], ['wix', 'Wix', 'W', '#0C6EFC', 'Connect your Wix store and ship from one place.'],
       ['squarespace', 'Squarespace', 'S', '#1F2A3C', 'Import orders from your Squarespace commerce site.'], ['csv', 'CSV upload', '↑', '#33AEEF', 'Upload a spreadsheet of addresses to book in bulk.']];
-    const apps = APPS.map(([, name, ini, color, desc]) => ({ name, ini, color, desc, state: 'Coming soon', stFg: '#8593A8', border: '#E1E7EF',
+    const apps = APPS.filter(([id]) => id !== 'shopify').map(([, name, ini, color, desc]) => ({ name, ini, color, desc, state: 'Coming soon', stFg: '#8593A8', border: '#E1E7EF',
       cta: 'Notify me', bBg: '#FFFFFF', bFg: '#3E4A5C', bBorder: '#C9D6EA', toggle: () => this.say(`We will email you when ${name} is ready.`) }));
+
+    // ---- Shopify (live)
+    const SH = st.shop || { enabled: false, stores: [], orders: [] };
+    const shConnected = SH.stores.length > 0;
+    const when = (iso) => (iso ? dateTime(iso) : 'not yet');
+    const shStores = SH.stores.map((x) => ({ name: x.name, shop: x.shop, synced: `Last checked ${when(x.lastSyncAt)}`,
+      disconnect: async () => { try { this.setState({ shop: await api(`/api/shop/stores/${x.id}/disconnect`, { method: 'POST' }) }); this.say(`${x.name} disconnected`); } catch (e) { this.say(e.message); } } }));
+    const shOpen = SH.orders.filter((o) => o.status === 'open');
+    const shDone = SH.orders.filter((o) => o.status === 'shipped').slice(0, 10);
+    const shRow = (o) => {
+      const done = o.status === 'shipped', err = done && !o.pushedAt && o.pushError;
+      return { name: o.name, store: o.store, date: shortDate(o.orderedAt), to: [o.to.name, o.to.city, o.to.postcode, o.to.country !== 'GB' ? o.to.country : ''].filter(Boolean).join(' · '),
+        items: o.items.slice(0, 3).join(', ') + (o.items.length > 3 ? ` +${o.items.length - 3} more` : ''), kg: o.weightGrams ? `${(o.weightGrams / 1000).toFixed(1)} kg` : 'Weight not set',
+        total: o.totalPence ? `${o.currency === 'GBP' || !o.currency ? '£' : `${o.currency} `}${(o.totalPence / 100).toFixed(2)}` : '',
+        open: !done, chip: done ? (o.pushedAt ? 'Tracking sent to Shopify' : err ? 'Tracking not sent' : 'Waiting for label') : 'Needs shipping',
+        chipCls: done ? (o.pushedAt ? 'ok' : err ? 'bad' : 'wait') : 'todo', err: err ? o.pushError : '',
+        shipUrl: `/app/send?shopOrder=${encodeURIComponent(o.id)}`,
+        hide: async () => { try { this.setState({ shop: await api(`/api/shop/orders/${o.id}/ignore`, { method: 'POST' }) }); } catch (e) { this.say(e.message); } } };
+    };
+    const shop = {
+      on: SH.enabled && !shConnected, off: !SH.enabled && !shConnected, connected: shConnected, notConnected: !shConnected,
+      status: shConnected ? `Connected · ${SH.stores.map((x) => x.name).join(', ')}` : SH.enabled ? 'Not connected' : 'Switching on soon',
+      statusCls: shConnected ? 'ok' : 'todo', stores: shStores, orders: shOpen.map(shRow), shipped: shDone.map(shRow),
+      hasOrders: shOpen.length > 0, noOrders: shConnected && shOpen.length === 0, hasShipped: shDone.length > 0,
+      count: shOpen.length ? `${shOpen.length} order${shOpen.length > 1 ? 's' : ''} to ship` : '',
+      connect: () => {
+        const v = String(field('Shopify store') || '').trim();
+        if (!v) { this.say('Type your Shopify address, for example my-shop.myshopify.com'); return; }
+        location.href = `/api/shop/shopify/connect?shop=${encodeURIComponent(v)}`;
+      },
+      sync: async () => {
+        this.say('Checking Shopify for new orders…');
+        try { const r = await api('/api/shop/sync', { method: 'POST' }); this.setState({ shop: r }); this.say(r.added ? `${r.added} new order${r.added > 1 ? 's' : ''} from Shopify` : 'No new orders'); } catch (e) { this.say(e.message); }
+      },
+    };
 
     // ---- settings
     const SET = [['profile', 'Profile'], ['company', 'Company'], ['prefs', 'Preferences'], ['notif', 'Notifications'], ['sec', 'Security'], ['team', 'Team']];
@@ -400,7 +442,7 @@ class Component extends DCLogic {
       nav, isDash: st.nav === 'dash', isWallet: st.nav === 'wallet',
       isShip: st.nav === 'ship', isInv: st.nav === 'inv', isAddr: st.nav === 'addr', isRet: false, isInt: st.nav === 'int', isSet: st.nav === 'set',
       shipRows, shipTabs, hasSel: selCount > 0, selCount, clearSel: () => this.setState({ shipSel: {} }), shipShown: shipRows.length ? `1–${shipRows.length}` : '0', shipTotal: String(st.shipments.length), pages: [],
-      invoices, invStats, billing, addrs, abTabs, returns: [], payers: [], retSvcs: [], apps,
+      invoices, invStats, billing, addrs, abTabs, returns: [], payers: [], retSvcs: [], apps, shop,
       copyTxt: 'Copy link', copyLink: () => {}, apiKey: 'Available on request', keyBtn: 'Request', toggleKey: () => this.say('Ask us in Help for API access.'),
       setTabs, fields, setForm: st.setTab === 'profile' || st.setTab === 'company', setPrefs: st.setTab === 'prefs', setNotif: st.setTab === 'notif', setSec: st.setTab === 'sec', setTeam: st.setTab === 'team',
       formats, prefToggles, notifs, sessions, team, saved,

@@ -1,0 +1,49 @@
+/* Integrations: Shopify card and its order list */
+.sh { background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.sh-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sh-logo { width: 46px; height: 46px; border-radius: 13px; background: #17263E; display: grid; place-items: center; flex: none; }
+.sh-title { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-width: 0; }
+.sh-title b { font: 800 17px 'Nunito Sans', sans-serif; color: #17263E; }
+.sh-lead { margin: 0; font-size: 14px; line-height: 1.55; color: #3E4A5C; max-width: 760px; }
+.sh-note { margin: 0; font-size: 14px; line-height: 1.5; color: #586579; background: #F5F7FB; border-radius: 12px; padding: 12px 14px; }
+.sh-chip { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.sh-chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.sh-chip.ok { background: #E6F4EA; color: #166534; }
+.sh-chip.todo { background: #FFF4E0; color: #9A5B00; }
+.sh-chip.wait { background: #EAF2FE; color: #1D4FB8; }
+.sh-chip.bad { background: #FDECEC; color: #B42318; }
+.sh-connect { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.sh-field { display: flex; flex-direction: column; gap: 5px; flex: 1 1 280px; font-size: 12px; font-weight: 700; color: #586579; }
+.sh-field input { min-height: 46px; border-radius: 11px; border: 1px solid #C9D6EA; padding: 0 12px; font: 600 15px 'Nunito Sans', sans-serif; color: #17263E; box-sizing: border-box; width: 100%; }
+.sh-field input:focus { outline: 2px solid #087BFF; outline-offset: 1px; border-color: #087BFF; }
+.sh-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 20px; border-radius: 11px; border: 0; background: #087BFF; color: #FFFFFF;
+  font: 800 15px 'Nunito Sans', sans-serif; text-decoration: none; cursor: pointer; white-space: nowrap; box-sizing: border-box; }
+.sh-btn:hover { background: #0068DB; }
+.sh-btn.ghost { background: #FFFFFF; color: #17263E; border: 1px solid #C9D6EA; min-height: 40px; padding: 0 14px; font-size: 14px; }
+.sh-btn.ghost:hover { background: #F5F7FB; }
+.sh-link { background: none; border: 0; padding: 6px 4px; color: #586579; font: 700 13px 'Nunito Sans', sans-serif; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.sh-link:hover { color: #B42318; }
+.sh-store { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-radius: 12px; background: #F5F7FB; font-size: 14px; }
+.sh-store small { color: #6B7789; font-size: 12px; }
+.sh-sub { margin: 4px 0 0; font: 800 15px 'Nunito Sans', sans-serif; color: #17263E; }
+.sh-list { display: flex; flex-direction: column; gap: 10px; }
+.sh-order { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid #E6EBF2; border-radius: 14px; background: #FFFFFF; }
+.sh-order.done { background: #FAFBFD; }
+.sh-o-main { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-width: 0; }
+.sh-o-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sh-o-top b { font-size: 15px; color: #17263E; }
+.sh-o-top small { color: #6B7789; font-size: 12px; margin-left: auto; }
+.sh-o-to { font-size: 14px; font-weight: 700; color: #3E4A5C; }
+.sh-o-items, .sh-o-meta { font-size: 13px; color: #6B7789; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-o-err { font-size: 13px; color: #B42318; }
+.sh-o-act { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: none; }
+.sh-o-act .sh-btn { min-height: 42px; min-width: 96px; }
+@media (max-width: 640px) {
+  .sh { padding: 16px; border-radius: 16px; }
+  .sh-connect .sh-btn { width: 100%; }
+  .sh-order { flex-direction: column; align-items: stretch; gap: 10px; }
+  .sh-o-top small { margin-left: 0; }
+  .sh-o-act { flex-direction: row; justify-content: space-between; }
+  .sh-o-act .sh-btn { flex: 1; }
+  .sh-head .sh-btn.ghost { width: 100%; }
+}

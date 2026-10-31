@@ -53,7 +53,7 @@ class Component extends DCLogic {
       mySenders: store.get('kg_senders', []), myRecips: store.get('kg_recips', []), savedItems: store.get('kg_items', []),
       lk: { sa: { items: [], msg: '', bad: false, busy: false }, ra: { items: [], msg: '', bad: false, busy: false } },
       ph: { sa: { busy: false, msg: '', bad: false, paste: false }, ra: { busy: false, msg: '', bad: false, paste: false } },
-      quotes: null, quoteError: '', busy: false, preferService: pending?.serviceName || '',
+      quotes: null, quoteError: '', busy: false, preferService: pending?.serviceName || '', shopOrder: null,
     };
     this.key = uid();
   }
@@ -68,12 +68,48 @@ class Component extends DCLogic {
       return;
     }
     const qs = new URLSearchParams(location.search);
+    if (qs.get('shopOrder')) await this.fromShop(qs.get('shopOrder'));
     if (qs.get('cancelled')) { history.replaceState(null, '', '/app/send'); toast('Payment cancelled. Nothing was charged.'); }
     const paid = qs.get('paid');
     if (paid) {
       history.replaceState(null, '', '/app/send');
       await this.waitForPaid(paid);
     }
+  }
+
+  /** Fill the form from a Shopify order: the buyer becomes the recipient, the order weight the parcel. */
+  async fromShop(id) {
+    try {
+      const o = await api(`/api/shop/orders/${encodeURIComponent(id)}`);
+      const t = o.to;
+      const a = { name: t.name || t.company, company: t.company || undefined, phone: t.phone, email: t.email, line1: t.line1, line2: t.line2, city: t.city, postcode: t.postcode, country: t.country || 'GB' };
+      const intl = a.country !== 'GB';
+      const kg = Math.max(0.1, Math.round((o.weightGrams || 1000) / 100) / 10);
+      const parcel = { id: 'shop', name: `Shopify order ${o.name}`, kg, l: 30, w: 20, h: 15 };
+      const goods = intl ? (o.items || []).map((it, i) => ({ id: `shop-${i}`, name: it.name, value: (it.valuePence || 0) / 100, hs: '', origin: 'GB', qty: it.quantity || 1 })) : [];
+      const st = this.state;
+      this.setState({
+        mode: intl ? 'intl' : 'uk', myRecips: [a, ...st.myRecips.filter((x) => addrKey(x) !== addrKey(a))], recip: addrKey(a),
+        parcels: [parcel, ...st.parcels.filter((p) => p.id !== 'shop')], parcel: 'shop',
+        savedItems: [...goods.map(({ qty, ...g }) => g), ...st.savedItems.filter((x) => !String(x.id).startsWith('shop-'))],
+        items: Object.fromEntries(goods.map((g) => [g.id, g.qty])), shopOrder: { id: o.id, name: o.name },
+      });
+      try { sessionStorage.setItem('kg_shop_order', JSON.stringify({ id: o.id, name: o.name })); } catch { /* private mode */ }
+      toast(`Filled in from Shopify order ${o.name}. Check the parcel size, then choose a courier.`);
+    } catch (e) { toast(e.message); }
+  }
+
+  /** After booking: tell Shopify (tracking goes to the order as soon as the label exists). */
+  async linkShop(shipmentId) {
+    let so = this.state.shopOrder;
+    if (!so) { try { so = JSON.parse(sessionStorage.getItem('kg_shop_order') || 'null'); } catch { so = null; } }
+    if (!so) return;
+    try {
+      await api(`/api/shop/orders/${encodeURIComponent(so.id)}/link`, { method: 'POST', body: { shipmentId } });
+      try { sessionStorage.removeItem('kg_shop_order'); } catch { /* fine */ }
+      this.setState({ shopOrder: null });
+      toast(`Shopify order ${so.name} will be marked as shipped with this tracking number.`);
+    } catch (e) { toast(`Could not update Shopify: ${e.message}`); }
   }
 
   /** Label that the courier issues later (Packlink): refresh the done screen when it arrives. */
@@ -101,6 +137,7 @@ class Component extends DCLogic {
         if (shipment.status === 'failed') { toast('The courier could not create this label. Your card payment has been refunded.'); break; }
         if (!['awaiting_payment', 'pending', 'purchasing'].includes(shipment.status)) {
           if (shipment.status === 'awaiting_label') this.watchLabel(shipment.id);
+          this.linkShop(shipment.id);
           this.setState({ done: { shipment, quote: { dropOff: /drop|shop|locker|post office/i.test(shipment.service_name) } }, busy: false });
           window.scrollTo(0, 0);
           return;
@@ -167,6 +204,7 @@ class Component extends DCLogic {
       if (r.kind === 'booked') {
         this.setState({ done: { shipment: r.shipment, quote: q }, busy: false, bal: st.pay === 'wallet' ? st.bal - q.price : st.bal });
         if (r.shipment.status === 'awaiting_label') this.watchLabel(r.shipment.id);
+        this.linkShop(r.shipment.id);
         window.scrollTo(0, 0);
       } else if (r.kind === 'failed') {
         this.key = uid();
