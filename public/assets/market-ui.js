@@ -205,6 +205,19 @@ export const L = {
 export function detailsHtml(job) {
   const d = job.details;
   const yes = (b, t) => (b ? `<span>${t}</span>` : '');
+  if (job.kind === 'transport') {
+    const CAT = { furniture: 'Furniture and general items', boxes: 'Boxes and parcels', home: 'Home move', office: 'Office move', pallets: 'Pallets and haulage', cars: 'Car', motorbikes: 'Motorbike', vehicles: 'Van, caravan or other vehicle', boats: 'Boat', pianos: 'Piano', machinery: 'Machinery and equipment', other: 'Other' };
+    const v = d.vehicle, a = d.access;
+    return `<div class="kvs">
+      <div><span>What</span><b>${esc(d.what)}</b><span>${esc(CAT[d.category] || '')}${d.size ? ` · ${esc(L.size[d.size] || d.size)}` : ''}</span></div>
+      <div><span>Date</span><b>${esc(niceDate(job.date))}</b><span>${esc(L.dateFlex[d.dateFlex] || '')}</span></div>
+      ${d.qty > 1 || d.weightKg ? `<div><span>Amount</span><b>${d.qty > 1 ? `${d.qty} items` : '1 item'}</b>${d.weightKg ? `<span>About ${d.weightKg.toLocaleString('en-GB')} kg</span>` : ''}</div>` : ''}
+      ${v ? `<div><span>Vehicle</span><b>${esc([v.make, v.model].filter(Boolean).join(' ') || 'Not given')}</b><span>${v.runs ? 'Runs and drives' : 'Not running'}</span></div>` : ''}
+      ${a ? `<div><span>Floors</span><b>${esc(L.floor[a.fromFloor] || '')} → ${esc(L.floor[a.toFloor] || '')}</b><span>${a.lift ? 'Lift available' : 'No lift'}${a.helpers ? ' · two people needed' : ''}</span></div>` : ''}
+      ${job.distanceMiles ? `<div><span>Distance</span><b>≈ ${job.distanceMiles} miles</b></div>` : ''}
+    </div>
+    ${d.notes ? `<div><span class="lbl">Notes</span><p style="margin:6px 0 0;line-height:1.55">${esc(d.notes)}</p></div>` : ''}`;
+  }
   if (job.kind === 'removals') {
     const place = (p, title) => `<div><span>${title}</span><b>${esc(L.floor[p.floor] || '')}${p.lift ? ', with lift' : ''}</b><span>${esc(L.parking[p.parking] || '')}</span></div>`;
     return `<div class="kvs">

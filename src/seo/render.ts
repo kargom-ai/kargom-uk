@@ -650,7 +650,7 @@ export function sitemap(prices: SeoPrices) {
   const uk = prices.latest(UK_WEIGHTS.map(SeoPrices.ukKey));
   const day = (iso: string | null) => (iso ?? new Date().toISOString()).slice(0, 10);
   const urls: Array<[string, string | null, string]> = [
-    ['/', uk, '1.0'], ['/parcel-prices', uk, '0.9'], ['/about', null, '0.4'], ['/terms', null, '0.2'], ['/privacy', null, '0.2'], ['/cookies', null, '0.2'], ['/partner', null, '0.5'], ['/freight', null, '0.8'], ['/forwarding', null, '0.7'], ['/couriers', uk, '0.8'], ['/track', null, '0.8'], ['/send-parcel-to', null, '0.7'], ['/guides', null, '0.6'],
+    ['/', uk, '1.0'], ['/parcel-prices', uk, '0.9'], ['/about', null, '0.4'], ['/terms', null, '0.2'], ['/privacy', null, '0.2'], ['/cookies', null, '0.2'], ['/partner', null, '0.5'], ['/freight', null, '0.8'], ['/freightmatch', null, '0.8'], ['/freightmatch/post', null, '0.7'], ['/forwarding', null, '0.7'], ['/couriers', uk, '0.8'], ['/track', null, '0.8'], ['/send-parcel-to', null, '0.7'], ['/guides', null, '0.6'],
     ['/tools/volumetric-weight-calculator', '2026-10-28T00:00:00Z', '0.6'],
     ...CARRIERS.map((c) => [`/couriers/${c.slug}`, uk, '0.8'] as [string, string | null, string]),
     ...(trackPagesOn() ? CARRIERS.map((c) => [`/track/${c.slug}`, '2026-10-28T00:00:00Z', '0.7'] as [string, string | null, string]) : []),

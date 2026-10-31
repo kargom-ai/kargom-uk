@@ -153,7 +153,8 @@ root.addEventListener('submit', async (e) => {
         const r = await api('/api/auth/login', { method: 'POST', body: { email: v.email, password: v.password } });
         if (!r.partner) { location.href = r.role === 'admin' ? '/admin' : '/app'; return; }
       }
-      location.href = '/partner';
+      // Came from a FreightMatch job: go straight back to it.
+      location.href = /^\/partner\/requests\/[\w-]+$/.test(location.pathname) ? location.pathname : '/partner';
       return;
     }
     if (f.id === 'pf') { S.profile = await api('/api/partner/profile', { method: 'PUT', body: v }); toast('Profile saved'); dashView(); }

@@ -37,10 +37,14 @@ const SEO: Record<string, { title: string; description: string; path: string; fo
     description: 'Free air freight, sea freight (LCL and FCL) and pallet price estimates in seconds. Ship stock from China to the UK, or from the UK to Amazon FBA and TikTok Shop warehouses.' },
   'forwarding.html': { title: 'Parcel Forwarding from the USA to the UK: Shop Abroad, Delivered | Kargom', path: '/forwarding', footer: true,
     description: 'Get a US address, shop at Amazon, Nike and any US store, and have your parcels forwarded to the UK with DHL, UPS or FedEx. See the delivery price in seconds.' },
+  'match.html': { title: 'FreightMatch: Delivery and Transport Jobs to Quote, UK | Kargom', path: '/freightmatch', footer: true,
+    description: 'Browse furniture, car, motorbike, pallet, home move and piano delivery jobs posted across the UK. Filter by area, date and type, and send your price. Free to join.' },
+  'match-post.html': { title: 'Post a Delivery Job and Get Quotes from Transport Companies | Kargom', path: '/freightmatch/post', footer: true,
+    description: 'Tell us what needs moving in four quick steps: furniture, cars, motorbikes, pallets, pianos or a home move. Transport companies send you prices to compare. Free.' },
   'login.html': { title: 'Sign In or Create an Account | Kargom', path: '/login', footer: true,
     description: 'Sign in to Kargom or create a free account to save addresses, top up a wallet and manage all your parcels in one place.' },
 };
-const PRIVATE = new Set(['app.html', 'admin.html', 'market-admin.html', 'checkout.html', 'label.html', 'send.html', 'quotes.html', 'quote.html', 'request.html', 'movers.html', 'turkey.html', 'turkey-admin.html']);
+const PRIVATE = new Set(['app.html', 'admin.html', 'market-admin.html', 'checkout.html', 'label.html', 'send.html', 'quotes.html', 'quote.html', 'request.html', 'movers.html', 'turkey.html', 'turkey-admin.html', 'match-job.html']);
 const SITE_LD = () => {
   const base = (process.env.PUBLIC_URL || 'https://kargom.co.uk').replace(/\/+$/, '');
   return `<script type="application/ld+json">${JSON.stringify([
@@ -69,6 +73,9 @@ function pageFor(pathname: string): string | null {
   if (pathname === '/app/quote') return 'quote.html';
   if (pathname === '/movers') return 'movers.html';
   if (pathname === '/freight') return 'freight.html';
+  if (pathname === '/freightmatch') return 'match.html';
+  if (pathname === '/freightmatch/post') return 'match-post.html';
+  if (pathname.startsWith('/freightmatch/jobs/')) return 'match-job.html';
   if (pathname === '/forwarding') return 'forwarding.html';
   if (pathname === '/app/requests' || pathname.startsWith('/app/requests/')) return 'request.html';
   if (pathname === '/partner' || pathname.startsWith('/partner/')) return 'partner.html';

@@ -23,6 +23,7 @@ input:focus,select:focus{outline:none}
 </style>
 <style>.kg-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1F2A3C;color:#fff;padding:12px 18px;border-radius:12px;font:600 14px 'Nunito Sans',sans-serif;z-index:60;box-shadow:0 12px 30px rgba(8,14,28,.3)}</style>
 <script type="module" src="/assets/pages/home.js"></script>
+<link rel="stylesheet" href="/assets/match.css">
 <link rel="stylesheet" href="/assets/mobile.css">
 </head>
 <body data-page="home">
@@ -126,11 +127,11 @@ input:focus,select:focus{outline:none}
           </div>
         </sc-if>
       </div>
-      <div style="display: flex; flex-wrap: wrap; margin-top: 14px; font-size: 14px">
-        <sc-for list="{{links}}" as="k" hint-placeholder-count="3">
-          <a href="{{k.href}}" style="color: #3E4A5C; text-decoration: none; padding: 2px 12px 2px 0; margin-right: 12px; border-right: 1px solid #D8DEE8">{{k.t}}</a>
-        </sc-for>
-      </div>
+      <a href="/freightmatch" class="fm-promo" aria-label="Kargom FreightMatch: post any delivery or find jobs to quote">
+        <img src="/assets/freightmatch-mark-white.png" alt="FreightMatch" width="160" height="26" class="fm-promo-logo">
+        <span class="fm-promo-t"><b>Anything else to move? Post it, and transport companies send you prices.</b><span>Furniture, cars, motorbikes, pallets, pianos, boats. Free to post, compare quotes.</span></span>
+        <span class="fm-promo-go">Explore</span>
+      </a>
     </div>
   </section>
 

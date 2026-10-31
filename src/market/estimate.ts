@@ -53,6 +53,24 @@ export function estimatePrice(kind: string, d: Record<string, any>, miles: numbe
     if (LONDON.test(fromPostcode.toUpperCase()) || LONDON.test(toPostcode.toUpperCase())) mid *= 1.15;
     return { lowPence: round10(mid * 0.8) * 100, highPence: round10(mid * 1.25) * 100, basis: 'UK average removal prices for this size and distance' };
   }
+  if (kind === 'transport') {
+    if (!miles) return null;
+    if (d.category === 'home' || d.category === 'office') {
+      const h = d.category === 'home' ? HOME[d.size] : OFFICE[d.size] ?? OFFICE.small!;
+      if (!h) return null;
+      mid = h.base + extra * h.perMile;
+    } else {
+      // [base £, £ per mile] for one van or transporter doing the job on its own
+      const RATE: Record<string, [number, number]> = { furniture: [45, 0.9], boxes: [30, 0.6], pallets: [45, 0.28], cars: [80, 0.9], motorbikes: [60, 0.6], vehicles: [90, 1.1], boats: [120, 1.4], pianos: [120, 0.9], machinery: [90, 1.2], other: [45, 0.9] };
+      const [base, perMile] = RATE[d.category] ?? RATE.other!;
+      mid = base + miles * perMile;
+      const qty = Math.max(1, Number(d.qty) || 1);
+      if (d.category === 'pallets' || d.category === 'cars' || d.category === 'motorbikes') mid *= qty > 1 ? qty * 0.85 : 1;
+      if (d.vehicle && d.vehicle.runs === false) mid += 40;
+    }
+    if (d.access) { if (!d.access.lift) mid += 25 * ((FLOOR[d.access.fromFloor] ?? 0) + (FLOOR[d.access.toFloor] ?? 0)); if (d.access.helpers) mid += 40; }
+    return { lowPence: round10(mid * 0.75) * 100, highPence: round10(mid * 1.3) * 100, basis: 'typical UK prices for similar jobs over this distance' };
+  }
   if (!miles || d.load === 'air' || d.load === 'sea') return null;
   if (d.load === 'ftl') {
     const t = TRUCK[d.vehicle] ?? TRUCK['18t']!;
