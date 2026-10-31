@@ -6,8 +6,8 @@ import {
 } from './render.ts';
 
 const CSP = [
-  "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src https://fonts.gstatic.com",
-  "img-src 'self' data:", "connect-src 'self'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'",
+  "default-src 'self'", "script-src 'self' https://www.googletagmanager.com", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src https://fonts.gstatic.com",
+  "img-src 'self' data: https://www.googletagmanager.com https://*.google.com https://*.google.co.uk https://googleads.g.doubleclick.net https://www.googleadservices.com", "connect-src 'self' https://*.google.com https://*.google.co.uk https://googleads.g.doubleclick.net https://www.googleadservices.com https://*.googletagmanager.com https://*.google-analytics.com", "frame-src https://td.doubleclick.net https://www.googletagmanager.com", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'",
 ].join('; ');
 
 function send(res: ServerResponse, req: IncomingMessage, status: number, type: string, body: string, maxAge = 600) {

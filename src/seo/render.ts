@@ -69,6 +69,7 @@ ${headTags(o)}
 <link rel="stylesheet" href="/assets/seo.css">
 <link rel="stylesheet" href="/assets/foot.css">
 <script type="module" src="/assets/pages/seo.js"></script>
+<script src="/assets/consent.js" defer></script>
 ${ld.map(jsonLd).join('\n')}
 </head>
 <body>
@@ -109,7 +110,7 @@ ${col('Freight and moving', [['Compare freight rates', '/freight'], ['Find remov
 ${col('Guides and tools', [['UK parcel prices', '/parcel-prices'], ...GUIDES.filter((g) => !g.cat || g.cat === 'parcels').map((g) => [g.title.replace(/\s*\(.*\)$/, ''), `/guides/${g.slug}`] as [string, string]), ['Volumetric weight calculator', '/tools/volumetric-weight-calculator']])}
 </div>
 <p style="margin:18px 0 0;font-size:12.5px;line-height:1.55;opacity:.8">Kargom.co.uk compares live prices from leading UK and international couriers and books your label in minutes. Pay by card or with your Kargom wallet, print at home or drop off nearby, and get help from our UK team in your account.</p>
-${(() => { const c = company(); return `<p style="margin:8px 0 0;font-size:12.5px;line-height:1.55;opacity:.8">Kargom.co.uk is a trading name of ${esc(c.name)}, registered in England and Wales${c.number ? `, company no. ${esc(c.number)}` : ''}${c.address ? `. Registered office: ${esc(c.address)}` : ''}.${c.email ? ` Contact: <a href="mailto:${esc(c.email)}" style="color:inherit">${esc(c.email)}</a>.` : ''}<br><a href="/about" style="color:inherit">About us</a> · <a href="/terms" style="color:inherit">Terms and conditions</a> · <a href="/privacy" style="color:inherit">Privacy policy</a> · <a href="/cookies" style="color:inherit">Cookie policy</a></p>`; })()}
+${(() => { const c = company(); return `<p style="margin:8px 0 0;font-size:12.5px;line-height:1.55;opacity:.8">Kargom.co.uk is a trading name of ${esc(c.name)}, registered in England and Wales${c.number ? `, company no. ${esc(c.number)}` : ''}${c.address ? `. Registered office: ${esc(c.address)}` : ''}.${c.email ? ` Contact: <a href="mailto:${esc(c.email)}" style="color:inherit">${esc(c.email)}</a>.` : ''}<br><a href="/about" style="color:inherit">About us</a> · <a href="/terms" style="color:inherit">Terms and conditions</a> · <a href="/privacy" style="color:inherit">Privacy policy</a> · <a href="/cookies" style="color:inherit">Cookie policy</a> · <a href="/cookies" data-cookie-settings style="color:inherit">Cookie settings</a></p>`; })()}
 <div class="legal"><div class="brandrow"><img src="/assets/logo-white.png" alt="Kargom.co.uk" width="120" height="22" loading="lazy">
 <span class="fbadges"><img src="/assets/badges/amazon-spn.png" alt="Amazon SPN Verified Service Provider" width="144" height="26" loading="lazy"><img src="/assets/badges/nvidia-inception.png" alt="NVIDIA Inception Program member" width="123" height="26" loading="lazy"></span></div><span>© ${new Date().getFullYear()} Kargom.co.uk · All prices include VAT</span></div>
 </div></footer>`;
@@ -545,13 +546,14 @@ export function cookiesPage() {
 <p>This policy explains the cookies and similar storage used on Kargom.co.uk, which is run by ${esc(c.name)}.</p>
 
 <h2>Our approach</h2>
-<p>We use only cookies that are strictly necessary for the site to work, such as keeping you signed in and taking payments securely. UK law (the Privacy and Electronic Communications Regulations) allows these without consent, so we do not show a cookie banner. <b>We do not use advertising, tracking or analytics cookies.</b> If we ever add them, we will ask for your consent first.</p>
+<p>Most of our cookies are strictly necessary for the site to work, such as keeping you signed in and taking payments securely. UK law (the Privacy and Electronic Communications Regulations) allows these without consent. We also use <b>Google Ads cookies</b> to see which of our ads bring visitors. These are set <b>only if you click Accept</b> on our cookie banner. If you click Reject, nothing from Google Ads is loaded.</p>
 
 <h2>Cookies we use</h2>
 <div class="tblwrap"><table class="tbl"><thead><tr><th>Name</th><th>Set by</th><th>Purpose</th><th>How long</th></tr></thead><tbody>
 ${row('kg_session', 'Kargom', 'Keeps you signed in to your account', '30 days, or until you sign out')}
 ${row('kg_gstate', 'Kargom', 'Protects "Sign in with Google" from forged requests', '10 minutes')}
 ${row('__stripe_mid, __stripe_sid', 'Stripe', 'Fraud prevention when you pay by card', 'Up to 1 year and 30 minutes')}
+${row('_gcl_au, _gcl_aw, IDE, test_cookie', 'Google (only if you accept)', 'Measuring which of our Google ads led to a visit or a booking', 'Up to 13 months')}
 </tbody></table></div>
 
 <h2>Storage on your device</h2>
@@ -565,7 +567,7 @@ ${row('__stripe_mid, __stripe_sid', 'Stripe', 'Fraud prevention when you pay by 
 </ul>
 
 <h2>Managing cookies</h2>
-<p>You can block or delete cookies in your browser settings. If you block the cookies above, you will not be able to sign in or pay.</p>
+<p>You can change your choice at any time: <a href="/cookies" data-cookie-settings>open cookie settings</a>. You can also block or delete cookies in your browser settings. If you block the necessary cookies, you will not be able to sign in or pay.</p>
 
 <h2>Contact</h2>
 <p>Questions about cookies: ${mail}. See also our <a href="/privacy">privacy policy</a>.</p>`;
@@ -622,7 +624,7 @@ export function privacyPage() {
 </ul>
 
 <h2>Cookies</h2>
-<p>We use only cookies that are strictly necessary to run the site, so we do not ask for cookie consent. We do not use advertising or analytics cookies. Full details are in our <a href="/cookies">cookie policy</a>.</p>
+<p>We use cookies that are strictly necessary to run the site. With your consent only, we also use Google Ads cookies to measure which of our ads bring visitors; Google then processes your IP address and browsing data on this site for that purpose. Full details are in our <a href="/cookies">cookie policy</a>.</p>
 
 <h2>Your rights</h2>
 <p>You can ask to see the personal data we hold about you, correct it, delete it, restrict or object to how we use it, or receive a copy to take elsewhere. Contact ${mail}. We reply within one month. If you are unhappy with how we handle your data, you can complain to the Information Commissioner's Office (ico.org.uk, 0303 123 1113).</p>

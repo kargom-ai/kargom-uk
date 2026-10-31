@@ -29,6 +29,7 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
 <link rel="stylesheet" href="/assets/recent.css">
 <link rel="stylesheet" href="/assets/shop.css">
 <link rel="stylesheet" href="/assets/mobile.css">
+<script src="/assets/consent.js" defer></script>
 </head>
 <body data-page="app">
 <div id="root"></div>
@@ -543,6 +544,7 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
           <div class="sh-head">
             <span class="sh-logo" aria-hidden="true">
               <sc-if value="{{k.isShopify}}" hint-placeholder-val="{{ true }}"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg></sc-if>
+              <sc-if value="{{k.isWix}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M7 13h5M7 16h8"/></svg></sc-if>
               <sc-if value="{{k.isTicimax}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h16v10H4z"/><path d="M3 10l2-5h14l2 5"/><path d="M9 20v-5h6v5"/></svg></sc-if>
               <sc-if value="{{k.isWoo}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg></sc-if>
             </span>
@@ -555,9 +557,11 @@ select:focus,input:focus{outline:2px solid #33AEEF;outline-offset:-2px}
           </sc-if>
           <sc-if value="{{k.on}}" hint-placeholder-val="{{ true }}">
             <div class="sh-connect">
-              <label class="sh-field"><span>{{k.label}}</span>
-                <input aria-label="{{k.input}}" placeholder="{{k.ph}}" autocomplete="off" spellcheck="false">
-              </label>
+              <sc-if value="{{k.hasInput}}" hint-placeholder-val="{{ true }}">
+                <label class="sh-field"><span>{{k.label}}</span>
+                  <input aria-label="{{k.input}}" placeholder="{{k.ph}}" autocomplete="off" spellcheck="false">
+                </label>
+              </sc-if>
               <sc-if value="{{k.hasKey}}" hint-placeholder-val="{{ false }}">
                 <label class="sh-field"><span>{{k.keyLabel}}</span>
                   <input aria-label="{{k.keyInput}}" type="password" autocomplete="off" spellcheck="false">

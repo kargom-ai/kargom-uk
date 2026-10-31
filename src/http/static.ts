@@ -84,13 +84,13 @@ function pageFor(pathname: string): string | null {
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' https://js.stripe.com https://*.js.stripe.com https://cdnjs.cloudflare.com",
+  "script-src 'self' https://js.stripe.com https://*.js.stripe.com https://cdnjs.cloudflare.com https://www.googletagmanager.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
   "font-src https://fonts.gstatic.com",
-  "img-src 'self' data: blob: https://*.stripe.com https://tile.openstreetmap.org https://cdnjs.cloudflare.com",
-  "connect-src 'self' https://api.stripe.com https://*.stripe.com",
+  "img-src 'self' data: blob: https://*.stripe.com https://tile.openstreetmap.org https://cdnjs.cloudflare.com https://www.googletagmanager.com https://*.google.com https://*.google.co.uk https://googleads.g.doubleclick.net https://www.googleadservices.com",
+  "connect-src 'self' https://api.stripe.com https://*.stripe.com https://*.google.com https://*.google.co.uk https://googleads.g.doubleclick.net https://www.googleadservices.com https://*.googletagmanager.com https://*.google-analytics.com",
   "media-src 'self' https:",
-  "frame-src 'self' https://www.google.com https://www.youtube-nocookie.com https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://*.stripe.com",
+  "frame-src 'self' https://www.google.com https://www.youtube-nocookie.com https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://*.stripe.com https://td.doubleclick.net https://www.googletagmanager.com",
   "base-uri 'self'",
   "form-action 'self'",
 ].join('; ');

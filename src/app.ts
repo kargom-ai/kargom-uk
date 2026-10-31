@@ -5,6 +5,7 @@ import { ShopifyIntegration } from './integrations/shopify.ts';
 import { WooIntegration } from './integrations/woo.ts';
 import { StoreHub } from './integrations/stores.ts';
 import { TicimaxIntegration } from './integrations/ticimax.ts';
+import { WixIntegration } from './integrations/wix.ts';
 import type { Db } from './db/db.ts';
 import { migrate } from './db/migrate.ts';
 import { systemClock, type Clock } from './core/clock.ts';
@@ -80,7 +81,8 @@ export async function createApp(db: Db, config: AppConfig, payments: PaymentGate
   const shopify = new ShopifyIntegration(db, clock, box);
   const woo = new WooIntegration(db, clock, box);
   const ticimax = new TicimaxIntegration(db, clock, box);
-  const stores = new StoreHub(db, shopify, woo, ticimax);
+  const wix = new WixIntegration(db, clock, box);
+  const stores = new StoreHub(db, shopify, woo, ticimax, wix);
   const turkey = new TurkeyForwarding(db, clock, ledger, wallet, payments);
   turkey.publicUrl = market.publicUrl;
   const inbox = new Inbox(db, clock);
@@ -110,7 +112,7 @@ export async function createApp(db: Db, config: AppConfig, payments: PaymentGate
   bookings.onLabelReady = (id, instant) => {
     shipInfo(id).then((s) => s && inbox.push(s.customer_id, 'ship', `Label ready: ${s.ref}`, `To ${toName(s.to_json)}. Print it before drop-off.`, '/app?view=ship')).catch(() => {}); notifier.labelReady(id, { instant }).catch((e) => console.warn(`[notify] ${id}: ${(e as Error).message}`));
     stores.pushTracking(id).catch(() => {}); };
-  return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments, notifier, refreshNotifier, market, turkey, inbox, shopify, woo, ticimax, stores };
+  return { db, config, clock, ledger, wallet, pricing, registry, quotes, bookings, adjustments, support, auth, webhooks, admin, payments, notifier, refreshNotifier, market, turkey, inbox, shopify, woo, ticimax, wix, stores };
 }
 
 export type App = Awaited<ReturnType<typeof createApp>>;

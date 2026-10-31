@@ -3,8 +3,9 @@ import { AppError } from '../core/errors.ts';
 import type { ShopifyIntegration, Conn, OrderRow, ShipTo } from './shopify.ts';
 import type { WooIntegration } from './woo.ts';
 import type { TicimaxIntegration } from './ticimax.ts';
+import type { WixIntegration } from './wix.ts';
 
-export const PLATFORM_NAME: Record<string, string> = { shopify: 'Shopify', woo: 'WooCommerce', ticimax: 'Ticimax' };
+export const PLATFORM_NAME: Record<string, string> = { shopify: 'Shopify', woo: 'WooCommerce', ticimax: 'Ticimax', wix: 'Wix' };
 
 /** One place for the sender's connected shops: Shopify, WooCommerce (and later others). */
 export class StoreHub {
@@ -12,7 +13,10 @@ export class StoreHub {
   readonly shopify: ShopifyIntegration;
   readonly woo: WooIntegration;
   readonly ticimax: TicimaxIntegration;
-  constructor(db: Db, shopify: ShopifyIntegration, woo: WooIntegration, ticimax: TicimaxIntegration) { this.db = db; this.shopify = shopify; this.woo = woo; this.ticimax = ticimax; }
+  readonly wix: WixIntegration;
+  constructor(db: Db, shopify: ShopifyIntegration, woo: WooIntegration, ticimax: TicimaxIntegration, wix: WixIntegration) {
+    this.db = db; this.shopify = shopify; this.woo = woo; this.ticimax = ticimax; this.wix = wix;
+  }
 
   async overview(customerId: string) {
     const conns = await this.db.all<Conn>("SELECT * FROM shop_connections WHERE customer_id = $1 AND status = 'active' ORDER BY created_at", [customerId]);
@@ -25,6 +29,7 @@ export class StoreHub {
       shopify: { enabled: this.shopify.enabled, stores: conns.filter((c) => c.platform === 'shopify').map(store) },
       woo: { enabled: true, stores: conns.filter((c) => c.platform === 'woo').map(store) },
       ticimax: { enabled: true, stores: conns.filter((c) => c.platform === 'ticimax').map(store) },
+      wix: { enabled: this.wix.enabled, stores: conns.filter((c) => c.platform === 'wix').map(store) },
       orders: rows.filter((o) => byId[o.connection_id]).map((o) => this.view(o, byId[o.connection_id]!)),
     };
   }
@@ -45,6 +50,7 @@ export class StoreHub {
     }
     try { added += await this.woo.sync(customerId); } catch (e) { errors.push((e as Error).message); }
     try { added += await this.ticimax.sync(customerId); } catch (e) { errors.push((e as Error).message); }
+    try { added += await this.wix.sync(customerId); } catch (e) { errors.push((e as Error).message); }
     return { added, errors, ...(await this.overview(customerId)) };
   }
 
@@ -89,6 +95,6 @@ export class StoreHub {
 
   /** Called when a label is ready too. Each platform only acts on its own orders. */
   async pushTracking(shipmentId: string) {
-    return (await this.shopify.pushTracking(shipmentId)) || (await this.woo.pushTracking(shipmentId)) || (await this.ticimax.pushTracking(shipmentId));
+    return (await this.shopify.pushTracking(shipmentId)) || (await this.woo.pushTracking(shipmentId)) || (await this.ticimax.pushTracking(shipmentId)) || (await this.wix.pushTracking(shipmentId));
   }
 }

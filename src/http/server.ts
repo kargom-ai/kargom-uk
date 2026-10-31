@@ -704,6 +704,23 @@ export function buildRouter(app: App) {
 
   // ---------- Shopify (senders connect their store, ship its orders, tracking goes back to Shopify)
   const shopUser = async (c: Ctx) => { try { return await app.auth.authenticate(tokenFrom(c.req)); } catch { return null; } };
+  /** Kargom never runs inside another site's frame: show one button that opens it in its own tab. */
+  const openInTab = (c: Ctx, top: string, ancestors: string, platform: string) => {
+    c.res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
+      'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; frame-ancestors ${ancestors}`,
+    });
+    const h = (x: string) => x.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]!);
+    c.res.end(`<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kargom</title></head>
+<body style="margin:0;font-family:'Nunito Sans',Arial,sans-serif;background:#F5F7FB;color:#17263E;display:grid;place-items:center;min-height:100vh">
+<div style="background:#fff;border:1px solid #E1E7EF;border-radius:18px;padding:32px;max-width:420px;text-align:center;margin:16px">
+<img src="/assets/logo.png" alt="Kargom.co.uk" style="height:30px;width:auto">
+<h1 style="font-size:22px;margin:18px 0 8px">Ship your ${h(platform)} orders with Kargom</h1>
+<p style="font-size:15px;line-height:1.5;color:#3E4A5C;margin:0 0 22px">Kargom opens in its own tab. Sign in, and your unshipped orders will be waiting under Integrations.</p>
+<a href="${h(top)}" target="_top" style="display:block;padding:15px 20px;border-radius:12px;background:#087BFF;color:#fff;font-weight:800;font-size:16px;text-decoration:none">Open Kargom &rarr;</a>
+</div></body></html>`);
+    return null;
+  };
   /** App URL in the Shopify app settings: Shopify sends the merchant here (with ?shop=) when they open or install the app. */
   on('GET', '/api/shop/shopify/start', 'public', async (c) => {
     publicLimiter.check(ip(c));
@@ -713,19 +730,7 @@ export function buildRouter(app: App) {
       let sh = '';
       try { sh = normaliseShop(shop); } catch { /* unknown shop: Shopify admin only */ }
       const top = `${siteBase(c.req)}/api/shop/shopify/start?shop=${encodeURIComponent(sh)}`;
-      c.res.writeHead(200, {
-        'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
-        'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; frame-ancestors https://admin.shopify.com${sh ? ` https://${sh}` : ''}`,
-      });
-      c.res.end(`<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kargom</title></head>
-<body style="margin:0;font-family:'Nunito Sans',Arial,sans-serif;background:#F5F7FB;color:#17263E;display:grid;place-items:center;min-height:100vh">
-<div style="background:#fff;border:1px solid #E1E7EF;border-radius:18px;padding:32px;max-width:420px;text-align:center;margin:16px">
-<img src="/assets/logo.png" alt="Kargom.co.uk" style="height:30px;width:auto">
-<h1 style="font-size:22px;margin:18px 0 8px">Ship your Shopify orders with Kargom</h1>
-<p style="font-size:15px;line-height:1.5;color:#3E4A5C;margin:0 0 22px">Kargom opens in its own tab. Sign in, and your unshipped orders will be waiting under Integrations.</p>
-<a href="${top}" target="_top" style="display:block;padding:15px 20px;border-radius:12px;background:#087BFF;color:#fff;font-weight:800;font-size:16px;text-decoration:none">Open Kargom &rarr;</a>
-</div></body></html>`);
-      return null;
+      return openInTab(c, top, `https://admin.shopify.com${sh ? ` https://${sh}` : ''}`, 'Shopify');
     }
     const u = await shopUser(c);
     if (!u) return redirect(c, `/login?next=${encodeURIComponent(`/api/shop/shopify/start?shop=${encodeURIComponent(shop)}`)}`);
@@ -758,6 +763,29 @@ export function buildRouter(app: App) {
     catch (e) { return redirect(c, `/app?view=int&woo=error&msg=${encodeURIComponent((e as Error).message.slice(0, 120))}`); }
   });
   on('POST', '/api/shop/woo/callback', 'webhook', async (c) => { publicLimiter.check(ip(c)); await app.woo.callback(c.raw); return { ok: true }; });
+  // ---------- Wix: install link → code (or the signed dashboard link) → which site; tokens come from client credentials
+  const wixErr = (c: Ctx, e: unknown) => redirect(c, `/app?view=int&wix=error&msg=${encodeURIComponent((e as Error).message.slice(0, 120))}`);
+  on('GET', '/api/shop/wix/connect', 'customer', async (c) => { try { return redirect(c, await app.wix.installUrl(me(c), siteBase(c.req))); } catch (e) { return wixErr(c, e); } });
+  on('GET', '/api/shop/wix/callback', 'public', async (c) => {
+    publicLimiter.check(ip(c));
+    const u = await shopUser(c);
+    try { await app.wix.callback(c.query, u?.customerId ?? null); return redirect(c, '/app?view=int&wix=connected'); }
+    catch (e) {
+      if (!u && (e as AppError).code === 'unauthorized') return redirect(c, `/login?next=${encodeURIComponent('/app?view=int')}`);
+      console.warn(`[wix] callback: ${(e as Error).message}`); return wixErr(c, e);
+    }
+  });
+  /** The app's page in the Wix dashboard (App URL): Wix adds a signed "instance" parameter. */
+  on('GET', '/api/shop/wix/start', 'public', async (c) => {
+    publicLimiter.check(ip(c));
+    const instance = c.query.get('instance') ?? '';
+    const here = `${siteBase(c.req)}/api/shop/wix/start?instance=${encodeURIComponent(instance)}`;
+    if (c.req.headers['sec-fetch-dest'] === 'iframe') return openInTab(c, here, 'https://manage.wix.com https://*.wix.com https://*.editorx.com', 'Wix');
+    const u = await shopUser(c);
+    if (!u) return redirect(c, `/login?next=${encodeURIComponent(`/api/shop/wix/start?instance=${encodeURIComponent(instance)}`)}`);
+    if (!instance) return redirect(c, '/app?view=int');
+    try { await app.wix.fromDashboard(instance, u.customerId); return redirect(c, '/app?view=int&wix=connected'); } catch (e) { return wixErr(c, e); }
+  });
   // ---------- Ticimax: shop address + the "Yetki Kodu" the merchant creates in their Ticimax admin
   on('POST', '/api/shop/ticimax/connect', 'customer', async (c) => {
     marketLimiter.check(me(c));

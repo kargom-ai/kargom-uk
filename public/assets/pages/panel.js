@@ -40,7 +40,7 @@ class Component extends DCLogic {
     document.addEventListener('kg-inbox', (e) => this.setState({ inbox: e.detail }));
     loadInbox().then(() => { if (['ship', 'wallet', 'help'].includes(this.state.nav)) readArea(this.state.nav); });
     const sq = new URLSearchParams(location.search);
-    for (const [k, name] of [['shopify', 'Shopify'], ['woo', 'WooCommerce']]) {
+    for (const [k, name] of [['shopify', 'Shopify'], ['woo', 'WooCommerce'], ['wix', 'Wix']]) {
       if (!sq.get(k)) continue;
       history.replaceState(null, '', '/app?view=int');
       if (sq.get(k) === 'connected') {
@@ -300,15 +300,15 @@ class Component extends DCLogic {
       ['ebay', 'eBay', 'e', '#E53238', 'Pull sold items and mark them dispatched automatically.'], ['etsy', 'Etsy', 'E', '#F1641E', 'Bring in Etsy orders with buyer addresses filled in.'],
       ['amazon', 'Amazon', 'a', '#232F3E', 'Seller Central orders, with tracking sent to Amazon.'], ['wix', 'Wix', 'W', '#0C6EFC', 'Connect your Wix store and ship from one place.'],
       ['squarespace', 'Squarespace', 'S', '#1F2A3C', 'Import orders from your Squarespace commerce site.'], ['csv', 'CSV upload', '↑', '#33AEEF', 'Upload a spreadsheet of addresses to book in bulk.']];
-    const apps = APPS.filter(([id]) => !['shopify', 'woo'].includes(id)).map(([, name, ini, color, desc]) => ({ name, ini, color, desc, state: 'Coming soon', stFg: '#8593A8', border: '#E1E7EF',
+    const apps = APPS.filter(([id]) => !['shopify', 'woo', 'wix'].includes(id)).map(([, name, ini, color, desc]) => ({ name, ini, color, desc, state: 'Coming soon', stFg: '#8593A8', border: '#E1E7EF',
       cta: 'Notify me', bBg: '#FFFFFF', bFg: '#3E4A5C', bBorder: '#C9D6EA', toggle: () => this.say(`We will email you when ${name} is ready.`) }));
 
     // ---- connected shops (Shopify, WooCommerce)
-    const SH = st.shop || { shopify: { enabled: false, stores: [] }, woo: { enabled: false, stores: [] }, ticimax: { enabled: false, stores: [] }, orders: [] };
+    const SH = st.shop || { shopify: { enabled: false, stores: [] }, woo: { enabled: false, stores: [] }, ticimax: { enabled: false, stores: [] }, wix: { enabled: false, stores: [] }, orders: [] };
     const when = (iso) => (iso ? dateTime(iso) : 'not yet');
     const shRow = (o) => {
       const done = o.status === 'shipped', err = done && !o.pushedAt && o.pushError;
-      const pn = { woo: 'WooCommerce', ticimax: 'Ticimax' }[o.platform] || 'Shopify';
+      const pn = { woo: 'WooCommerce', ticimax: 'Ticimax', wix: 'Wix' }[o.platform] || 'Shopify';
       return { name: o.name, store: o.store, date: shortDate(o.orderedAt), to: [o.to.name, o.to.city, o.to.postcode, o.to.country !== 'GB' ? o.to.country : ''].filter(Boolean).join(' · '),
         items: o.items.slice(0, 3).join(', ') + (o.items.length > 3 ? ` +${o.items.length - 3} more` : ''), kg: o.weightGrams ? `${(o.weightGrams / 1000).toFixed(1)} kg` : 'Weight not set',
         total: o.totalPence ? `${o.currency === 'GBP' || !o.currency ? '£' : `${o.currency} `}${(o.totalPence / 100).toFixed(2)}` : '',
@@ -331,6 +331,9 @@ class Component extends DCLogic {
       woo: { title: 'WooCommerce', input: 'WooCommerce site', label: 'Your shop website', ph: 'https://www.my-shop.co.uk', btn: 'Connect WooCommerce',
         lead: 'Orders in Processing come in here. After you book, the tracking number is added to the order (your customer gets it by email) and the order is marked Completed. You approve Kargom once in your WordPress admin.',
         go: (v) => `/api/shop/woo/connect?site=${encodeURIComponent(v)}`, need: 'Type your shop website, for example https://www.my-shop.co.uk' },
+      wix: { title: 'Wix', btn: 'Connect Wix', noInput: true,
+        lead: 'Paid orders from your Wix store come in here. After you book, the tracking number is added to the Wix order as a fulfillment, and Wix can email your customer.',
+        go: () => '/api/shop/wix/connect' },
       ticimax: { title: 'Ticimax', input: 'Ticimax site', label: 'Your shop website', ph: 'https://www.my-shop.com', btn: 'Connect Ticimax',
         keyInput: 'Ticimax Yetki Kodu', keyLabel: 'Yetki Kodu (Ticimax admin → Ayarlar → Yetki Kodu Yönetimi)',
         lead: 'Approved and packing orders come in here. After you book, the tracking number is saved on the Ticimax order and its status changes to Kargoya verildi.',
@@ -341,7 +344,7 @@ class Component extends DCLogic {
       const connected = info.stores.length > 0;
       const mine = SH.orders.filter((o) => o.platform === id);
       const open = mine.filter((o) => o.status === 'open'), done = mine.filter((o) => o.status === 'shipped').slice(0, 10);
-      return { ...P, isShopify: id === 'shopify', isWoo: id === 'woo', isTicimax: id === 'ticimax',
+      return { ...P, isShopify: id === 'shopify', isWoo: id === 'woo', isTicimax: id === 'ticimax', isWix: id === 'wix', hasInput: !P.noInput,
         on: info.enabled && !connected, off: !info.enabled && !connected, connected,
         status: connected ? `Connected · ${info.stores.map((x) => x.name).join(', ')}` : info.enabled ? 'Not connected' : 'Switching on soon', statusCls: connected ? 'ok' : 'todo',
         stores: info.stores.map((x) => ({ name: x.name, shop: x.shop.replace(/^https:\/\//, ''), synced: `Last checked ${when(x.lastSyncAt)}`,
@@ -350,6 +353,7 @@ class Component extends DCLogic {
         count: open.length ? `${open.length} order${open.length > 1 ? 's' : ''} to ship` : '', sync: shopSync,
         hasKey: Boolean(P.keyInput), keyInput: P.keyInput || '', keyLabel: P.keyLabel || '',
         connect: async () => {
+          if (P.noInput) { location.href = P.go(); return; }
           const v = String(field(P.input) || '').trim();
           if (!v) { this.say(P.need); return; }
           if (!P.keyInput) { location.href = P.go(v); return; }
