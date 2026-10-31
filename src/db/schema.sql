@@ -450,3 +450,11 @@ CREATE TABLE IF NOT EXISTS shop_orders (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS shop_orders_ext ON shop_orders(connection_id, external_id);
 CREATE INDEX IF NOT EXISTS shop_orders_customer ON shop_orders(customer_id, status, ordered_at);
+
+-- Live chat on the website (visitors and customers ↔ Kargom team)
+CREATE TABLE IF NOT EXISTS chat_threads (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL, customer_id TEXT, name TEXT NOT NULL, email TEXT, page TEXT, status TEXT NOT NULL,
+  unread_admin INTEGER NOT NULL DEFAULT 0, unread_visitor INTEGER NOT NULL DEFAULT 0, visitor_seen_at TEXT, admin_notified_at TEXT, visitor_notified_at TEXT, last_at TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS chat_threads_token ON chat_threads(token_hash);
+CREATE INDEX IF NOT EXISTS chat_threads_last ON chat_threads(status, last_at);
+CREATE TABLE IF NOT EXISTS chat_messages (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES chat_threads(id), sender TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS chat_messages_thread ON chat_messages(thread_id, created_at);

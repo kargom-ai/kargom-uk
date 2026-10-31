@@ -71,6 +71,7 @@ ${headTags(o)}
 <script type="module" src="/assets/pages/seo.js"></script>
 <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18548186219"></script>
 <script src="/assets/consent.js" defer></script>
+<script src="/assets/livechat.js" defer></script>
 ${ld.map(jsonLd).join('\n')}
 </head>
 <body>

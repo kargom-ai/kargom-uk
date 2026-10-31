@@ -786,6 +786,19 @@ export function buildRouter(app: App) {
     if (!instance) return redirect(c, '/app?view=int');
     try { await app.wix.fromDashboard(instance, u.customerId); return redirect(c, '/app?view=int&wix=connected'); } catch (e) { return wixErr(c, e); }
   });
+  // ---------- OpenCart: the merchant uploads a small connector file (made here with their private key)
+  on('POST', '/api/shop/opencart/start', 'customer', async (c) => {
+    marketLimiter.check(me(c));
+    const { id } = await app.opencart.start(me(c), c.body?.site);
+    return { id, file: `/api/shop/opencart/${id}/file`, ...(await app.stores.overview(me(c))) };
+  });
+  on('GET', '/api/shop/opencart/:id/file', 'customer', async (c) => {
+    const php = await app.opencart.file(me(c), c.params.id!);
+    c.res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="kargom-connect.php"', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+    c.res.end(php);
+    return null;
+  });
+  on('POST', '/api/shop/opencart/:id/verify', 'customer', async (c) => { marketLimiter.check(me(c)); await app.opencart.verify(me(c), c.params.id!); return app.stores.overview(me(c)); });
   // ---------- Ticimax: shop address + the "Yetki Kodu" the merchant creates in their Ticimax admin
   on('POST', '/api/shop/ticimax/connect', 'customer', async (c) => {
     marketLimiter.check(me(c));
@@ -799,6 +812,25 @@ export function buildRouter(app: App) {
     await app.shopify.webhook(String(c.req.headers['x-shopify-topic'] ?? ''), String(c.req.headers['x-shopify-shop-domain'] ?? ''), c.raw);
     return { received: true };
   });
+
+  // ---------- live chat (website visitors ↔ Kargom team)
+  const liveLimiter = new RateLimiter(40, 60_000);
+  const chatToken = (c: Ctx) => String(c.req.headers['x-chat-token'] ?? '');
+  on('POST', '/api/chat/start', 'public', async (c) => {
+    publicLimiter.check(ip(c));
+    const u = await shopUser(c);
+    const me = u ? await app.db.get<{ name: string; email: string }>('SELECT name, email FROM customers WHERE id = $1', [u.customerId]) : undefined;
+    return app.chat.start(c.body ?? {}, u && me ? { customerId: u.customerId, name: me.name, email: me.email } : null);
+  });
+  on('GET', '/api/chat', 'public', async (c) => { liveLimiter.check(ip(c)); return app.chat.visitorRead(chatToken(c), c.query.get('after')); });
+  on('GET', '/api/chat/unread', 'public', async (c) => { liveLimiter.check(ip(c)); return app.chat.visitorUnread(chatToken(c)); });
+  on('GET', '/api/chat/status', 'public', async (c) => { liveLimiter.check(ip(c)); return { online: app.chat.online }; });
+  on('POST', '/api/chat/messages', 'public', async (c) => { liveLimiter.check(ip(c)); return app.chat.visitorSend(chatToken(c), c.body?.body); });
+  on('GET', '/api/admin/chat', 'admin', async () => app.chat.adminList());
+  on('GET', '/api/admin/chat/unread', 'admin', async () => app.chat.adminUnread());
+  on('GET', '/api/admin/chat/:id', 'admin', async (c) => app.chat.adminOpen(c.params.id!));
+  on('POST', '/api/admin/chat/:id/messages', 'admin', async (c) => app.chat.adminSend(c.params.id!, c.body?.body));
+  on('POST', '/api/admin/chat/:id/close', 'admin', async (c) => app.chat.adminClose(c.params.id!, Boolean(c.body?.reopen)));
 
   // ---------- webhooks
   on('POST', '/webhooks/stripe', 'webhook', async (c) => {

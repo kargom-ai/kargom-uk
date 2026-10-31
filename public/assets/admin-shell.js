@@ -5,7 +5,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 export const ADMIN_NAV = [
   ['over', 'Overview', '/admin'], ['flow', 'Shipment flow', '/admin?view=flow'], ['adj', 'Weight adjustments', '/admin?view=adj'], ['sup', 'Support', '/admin?view=sup'],
   ['fin', 'Finance', '/admin?view=fin'], ['cust', 'Customers', '/admin?view=cust'], ['conn', 'Connections', '/admin?view=conn'], ['price', 'Pricing rules', '/admin?view=price'],
-  ['tr', 'Turkey warehouse', '/admin/turkey'],
+  ['chat', 'Live chat', '/admin/chat'], ['tr', 'Turkey warehouse', '/admin/turkey'],
 ];
 
 /** Replace the page with the admin frame and return { main, me, setBadge }. Throws if not an admin. */

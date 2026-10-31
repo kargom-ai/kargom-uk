@@ -304,11 +304,11 @@ class Component extends DCLogic {
       cta: 'Notify me', bBg: '#FFFFFF', bFg: '#3E4A5C', bBorder: '#C9D6EA', toggle: () => this.say(`We will email you when ${name} is ready.`) }));
 
     // ---- connected shops (Shopify, WooCommerce)
-    const SH = st.shop || { shopify: { enabled: false, stores: [] }, woo: { enabled: false, stores: [] }, ticimax: { enabled: false, stores: [] }, wix: { enabled: false, stores: [] }, orders: [] };
+    const SH = st.shop || { shopify: { enabled: false, stores: [] }, woo: { enabled: false, stores: [] }, ticimax: { enabled: false, stores: [] }, wix: { enabled: false, stores: [] }, opencart: { enabled: false, stores: [], pending: [] }, orders: [] };
     const when = (iso) => (iso ? dateTime(iso) : 'not yet');
     const shRow = (o) => {
       const done = o.status === 'shipped', err = done && !o.pushedAt && o.pushError;
-      const pn = { woo: 'WooCommerce', ticimax: 'Ticimax', wix: 'Wix' }[o.platform] || 'Shopify';
+      const pn = { woo: 'WooCommerce', ticimax: 'Ticimax', wix: 'Wix', opencart: 'OpenCart' }[o.platform] || 'Shopify';
       return { name: o.name, store: o.store, date: shortDate(o.orderedAt), to: [o.to.name, o.to.city, o.to.postcode, o.to.country !== 'GB' ? o.to.country : ''].filter(Boolean).join(' · '),
         items: o.items.slice(0, 3).join(', ') + (o.items.length > 3 ? ` +${o.items.length - 3} more` : ''), kg: o.weightGrams ? `${(o.weightGrams / 1000).toFixed(1)} kg` : 'Weight not set',
         total: o.totalPence ? `${o.currency === 'GBP' || !o.currency ? '£' : `${o.currency} `}${(o.totalPence / 100).toFixed(2)}` : '',
@@ -334,6 +334,9 @@ class Component extends DCLogic {
       wix: { title: 'Wix', btn: 'Connect Wix', noInput: true,
         lead: 'Paid orders from your Wix store come in here. After you book, the tracking number is added to the Wix order as a fulfillment, and Wix can email your customer.',
         go: () => '/api/shop/wix/connect' },
+      opencart: { title: 'OpenCart', input: 'OpenCart site', label: 'Your shop website', ph: 'https://www.my-shop.co.uk', btn: 'Get connector file', starter: true,
+        lead: 'Orders in Processing come in here. After you book, the tracking number is added to the order history (your customer sees it in their account) and the order is set to Shipped. You upload one small file to your shop once.',
+        need: 'Type your shop website, for example https://www.my-shop.co.uk' },
       ticimax: { title: 'Ticimax', input: 'Ticimax site', label: 'Your shop website', ph: 'https://www.my-shop.com', btn: 'Connect Ticimax',
         keyInput: 'Ticimax Yetki Kodu', keyLabel: 'Yetki Kodu (Ticimax admin → Ayarlar → Yetki Kodu Yönetimi)',
         lead: 'Approved and packing orders come in here. After you book, the tracking number is saved on the Ticimax order and its status changes to Kargoya verildi.',
@@ -342,11 +345,17 @@ class Component extends DCLogic {
     const shopCards = Object.entries(PLAT).map(([id, P]) => {
       const info = SH[id] || { enabled: false, stores: [] };
       const connected = info.stores.length > 0;
+      const pending = (info.pending || []).map((x) => ({ name: x.name, shop: x.shop.replace(/^https:\/\//, ''), file: `/api/shop/${id}/${x.id}/file`,
+        check: async () => {
+          this.say('Checking your shop…');
+          try { this.setState({ shop: await api(`/api/shop/${id}/${x.id}/verify`, { method: 'POST' }) }); this.say(`${x.name} connected. Your orders will appear here.`); } catch (e) { this.say(e.message); }
+        },
+        cancel: async () => { try { this.setState({ shop: await api(`/api/shop/stores/${x.id}/disconnect`, { method: 'POST' }) }); } catch (e) { this.say(e.message); } } }));
       const mine = SH.orders.filter((o) => o.platform === id);
       const open = mine.filter((o) => o.status === 'open'), done = mine.filter((o) => o.status === 'shipped').slice(0, 10);
-      return { ...P, isShopify: id === 'shopify', isWoo: id === 'woo', isTicimax: id === 'ticimax', isWix: id === 'wix', hasInput: !P.noInput,
-        on: info.enabled && !connected, off: !info.enabled && !connected, connected,
-        status: connected ? `Connected · ${info.stores.map((x) => x.name).join(', ')}` : info.enabled ? 'Not connected' : 'Switching on soon', statusCls: connected ? 'ok' : 'todo',
+      return { ...P, isShopify: id === 'shopify', isWoo: id === 'woo', isTicimax: id === 'ticimax', isWix: id === 'wix', isOc: id === 'opencart', hasInput: !P.noInput,
+        on: info.enabled && !connected && !pending.length, off: !info.enabled && !connected, connected, pending, hasPending: pending.length > 0,
+        status: connected ? `Connected · ${info.stores.map((x) => x.name).join(', ')}` : pending.length ? 'Waiting for the file' : info.enabled ? 'Not connected' : 'Switching on soon', statusCls: connected ? 'ok' : 'todo',
         stores: info.stores.map((x) => ({ name: x.name, shop: x.shop.replace(/^https:\/\//, ''), synced: `Last checked ${when(x.lastSyncAt)}`,
           disconnect: async () => { try { this.setState({ shop: await api(`/api/shop/stores/${x.id}/disconnect`, { method: 'POST' }) }); this.say(`${x.name} disconnected`); } catch (e) { this.say(e.message); } } })),
         orders: open.map(shRow), shipped: done.map(shRow), hasOrders: open.length > 0, noOrders: connected && open.length === 0, hasShipped: done.length > 0,
@@ -356,6 +365,15 @@ class Component extends DCLogic {
           if (P.noInput) { location.href = P.go(); return; }
           const v = String(field(P.input) || '').trim();
           if (!v) { this.say(P.need); return; }
+          if (P.starter) {
+            try {
+              const r = await api(`/api/shop/${id}/start`, { method: 'POST', body: { site: v } });
+              this.setState({ shop: r });
+              const a = document.createElement('a'); a.href = r.file; a.download = 'kargom-connect.php'; document.body.append(a); a.click(); a.remove();
+              this.say('Connector file downloaded. Upload it to your shop, then click Check connection.');
+            } catch (e) { this.say(e.message); }
+            return;
+          }
           if (!P.keyInput) { location.href = P.go(v); return; }
           const key = String(field(P.keyInput) || '').trim();
           if (!key) { this.say('Paste the Yetki Kodu from your Ticimax admin.'); return; }

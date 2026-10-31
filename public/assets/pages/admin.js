@@ -118,6 +118,7 @@ class Component extends DCLogic {
     const [ov, s, a, t, c, p] = await Promise.all([api(`/api/admin/overview?days=${days}`), api('/api/admin/shipments'), api('/api/admin/adjustments'), api('/api/admin/tickets'),
       api('/api/admin/customers'), api('/api/admin/providers')]);
     api('/api/admin/notifications').then((notif) => this.setState({ notif }), () => {});
+    api('/api/admin/chat/unread').then((r) => this.setState({ chatUnread: r.unread }), () => {});
     this.setState({ ov, shipments: s.shipments, adjustments: a.adjustments, tickets: t.tickets, customers: c.customers, providers: p.providers, live: p.live, demoPayments: p.demoPayments });
     if (this.state.view === 'sup' && !this.state.sup) this.pickFirstTicket();
   }
@@ -136,7 +137,7 @@ class Component extends DCLogic {
     } catch (e) { this.say(e.message); }
   }
 
-  go(v) { if (v === 'tr') { location.href = '/admin/turkey'; return; } this.setState({ view: v }); this.loadView(v); history.replaceState(null, '', v === 'over' ? '/admin' : `/admin?view=${v}`); }
+  go(v) { if (v === 'tr') { location.href = '/admin/turkey'; return; } if (v === 'chat') { location.href = '/admin/chat'; return; } this.setState({ view: v }); this.loadView(v); history.replaceState(null, '', v === 'over' ? '/admin' : `/admin?view=${v}`); }
 
   pickFirstTicket() {
     const first = this.state.tickets.find((t) => this.state.qTab === 'all' || t.status === this.state.qTab) || this.state.tickets[0];
@@ -181,7 +182,7 @@ class Component extends DCLogic {
     const usCount = st.tickets.filter((t) => t.status === 'waiting_us').length;
 
     // ---- nav + header
-    const NAV = [['over', 'Overview', ''], ['flow', 'Shipment flow', ''], ['adj', 'Weight adjustments', String(openAdj.length)], ['sup', 'Support', String(usCount)], ['fin', 'Finance', ''],
+    const NAV = [['over', 'Overview', ''], ['flow', 'Shipment flow', ''], ['adj', 'Weight adjustments', String(openAdj.length)], ['sup', 'Support', String(usCount)], ['chat', 'Live chat', String(st.chatUnread || 0)], ['fin', 'Finance', ''],
       ['cust', 'Customers', ''], ['conn', 'Connections', ''], ['price', 'Pricing rules', ''], ['tr', 'Turkey warehouse', '']];
     const vv = st.view === 'prof' ? 'cust' : st.view;
     const nav = NAV.map(([id, label, badge]) => ({ label, badge: badge === '0' ? '' : badge, badgeBg: badge && badge !== '0' ? '#E5484D' : 'transparent', cur: vv === id ? 'page' : 'false',
