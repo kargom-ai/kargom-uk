@@ -407,3 +407,46 @@ CREATE TABLE IF NOT EXISTS inbox (
   created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS inbox_customer ON inbox(customer_id, created_at);
+-- Store integrations (Shopify first): a seller's connected shop and the orders waiting to be shipped.
+CREATE TABLE IF NOT EXISTS shop_connections (
+  id           TEXT PRIMARY KEY,
+  customer_id  TEXT NOT NULL REFERENCES customers(id),
+  platform     TEXT NOT NULL,                   -- shopify
+  shop         TEXT NOT NULL,                   -- example.myshopify.com
+  shop_name    TEXT,
+  token        TEXT,                            -- access token, sealed with MASTER_KEY; NULL once uninstalled
+  scopes       TEXT,
+  status       TEXT NOT NULL,                   -- active | uninstalled
+  last_sync_at TEXT,
+  created_at   TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS shop_connections_shop ON shop_connections(platform, shop);
+CREATE INDEX IF NOT EXISTS shop_connections_customer ON shop_connections(customer_id);
+CREATE TABLE IF NOT EXISTS shop_oauth_states (
+  state       TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL,
+  shop        TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS shop_orders (
+  id             TEXT PRIMARY KEY,
+  connection_id  TEXT NOT NULL REFERENCES shop_connections(id),
+  customer_id    TEXT NOT NULL,
+  external_id    TEXT NOT NULL,                 -- gid://shopify/Order/123
+  name           TEXT NOT NULL,                 -- #1001
+  ordered_at     TEXT NOT NULL,
+  buyer_email    TEXT,
+  ship_to        TEXT NOT NULL,                 -- JSON address
+  items          TEXT NOT NULL,                 -- JSON [{name, quantity, sku, valuePence}]
+  weight_grams   INTEGER NOT NULL DEFAULT 0,
+  total_pence    INTEGER NOT NULL DEFAULT 0,
+  currency       TEXT,
+  fulfillment_orders TEXT NOT NULL,             -- JSON [gid]
+  status         TEXT NOT NULL,                 -- open | shipped | ignored
+  shipment_id    TEXT,
+  pushed_at      TEXT,
+  push_error     TEXT,
+  synced_at      TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS shop_orders_ext ON shop_orders(connection_id, external_id);
+CREATE INDEX IF NOT EXISTS shop_orders_customer ON shop_orders(customer_id, status, ordered_at);

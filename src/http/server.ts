@@ -30,6 +30,7 @@ import { maerskSailings, maerskTest } from '../freight/maersk.ts';
 import { carrierIcon } from '../freight/carriers.ts';
 import { loadMarketIndex, marketSummary, marketWeeks, saveMarketIndex, INDEX_KEYS } from '../freight/market.ts';
 import type { PacklinkProvider } from '../providers/packlink.ts';
+import { validWebhookHmac } from '../integrations/shopify.ts';
 
 type Ctx = {
   req: IncomingMessage;
@@ -699,6 +700,39 @@ export function buildRouter(app: App) {
     if (!Number.isInteger(markupBp) || markupBp < 0 || markupBp > 10_000 || !Number.isInteger(fixedPence) || fixedPence < 0) throw new AppError('bad_request', 'Invalid rule');
     await app.pricing.set(decodeURIComponent(c.params.key!), { markupBp, fixedPence });
     return { rules: await app.pricing.list() };
+  });
+
+  // ---------- Shopify (senders connect their store, ship its orders, tracking goes back to Shopify)
+  const shopUser = async (c: Ctx) => { try { return await app.auth.authenticate(tokenFrom(c.req)); } catch { return null; } };
+  /** App URL in the Shopify app settings: Shopify sends the merchant here (with ?shop=) when they open or install the app. */
+  on('GET', '/api/shop/shopify/start', 'public', async (c) => {
+    publicLimiter.check(ip(c));
+    const shop = c.query.get('shop') ?? '';
+    const u = await shopUser(c);
+    if (!u) return redirect(c, `/login?next=${encodeURIComponent(`/api/shop/shopify/start?shop=${encodeURIComponent(shop)}`)}`);
+    try { return redirect(c, await app.shopify.installUrl(u.customerId, shop, siteBase(c.req))); }
+    catch (e) { return redirect(c, `/app?view=int&shopify=error&msg=${encodeURIComponent((e as Error).message.slice(0, 120))}`); }
+  });
+  on('GET', '/api/shop/shopify/connect', 'customer', async (c) => {
+    try { return redirect(c, await app.shopify.installUrl(me(c), c.query.get('shop'), siteBase(c.req))); }
+    catch (e) { return redirect(c, `/app?view=int&shopify=error&msg=${encodeURIComponent((e as Error).message.slice(0, 120))}`); }
+  });
+  on('GET', '/api/shop/shopify/callback', 'public', async (c) => {
+    publicLimiter.check(ip(c));
+    try { await app.shopify.callback(c.query); return redirect(c, '/app?view=int&shopify=connected'); }
+    catch (e) { console.warn(`[shopify] callback: ${(e as Error).message}`); return redirect(c, `/app?view=int&shopify=error&msg=${encodeURIComponent((e as Error).message.slice(0, 120))}`); }
+  });
+  on('GET', '/api/shop', 'customer', async (c) => app.shopify.overview(me(c)));
+  on('POST', '/api/shop/sync', 'customer', async (c) => { marketLimiter.check(me(c)); return app.shopify.sync(me(c)); });
+  on('POST', '/api/shop/stores/:id/disconnect', 'customer', async (c) => app.shopify.disconnect(me(c), c.params.id!));
+  on('GET', '/api/shop/orders/:id', 'customer', async (c) => app.shopify.prefill(me(c), c.params.id!));
+  on('POST', '/api/shop/orders/:id/ignore', 'customer', async (c) => app.shopify.ignore(me(c), c.params.id!));
+  on('POST', '/api/shop/orders/:id/link', 'customer', async (c) => app.shopify.link(me(c), c.params.id!, str(c.body?.shipmentId, 'Shipment', 60)));
+  on('POST', '/webhooks/shopify', 'webhook', async (c) => {
+    const secret = process.env.SHOPIFY_API_SECRET ?? '';
+    if (!secret || !validWebhookHmac(c.raw, c.req.headers['x-shopify-hmac-sha256'] as string | undefined, secret)) throw new AppError('unauthorized', 'Bad Shopify signature');
+    await app.shopify.webhook(String(c.req.headers['x-shopify-topic'] ?? ''), String(c.req.headers['x-shopify-shop-domain'] ?? ''), c.raw);
+    return { received: true };
   });
 
   // ---------- webhooks
