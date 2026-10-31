@@ -30,7 +30,7 @@ import { maerskSailings, maerskTest } from '../freight/maersk.ts';
 import { carrierIcon } from '../freight/carriers.ts';
 import { loadMarketIndex, marketSummary, marketWeeks, saveMarketIndex, INDEX_KEYS } from '../freight/market.ts';
 import type { PacklinkProvider } from '../providers/packlink.ts';
-import { validWebhookHmac } from '../integrations/shopify.ts';
+import { normaliseShop, validWebhookHmac } from '../integrations/shopify.ts';
 
 type Ctx = {
   req: IncomingMessage;
@@ -708,9 +708,32 @@ export function buildRouter(app: App) {
   on('GET', '/api/shop/shopify/start', 'public', async (c) => {
     publicLimiter.check(ip(c));
     const shop = c.query.get('shop') ?? '';
+    // Opened inside the Shopify admin (embedded): Kargom never runs inside another site, so show one button that opens it in the full window.
+    if (c.query.get('embedded') === '1' || c.query.get('host')) {
+      let sh = '';
+      try { sh = normaliseShop(shop); } catch { /* unknown shop: Shopify admin only */ }
+      const top = `${siteBase(c.req)}/api/shop/shopify/start?shop=${encodeURIComponent(sh)}`;
+      c.res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
+        'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; frame-ancestors https://admin.shopify.com${sh ? ` https://${sh}` : ''}`,
+      });
+      c.res.end(`<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kargom</title></head>
+<body style="margin:0;font-family:'Nunito Sans',Arial,sans-serif;background:#F5F7FB;color:#17263E;display:grid;place-items:center;min-height:100vh">
+<div style="background:#fff;border:1px solid #E1E7EF;border-radius:18px;padding:32px;max-width:420px;text-align:center;margin:16px">
+<img src="/assets/logo.png" alt="Kargom.co.uk" style="height:30px;width:auto">
+<h1 style="font-size:22px;margin:18px 0 8px">Ship your Shopify orders with Kargom</h1>
+<p style="font-size:15px;line-height:1.5;color:#3E4A5C;margin:0 0 22px">Kargom opens in its own tab. Sign in, and your unshipped orders will be waiting under Integrations.</p>
+<a href="${top}" target="_top" style="display:block;padding:15px 20px;border-radius:12px;background:#087BFF;color:#fff;font-weight:800;font-size:16px;text-decoration:none">Open Kargom &rarr;</a>
+</div></body></html>`);
+      return null;
+    }
     const u = await shopUser(c);
     if (!u) return redirect(c, `/login?next=${encodeURIComponent(`/api/shop/shopify/start?shop=${encodeURIComponent(shop)}`)}`);
-    try { return redirect(c, await app.shopify.installUrl(u.customerId, shop, siteBase(c.req))); }
+    try {
+      const mine = await app.shopify.overview(u.customerId);
+      if (mine.stores.some((x) => x.shop === shop)) return redirect(c, '/app?view=int');
+      return redirect(c, await app.shopify.installUrl(u.customerId, shop, siteBase(c.req)));
+    }
     catch (e) { return redirect(c, `/app?view=int&shopify=error&msg=${encodeURIComponent((e as Error).message.slice(0, 120))}`); }
   });
   on('GET', '/api/shop/shopify/connect', 'customer', async (c) => {
