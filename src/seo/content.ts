@@ -3,7 +3,12 @@
  * `{{UK_PRICES}}` inside a guide is replaced with the live UK price table.
  */
 
-export type Guide = { slug: string; title: string; h1: string; description: string; updated: string; minutes: number; body: string };
+import type { Faq } from './carriers.ts';
+import { FREIGHT_GUIDES } from './content-freight.ts';
+
+/** cat: which hub section and sidebar the guide gets (parcels by default). */
+export type Guide = { slug: string; title: string; h1: string; description: string; updated: string; minutes: number; body: string;
+  cat?: 'parcels' | 'freight' | 'moving'; faq?: Faq[]; sources?: Array<[string, string]> };
 
 export const GUIDES: Guide[] = [
   {
@@ -135,6 +140,7 @@ export const GUIDES: Guide[] = [
   },
 ];
 
+GUIDES.push(...FREIGHT_GUIDES);
 export const guideBySlug = (slug: string) => GUIDES.find((g) => g.slug === slug);
 
 /** Notes shown on destination pages, by region. Kept general: rules change, prices come live. */

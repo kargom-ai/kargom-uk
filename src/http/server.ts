@@ -472,7 +472,7 @@ export function buildRouter(app: App) {
   /** This week's container market (Drewry WCI, entered by the admin). */
   on('GET', '/api/freight/market', 'public', async () => marketSummary(app.db));
   on('GET', '/api/admin/market', 'admin', async () => ({ keys: INDEX_KEYS, weeks: await marketWeeks(app.db, 12) }));
-  on('POST', '/api/admin/market', 'admin', async (c) => saveMarketIndex(app.db, c.body ?? {}));
+  on('POST', '/api/admin/market', 'admin', async (c) => { const r = await saveMarketIndex(app.db, c.body ?? {}); await seoPricesFor(app).loadMarket(); return r; });
   /** Admin: check the Maersk schedules key on the live site. Open /api/admin/maersk-test. */
   on('GET', '/api/admin/maersk-test', 'admin', async () => maerskTest());
   loadMarketIndex(app.db).catch((e) => console.warn(`[market] ${(e as Error).message}`));

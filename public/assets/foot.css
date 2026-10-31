@@ -21,3 +21,4 @@
 .foot .fbadges{gap:8px}
 .foot .fbadges img{height:26px}
 @media (max-width:760px){.foot .fbadges img{height:24px}.foot .brandrow{gap:10px 14px}}
+.foot .cols{grid-template-columns:repeat(auto-fit,minmax(165px,1fr))}

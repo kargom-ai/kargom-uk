@@ -1,5 +1,8 @@
 import type { App } from '../app.ts';
 import type { ShipmentRequest } from '../providers/types.ts';
+import { marketSummary } from '../freight/market.ts';
+
+export type MarketBox = { week: string; lanes: Array<{ key: string; label: string; usd: number; changePct: number | null }> };
 
 /**
  * Live price snapshots for the public guide pages (courier, country and price pages).
@@ -49,7 +52,13 @@ export class SeoPrices {
   private snaps = new Map<string, Snapshot>();
   private readonly app: App;
   private running = false;
+  /** This week's container market (Drewry WCI, entered in admin), for the freight guides. */
+  market: MarketBox | null = null;
   constructor(app: App) { this.app = app; }
+
+  async loadMarket() {
+    try { const m = await marketSummary(this.app.db) as { enabled: boolean; week?: string; lanes?: MarketBox['lanes'] }; this.market = m.enabled && m.week && m.lanes ? { week: m.week, lanes: m.lanes } : null; } catch { /* keep the last one */ }
+  }
 
   static ukKey(kg: number) { return `uk:${kg}`; }
   static intlKey(slug: string, kg: number) { return `${slug}:${kg}`; }
@@ -66,6 +75,7 @@ export class SeoPrices {
     await this.app.db.exec('CREATE TABLE IF NOT EXISTS seo_prices (key TEXT PRIMARY KEY, at TEXT NOT NULL, quotes TEXT NOT NULL)');
     const rows = await this.app.db.all<{ key: string; at: string; quotes: string }>('SELECT key, at, quotes FROM seo_prices');
     for (const r of rows) { try { this.snaps.set(r.key, { at: r.at, quotes: JSON.parse(r.quotes) }); } catch { /* skip */ } }
+    await this.loadMarket();
     return rows.length;
   }
 
@@ -86,6 +96,7 @@ export class SeoPrices {
   async refresh(gapMs = Number(process.env.SEO_REFRESH_GAP_MS ?? 1500)): Promise<number> {
     if (this.running) return 0;
     this.running = true;
+    await this.loadMarket();
     let n = 0;
     const jobs: Array<[string, ShipmentRequest]> = [
       ...UK_WEIGHTS.map((kg) => [SeoPrices.ukKey(kg), ukRequest(kg)] as [string, ShipmentRequest]),

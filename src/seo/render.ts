@@ -105,7 +105,8 @@ export function footer() {
 ${col('Couriers', CARRIERS.map((c) => [c.name, `/couriers/${c.slug}`]))}
 ${trackPagesOn() ? col('Track a parcel', CARRIERS.filter((c) => c.key !== 'fedex').map((c) => [`${c.name} tracking`, `/track/${c.slug}`])) : col('Track a parcel', [['Track any parcel', '/track']])}
 ${col('Send abroad', Object.entries(DESTINATIONS).map(([slug, d]) => [`Parcel to ${d.name.replace(/^the /, '')}`, `/send-parcel-to/${slug}`]))}
-${col('Guides and tools', [['UK parcel prices', '/parcel-prices'], ...GUIDES.map((g) => [g.title.replace(/\s*\(.*\)$/, ''), `/guides/${g.slug}`] as [string, string]), ['Volumetric weight calculator', '/tools/volumetric-weight-calculator']])}
+${col('Freight and moving', [['Compare freight rates', '/freight'], ['Find removal companies', '/movers'], ...GUIDES.filter((g) => g.cat === 'freight' || g.cat === 'moving').slice(0, 7).map((g) => [g.title.replace(/\s*[(:].*$/, ''), `/guides/${g.slug}`] as [string, string])])}
+${col('Guides and tools', [['UK parcel prices', '/parcel-prices'], ...GUIDES.filter((g) => !g.cat || g.cat === 'parcels').map((g) => [g.title.replace(/\s*\(.*\)$/, ''), `/guides/${g.slug}`] as [string, string]), ['Volumetric weight calculator', '/tools/volumetric-weight-calculator']])}
 </div>
 <p style="margin:18px 0 0;font-size:12.5px;line-height:1.55;opacity:.8">Kargom.co.uk compares live prices from leading UK and international couriers and books your label in minutes. Pay by card or with your Kargom wallet, print at home or drop off nearby, and get help from our UK team in your account.</p>
 ${(() => { const c = company(); return `<p style="margin:8px 0 0;font-size:12.5px;line-height:1.55;opacity:.8">Kargom.co.uk is a trading name of ${esc(c.name)}, registered in England and Wales${c.number ? `, company no. ${esc(c.number)}` : ''}${c.address ? `. Registered office: ${esc(c.address)}` : ''}.${c.email ? ` Contact: <a href="mailto:${esc(c.email)}" style="color:inherit">${esc(c.email)}</a>.` : ''}<br><a href="/about" style="color:inherit">About us</a> · <a href="/terms" style="color:inherit">Terms and conditions</a> · <a href="/privacy" style="color:inherit">Privacy policy</a> · <a href="/cookies" style="color:inherit">Cookie policy</a></p>`; })()}
@@ -321,27 +322,76 @@ ${faqBlock(faq)}
   });
 }
 
+const GUIDE_SECTIONS: Array<[NonNullable<Guide['cat']>, string, string]> = [
+  ['freight', 'Importing, freight and Amazon FBA', 'Shipping stock from China and beyond, customs, VAT and Amazon fulfilment centres.'],
+  ['moving', 'Moving home and office', 'What removals cost and how to plan a move.'],
+  ['parcels', 'Sending parcels', 'Prices, packaging, customs and the cheapest way to send.'],
+];
+const catOf = (g: Guide) => g.cat ?? 'parcels';
+const guideCard = (o: Guide) => `<a class="card" href="/guides/${o.slug}"><b>${esc(o.h1)}</b><span>${esc(o.description)}</span></a>`;
+
 export function guidesHub() {
   return page({
-    title: 'Parcel Delivery Guides and Tips | Kargom', path: '/guides',
-    description: 'Practical guides to sending parcels in the UK and abroad: the cheapest way to send, volumetric weight, packaging, drop-off vs collection and customs.',
+    title: 'Shipping, Freight and Moving Guides | Kargom', path: '/guides',
+    description: 'Practical guides to sending parcels, importing from China, shipping to Amazon FBA in the UK, USA and EU, freight costs and moving home or office.',
     crumbs: [['Guides', '/guides']],
-    body: `${hero('Guides', 'Short, practical answers to the questions people ask before sending a parcel.')}
-<div class="in wrap"><div class="cards">${GUIDES.map((g) => `<a class="card" href="/guides/${g.slug}"><b>${esc(g.h1)}</b><span>${esc(g.description)}</span></a>`).join('')}<a class="card" href="/tools/volumetric-weight-calculator"><b>Volumetric weight calculator</b><span>Work out whether your parcel will be charged by size or by weight.</span></a></div></div>`,
+    body: `${hero('Guides', 'Short, practical answers for people sending parcels, importing stock and moving home or office.')}
+<div class="in wrap">${GUIDE_SECTIONS.map(([cat, h, lead]) => `<section class="sec"><h2>${esc(h)}</h2><p class="lead2">${esc(lead)}</p><div class="cards">${GUIDES.filter((g) => catOf(g) === cat).map(guideCard).join('')}${cat === 'parcels' ? '<a class="card" href="/tools/volumetric-weight-calculator"><b>Volumetric weight calculator</b><span>Work out whether your parcel will be charged by size or by weight.</span></a>' : ''}</div></section>`).join('')}</div>`,
   });
 }
 
+/** This week's container market box for the freight guides (nothing when no week is entered). */
+function marketBox(prices: SeoPrices) {
+  const m = prices.market;
+  const lane = m?.lanes.find((l) => l.key === 'shaRtm');
+  if (!m || !lane) return '';
+  const others = m.lanes.filter((l) => ['shaGoa', 'shaLax', 'shaNyc'].includes(l.key));
+  const chg = (p: number | null) => (p === null ? '' : `<span class="wci-c ${p > 0 ? 'up' : p < 0 ? 'down' : ''}">${p > 0 ? '▲' : p < 0 ? '▼' : '•'} ${Math.abs(p)}% on last week</span>`);
+  const week = new Date(`${m.week}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  return `<div class="wci"><span class="wci-k">Container market this week · ${esc(week)}</span>
+<div class="wci-main"><span><b>China → UK / North Europe</b><small>One 40 ft container, port to port, Shanghai → Rotterdam benchmark</small></span><span class="wci-p"><b>$${lane.usd.toLocaleString('en-GB')}</b>${chg(lane.changePct)}</span></div>
+${others.length ? `<div class="wci-o">${others.map((l) => `<span>${esc(l.label)} <b>$${l.usd.toLocaleString('en-GB')}</b></span>`).join('')}</div>` : ''}
+<p class="note">Spot price in US dollars from the Drewry World Container Index. <a href="/freight?from=China&amp;to=United%20Kingdom&amp;load=container&amp;box=container40&amp;qty=1">Turn it into a door-to-door estimate</a>.</p></div>`;
+}
+
+/** Sidebar: a freight search for importers, a removals search for movers, a parcel quote otherwise. */
+function guideAside(g: Guide) {
+  if (catOf(g) === 'freight') {
+    const from = ['China', 'United Kingdom', 'Turkey', 'India', 'Vietnam', 'United States', 'Germany'];
+    const to = ['United Kingdom', 'United States', 'Germany', 'France', 'Ireland'];
+    const def = g.slug.includes('usa') ? ['United Kingdom', 'United States'] : g.slug.includes('europe') ? ['United Kingdom', 'Germany'] : ['China', 'United Kingdom'];
+    return `<form class="qf" action="/freight" method="get"><b class="qf-t">Compare freight rates</b>
+<label>From<select name="from">${from.map((c) => `<option${c === def[0] ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
+<label>To<select name="to">${to.map((c) => `<option${c === def[1] ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
+<label>Shipping<select name="load"><option value="container">Container</option><option value="pallets">Pallets</option><option value="boxes">Boxes</option></select></label>
+<button type="submit">See freight rates</button></form>`;
+  }
+  if (catOf(g) === 'moving') {
+    return `<form class="qf" action="/movers" method="get"><b class="qf-t">Find removal companies</b>
+<label>Moving from (postcode)<input name="from" required placeholder="e.g. M1 1AE" autocomplete="postal-code"></label>
+<label>Moving to (postcode)<input name="to" placeholder="e.g. LS1 4AP"></label>
+<label>Home size<select name="size"><option value="studio">Studio flat</option><option value="1">1 bedroom</option><option value="2" selected>2 bedrooms</option><option value="3">3 bedrooms</option><option value="4">4 bedrooms</option><option value="5">5+ bedrooms</option></select></label>
+<button type="submit">Find movers</button></form>`;
+  }
+  return quoteForm({ title: 'Get a live price' });
+}
+
 export function guidePage(g: Guide, prices: SeoPrices) {
-  const body = g.body.replace('{{UK_PRICES}}', ukCheapestTable(prices));
-  const related = GUIDES.filter((o) => o.slug !== g.slug).slice(0, 3);
+  const body = g.body.replace(/<table class="tbl">([\s\S]*?)<\/table>/g, '<div class="tblwrap"><table class="tbl">$1</table></div>')
+    .replace('{{UK_PRICES}}', ukCheapestTable(prices)).replace('{{WCI}}', marketBox(prices));
+  const related = [...GUIDES.filter((o) => o.slug !== g.slug && catOf(o) === catOf(g)), ...GUIDES.filter((o) => catOf(o) !== catOf(g))].slice(0, 3);
+  const faq = g.faq ?? [];
+  const sources = g.sources ?? [];
   return page({
     title: `${g.title} | Kargom`, description: g.description, path: `/guides/${g.slug}`, ogType: 'article',
     crumbs: [['Guides', '/guides'], [g.title.replace(/\s*\(.*\)$/, ''), `/guides/${g.slug}`]],
-    ld: [{ '@context': 'https://schema.org', '@type': 'Article', headline: g.h1, description: g.description, dateModified: g.updated, datePublished: g.updated, author: { '@type': 'Organization', name: 'Kargom', url: `${base()}/` }, publisher: ORG(), mainEntityOfPage: `${base()}/guides/${g.slug}`, image: `${base()}/assets/og.jpg` }],
+    ld: [{ '@context': 'https://schema.org', '@type': 'Article', headline: g.h1, description: g.description, dateModified: g.updated, datePublished: g.updated, author: { '@type': 'Organization', name: 'Kargom', url: `${base()}/` }, publisher: ORG(), mainEntityOfPage: `${base()}/guides/${g.slug}`, image: `${base()}/assets/og.jpg` },
+      ...(faq.length ? [faqLd(faq)] : [])],
     body: `<article class="in wrap art">
 <header class="art-h"><h1>${esc(g.h1)}</h1><p class="meta">Updated ${new Date(g.updated).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · ${g.minutes} min read</p></header>
-<div class="art-cols"><div class="prose">${body}</div><aside>${quoteForm({ title: 'Get a live price' })}</aside></div>
-<section class="sec"><h2>Related guides</h2><div class="cards">${related.map((o) => `<a class="card" href="/guides/${o.slug}"><b>${esc(o.h1)}</b><span>${esc(o.description)}</span></a>`).join('')}</div></section>
+<div class="art-cols"><div class="prose">${body}${sources.length ? `<h2>Sources</h2><ul class="src">${sources.map(([t, u]) => `<li><a href="${esc(u)}" rel="noopener" target="_blank">${esc(t)}</a></li>`).join('')}</ul>` : ''}</div><aside>${guideAside(g)}</aside></div>
+${faqBlock(faq)}
+<section class="sec"><h2>Related guides</h2><div class="cards">${related.map(guideCard).join('')}</div></section>
 </article>`,
   });
 }
